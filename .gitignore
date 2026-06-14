@@ -1,0 +1,12 @@
+.DS_Store
+Thumbs.db
+
+# Runtime/cache
+.codex/
+.claude/
+.venv/
+node_modules/
+__pycache__/
+
+# Logs
+*.log

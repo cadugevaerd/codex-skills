@@ -1,0 +1,27 @@
+{
+  "name": "grillme-langgraph",
+  "version": "1.0.0",
+  "description": "Entrevista tecnica para rascunhar fluxos LangGraph com diagrama, State CRUE, tabela de nodes e fronteiras deterministicas.",
+  "author": {
+    "name": "Carlos Araujo",
+    "email": "cadu.gevaerd@gmail.com",
+    "url": "https://github.com/cadugevaerd"
+  },
+  "homepage": "https://github.com/cadugevaerd/codex-skills",
+  "repository": "https://github.com/cadugevaerd/codex-skills",
+  "license": "MIT",
+  "keywords": ["langgraph", "langchain", "agents", "design", "interview"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Grillme LangGraph",
+    "shortDescription": "Design tecnico de fluxos LangGraph.",
+    "longDescription": "Interroga o usuario uma pergunta por vez e produz um rascunho de fluxo LangGraph com diagrama Mermaid, State CRUE, tabela de nodes e explicacao de cada node.",
+    "developerName": "Carlos Araujo",
+    "category": "Development",
+    "capabilities": ["Interactive", "Design"],
+    "defaultPrompt": [
+      "/grillme-langgraph desenhar o fluxo do agente",
+      "/grillme-langgraph decidir agent-as-node vs nodes explicitos"
+    ]
+  }
+}

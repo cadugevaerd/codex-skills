@@ -1,0 +1,56 @@
+{
+  "name": "codex-skills",
+  "interface": {
+    "displayName": "Codex Skills"
+  },
+  "plugins": [
+    {
+      "name": "backlog",
+      "source": {
+        "source": "local",
+        "path": "./plugins/backlog"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    },
+    {
+      "name": "code-review-cadu",
+      "source": {
+        "source": "local",
+        "path": "./plugins/code-review-cadu"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Development"
+    },
+    {
+      "name": "grillme-langgraph",
+      "source": {
+        "source": "local",
+        "path": "./plugins/grillme-langgraph"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Development"
+    },
+    {
+      "name": "grillme-gestor",
+      "source": {
+        "source": "local",
+        "path": "./plugins/grillme-gestor"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Development"
+    }
+  ]
+}

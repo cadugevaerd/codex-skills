@@ -1,0 +1,27 @@
+{
+  "name": "grillme-gestor",
+  "version": "1.0.0",
+  "description": "Versao nao-tecnica da grillme-langgraph: entrevista de negocio e entrega o mesmo artefato tecnico LangGraph em markdown.",
+  "author": {
+    "name": "Carlos Araujo",
+    "email": "cadu.gevaerd@gmail.com",
+    "url": "https://github.com/cadugevaerd"
+  },
+  "homepage": "https://github.com/cadugevaerd/codex-skills",
+  "repository": "https://github.com/cadugevaerd/codex-skills",
+  "license": "MIT",
+  "keywords": ["langgraph", "gestor", "nao-tecnico", "design", "interview"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Grillme Gestor",
+    "shortDescription": "Entrevista de negocio para fluxo LangGraph.",
+    "longDescription": "Conduz uma entrevista sem jargao tecnico e transforma o processo em diagrama, State CRUE, tabela de nodes e explicacao tecnica em arquivo markdown.",
+    "developerName": "Carlos Araujo",
+    "category": "Development",
+    "capabilities": ["Interactive", "Write", "Design"],
+    "defaultPrompt": [
+      "/grillme-gestor desenhar processo de atendimento",
+      "/grillme-gestor transformar este fluxo em LangGraph"
+    ]
+  }
+}

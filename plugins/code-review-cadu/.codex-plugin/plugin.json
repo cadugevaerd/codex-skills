@@ -1,0 +1,27 @@
+{
+  "name": "code-review-cadu",
+  "version": "1.2.0",
+  "description": "Code review de PR com veredicto GO/NO-GO por finding sobre o merge e fluxo de backlog para findings diferiveis.",
+  "author": {
+    "name": "Carlos Araujo",
+    "email": "cadu.gevaerd@gmail.com",
+    "url": "https://github.com/cadugevaerd"
+  },
+  "homepage": "https://github.com/cadugevaerd/codex-skills",
+  "repository": "https://github.com/cadugevaerd/codex-skills",
+  "license": "Apache-2.0",
+  "keywords": ["code-review", "pull-request", "go-no-go", "backlog", "triage", "quality"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Code Review Cadu",
+    "shortDescription": "PR review com veredito GO/NO-GO.",
+    "longDescription": "Revisa pull requests com foco em bugs reais, atribui veredito GO/NO-GO por finding e encaminha itens diferiveis ao backlog somente apos confirmacao.",
+    "developerName": "Carlos Araujo",
+    "category": "Development",
+    "capabilities": ["Review", "GitHub", "Write"],
+    "defaultPrompt": [
+      "/code-review-cadu 123",
+      "/code-review-cadu https://github.com/org/repo/pull/123"
+    ]
+  }
+}
