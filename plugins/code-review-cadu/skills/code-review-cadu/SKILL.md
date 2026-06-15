@@ -50,7 +50,21 @@ To do this, follow these steps precisely:
    c. Link and cite relevant code, files, and URLs
    d. Prefix every issue with its verdict: `**[NO-GO]**` (merge blocked, fix in this PR) or `**[GO → backlog]**` (merge may proceed, deferred)
 10. Backlog flow for the GO issues (NEVER register automatically):
-    a. After posting the PR comment, present the user (in the conversation) a summary table: `# | finding | verdict | justification`.
+    a. After posting the PR comment, present the user (in the conversation) a summary table of every finding that passed the filter, rendered in the box-drawing style below — header rule `━`, row separators `─`; columns `# · finding · verdict · justification`; order all `NO-GO` rows first, then `GO`; wrap long cells across lines keeping the columns aligned. The `justification` cites the rule/spec/criterion driving the verdict (eg. `US2/FR-004/SC-003`, an `AGENTS.md`/`CLAUDE.md` rule, a constitution clause). This table is **conversation-only** — do NOT put it in the PR comment (box-drawing does not render on GitHub; the PR comment keeps the markdown list format from step 9).
+
+       ```
+        #      finding                                            verdict    justification
+       ━━━━━  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  ━━━━━━━━━  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        1      Alarmes com alarm_actions = [] / ok_actions =      NO-GO      US2/FR-004/SC-003 exigem operador alertado;
+               []                                                            alarme sem ação só muda estado.
+       ─────  ─────────────────────────────────────────────────  ─────────  ─────────────────────────────────────────────────
+        2      Teste live-container dentro de tests/unit/         NO-GO      Pode quebrar make test/CI quando Docker existe
+                                                                             mas litellm não está rodando.
+       ─────  ─────────────────────────────────────────────────  ─────────  ─────────────────────────────────────────────────
+        3      Cleanup de import não usado em utils.py            GO         Estético; não afeta correctness — diferível
+                                                                             para o backlog.
+       ```
+
     b. Ask the user to confirm which GO issues should go to the backlog.
     c. After the user's OK, register the confirmed GO issues in batch in the project's backlog (`.specify/backlog.json`) via the `/backlog` skill, and report the generated `BL-NNNN` id next to each finding.
     d. If the project does not have `.specify/backlog.json`, offer the `/backlog` bootstrap before registering.
