@@ -1,6 +1,6 @@
 {
   "name": "code-review-cadu",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Code review de PR com veredicto GO/NO-GO por finding sobre o merge e fluxo de backlog para findings diferiveis.",
   "author": {
     "name": "Carlos Araujo",

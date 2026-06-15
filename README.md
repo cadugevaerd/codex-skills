@@ -8,7 +8,7 @@ plugin individual.
 
 | Plugin | O que faz |
 | --- | --- |
-| `backlog` | Mantem `.specify/backlog.json` como fonte da verdade de itens diferidos, com bootstrap de `BACKLOG.md` e instrucoes para agentes. |
+| `backlog` | Mantem `.specify/backlog.json` como fonte da verdade de itens diferidos, com bootstrap de `BACKLOG.md` e instrucoes para agentes. A operacao `format` re-tria a severidade (4 niveis) e atribui o rank 1-100 (ordem de ataque). |
 | `code-review-cadu` | Revisa PRs com veredicto `GO`/`NO-GO` por finding e encaminha itens diferiveis ao backlog apos confirmacao. |
 | `grillme-langgraph` | Entrevista tecnica para desenhar um fluxo LangGraph com diagrama, State CRUE, tabela de nodes e fronteiras deterministicas. |
 | `grillme-gestor` | Versao sem jargao tecnico da `grillme-langgraph`, voltada a gestores, salvando o artefato tecnico em markdown. |

@@ -1,7 +1,7 @@
 {
   "name": "backlog",
-  "version": "1.0.0",
-  "description": "Fonte da verdade de itens diferidos (.specify/backlog.json): registra, tria, promove e resolve features, bugs, debitos tecnicos e chores.",
+  "version": "1.1.0",
+  "description": "Fonte da verdade de itens diferidos (.specify/backlog.json): registra, tria, promove e resolve features, bugs, debitos tecnicos e chores. Operacao 'format' re-tria severidade (4 niveis: critica/alta/media/baixa) e atribui rank 1-100 (ordem de ataque).",
   "author": {
     "name": "Carlos Araujo",
     "email": "cadu.gevaerd@gmail.com",
@@ -15,13 +15,14 @@
   "interface": {
     "displayName": "Backlog",
     "shortDescription": "Fonte da verdade para trabalho diferido.",
-    "longDescription": "Registra, tria, promove e resolve itens diferidos em .specify/backlog.json, com bootstrap de BACKLOG.md e instrucoes normativas para agentes.",
+    "longDescription": "Registra, tria, promove e resolve itens diferidos em .specify/backlog.json, com bootstrap de BACKLOG.md e instrucoes normativas para agentes. A operacao 'format' reorganiza o backlog: re-tria a severidade (4 niveis) e atribui o rank 1-100 (ordem de ataque unica por item), com confirmacao antes de gravar.",
     "developerName": "Carlos Araujo",
     "category": "Productivity",
     "capabilities": ["Write", "Workflow"],
     "defaultPrompt": [
       "/backlog add revisar pendencias do projeto",
       "/backlog list",
+      "/backlog format",
       "/backlog init"
     ]
   }
