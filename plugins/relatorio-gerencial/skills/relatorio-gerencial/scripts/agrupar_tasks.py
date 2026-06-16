@@ -43,6 +43,8 @@ THEMES = [
 ]
 
 PRIORITY_WEIGHT = {"critica": 4, "alta": 3, "media": 2, "baixa": 1}
+DETAIL_EXCERPT_CHARS = 260
+MAX_ITEM_DETAILS_PER_GROUP = 20
 
 
 def read_backlogs(path: Path) -> list[dict[str, Any]]:
@@ -54,7 +56,17 @@ def read_manual_tasks(path: Path | None, inline: list[str] | None) -> list[dict[
     tasks: list[dict[str, Any]] = []
     if inline:
         for idx, text in enumerate(inline, 1):
-            tasks.append({"repo": "trabalho-atual", "title": text.strip(), "priority": "alta", "type": "current", "status": "em-andamento", "manual": True, "id": f"ATUAL-{idx:02d}"})
+            tasks.append(
+                {
+                    "repo": "trabalho-atual",
+                    "title": text.strip(),
+                    "priority": "alta",
+                    "type": "current",
+                    "status": "em-andamento",
+                    "manual": True,
+                    "id": f"ATUAL-{idx:02d}",
+                }
+            )
     if not path:
         return tasks
     content = path.read_text(encoding="utf-8").strip()
@@ -65,7 +77,15 @@ def read_manual_tasks(path: Path | None, inline: list[str] | None) -> list[dict[
         raw_items = data if isinstance(data, list) else data.get("items", [])
         for idx, item in enumerate(raw_items, 1):
             if isinstance(item, str):
-                tasks.append({"repo": "trabalho-atual", "title": item, "priority": "alta", "type": "current", "status": "em-andamento", "manual": True, "id": f"ATUAL-{idx:02d}"})
+                tasks.append({
+                    "repo": "trabalho-atual",
+                    "title": item,
+                    "priority": "alta",
+                    "type": "current",
+                    "status": "em-andamento",
+                    "manual": True,
+                    "id": f"ATUAL-{idx:02d}",
+                })
             else:
                 item = dict(item)
                 item.setdefault("repo", "trabalho-atual")
@@ -76,9 +96,17 @@ def read_manual_tasks(path: Path | None, inline: list[str] | None) -> list[dict[
                 tasks.append(item)
         return tasks
     for idx, line in enumerate(content.splitlines(), 1):
-        cleaned = re.sub(r"^[-*]\s*", "", line).strip()
+        cleaned = re.sub(r"^[-*]\\s*", "", line).strip()
         if cleaned:
-            tasks.append({"repo": "trabalho-atual", "title": cleaned, "priority": "alta", "type": "current", "status": "em-andamento", "manual": True, "id": f"ATUAL-{idx:02d}"})
+            tasks.append({
+                "repo": "trabalho-atual",
+                "title": cleaned,
+                "priority": "alta",
+                "type": "current",
+                "status": "em-andamento",
+                "manual": True,
+                "id": f"ATUAL-{idx:02d}",
+            })
     return tasks
 
 
@@ -119,6 +147,49 @@ def summarize_group(theme: dict[str, Any], items: list[dict[str, Any]]) -> str:
     return "Agrupa pendencias relacionadas para facilitar priorizacao e acompanhamento executivo."
 
 
+def normalize_excerpt(text: str, max_len: int) -> str:
+    compact = " ".join(re.sub(r"\s+", " ", str(text or "")).strip().split())
+    if not compact:
+        return "Sem detalhes adicionais."
+    if len(compact) <= max_len:
+        return compact
+    return f"{compact[: max_len - 1].rstrip()}…"
+
+
+def _item_priority(item: dict[str, Any]) -> int:
+    return PRIORITY_WEIGHT.get(str(item.get("priority", "media")).lower(), 2)
+
+
+def build_item_details(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    ordered = sorted(
+        items,
+        key=lambda item: (
+            item.get("manual") is not True,
+            _item_priority(item),
+            str(item.get("updated") or ""),
+        ),
+        reverse=True,
+    )
+
+    details = []
+    for item in ordered[:MAX_ITEM_DETAILS_PER_GROUP]:
+        raw = item.get("raw") if isinstance(item.get("raw"), dict) else {}
+        details.append(
+            {
+                "id": item.get("id", "SEM-ID"),
+                "title": item.get("title", "Item sem titulo"),
+                "status": item.get("status", "aberto"),
+                "priority": item.get("priority", "media"),
+                "repo": item.get("repo") or "trabalho-atual",
+                "agent": item.get("agent") or raw.get("agent"),
+                "type": item.get("type", "item"),
+                "description": normalize_excerpt(item.get("description") or raw.get("notes") or raw.get("detail") or "", DETAIL_EXCERPT_CHARS),
+                "source": item.get("source", raw.get("source", "Backlog")),
+            }
+        )
+    return details
+
+
 def next_action(group_urgency: str) -> str:
     if group_urgency in {"critica", "alta"}:
         return "Priorizar na proxima janela e remover bloqueios de decisao."
@@ -157,7 +228,9 @@ def build_groups(items: list[dict[str, Any]], max_groups: int) -> list[dict[str,
                 "repos": repos[:4],
                 "urgency": group_urgency,
                 "next_action": next_action(group_urgency),
+                "details_count": len(group_items),
                 "microtasks_count": len(group_items),
+                "detailed_items": build_item_details(group_items),
                 "examples": [str(item.get("title", ""))[:120] for item in group_items[:3]],
             }
         )
@@ -187,6 +260,7 @@ def main() -> None:
         "stats": {
             "manual_tasks": len(manual_items),
             "backlog_items": len(backlog_items),
+            "detailed_items": sum(group.get("details_count", 0) for group in groups),
             "grouped_initiatives": len(groups),
             "repos": sorted({str(item.get("repo")) for item in backlog_items if item.get("repo")}),
         },

@@ -10,6 +10,7 @@ plugin individual.
 | --- | --- |
 | `backlog` | Mantem `.specify/backlog.json` como fonte da verdade de itens diferidos, com bootstrap de `BACKLOG.md` e instrucoes para agentes. A operacao `format` re-tria a severidade (4 niveis) e atribui o rank 1-100 (ordem de ataque). |
 | `code-review-cadu` | Revisa PRs com veredicto `GO`/`NO-GO` por finding e encaminha itens diferiveis ao backlog apos confirmacao. |
+| `relatorio-gerencial` | Gera relatorios executivos (uma pagina) de tarefas atuais e backlog multi-repositorio com linguagem gerencial e PDF. |
 | `grillme-langgraph` | Entrevista tecnica para desenhar um fluxo LangGraph com diagrama, State CRUE, tabela de nodes e fronteiras deterministicas. |
 | `grillme-gestor` | Versao sem jargao tecnico da `grillme-langgraph`, voltada a gestores, salvando o artefato tecnico em markdown. |
 
@@ -21,6 +22,7 @@ Da raiz deste repo:
 codex plugin marketplace add .
 codex plugin add backlog@codex-skills
 codex plugin add code-review-cadu@codex-skills
+codex plugin add relatorio-gerencial@codex-skills
 codex plugin add grillme-langgraph@codex-skills
 codex plugin add grillme-gestor@codex-skills
 ```
@@ -42,6 +44,9 @@ plugins/
   code-review-cadu/
     .codex-plugin/plugin.json
     skills/code-review-cadu/SKILL.md
+  relatorio-gerencial/
+    .codex-plugin/plugin.json
+    skills/relatorio-gerencial/
   grillme-langgraph/
     .codex-plugin/plugin.json
     skills/grillme-langgraph/
@@ -59,7 +64,7 @@ plugins/
 - A skill `backlog` usa `AGENTS.md` como arquivo normativo principal no Codex,
   mantendo compatibilidade com `CLAUDE.md` em projetos herdados.
 - A skill `code-review-cadu` foi ajustada para falar em revisores/subagentes
-  genericos do Codex, sem nomes de modelos Claude.
+genericos do Codex, sem nomes de modelos Claude.
 
 ## Licenca
 

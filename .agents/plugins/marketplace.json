@@ -29,6 +29,18 @@
       "category": "Development"
     },
     {
+      "name": "relatorio-gerencial",
+      "source": {
+        "source": "local",
+        "path": "./plugins/relatorio-gerencial"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    },
+    {
       "name": "grillme-langgraph",
       "source": {
         "source": "local",

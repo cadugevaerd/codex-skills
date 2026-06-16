@@ -143,7 +143,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--config", default=str(CONFIG_PATH), help="Caminho do JSON de configuracao global")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    p_init = sub.add_parser("init", help="Cria configuracao global com repos padrao")
+    p_init = sub.add_parser("init", help="Cria configuracao global com repositorio padrao")
     p_init.add_argument("--force", action="store_true", help="Sobrescreve configuracao existente")
     p_init.set_defaults(func=cmd_init)
 
@@ -170,6 +170,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_enable = sub.add_parser("enable", help="Habilita repositorio")
     p_enable.add_argument("--name", required=True)
     p_enable.set_defaults(func=lambda args: set_enabled(args, True))
+
     return parser
 
 

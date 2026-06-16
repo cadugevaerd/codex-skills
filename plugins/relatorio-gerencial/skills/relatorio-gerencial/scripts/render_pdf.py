@@ -6,14 +6,13 @@ import html
 import json
 import shutil
 import subprocess
-import sys
 import textwrap
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-DEFAULT_TEMPLATE = SCRIPT_DIR.parent / "assets" / "report-template.html"
+DEFAULT_TEMPLATE = SCRIPT_DIR / "assets" / "report-template.html"
 
 
 def badge_class(urgency: str) -> str:
@@ -25,6 +24,19 @@ def badge_class(urgency: str) -> str:
     }.get(urgency, "warn")
 
 
+def item_meta(item: dict[str, Any]) -> str:
+    parts: list[str] = [
+        f"Status: {item.get('status', 'aberto')}",
+        f"Prioridade: {str(item.get('priority', 'media')).upper()}",
+        f"Tipo: {item.get('type', 'item')}",
+    ]
+    if item.get("agent"):
+        parts.append(f"Agente: {item.get('agent')}")
+    if item.get("repo"):
+        parts.append(f"Escopo: {item.get('repo')}")
+    return " · ".join(parts)
+
+
 def render_html(data: dict[str, Any], template_path: Path) -> str:
     template = template_path.read_text(encoding="utf-8")
     groups = data.get("groups", [])[:5]
@@ -32,10 +44,15 @@ def render_html(data: dict[str, Any], template_path: Path) -> str:
     stats = data.get("stats", {})
 
     current_html = "".join(f"<li>{html.escape(str(task))}</li>" for task in current_tasks) or "<li>Sem tarefas atuais informadas.</li>"
+
     groups_html = []
+    details_html = []
     for group in groups:
         repos = ", ".join(group.get("repos", [])[:3]) or "portfolio"
         examples = "".join(f"<li>{html.escape(str(example))}</li>" for example in group.get("examples", [])[:2])
+        if not examples:
+            examples = "<li>Sem resumo executivo rápido disponível.</li>"
+
         groups_html.append(
             f"""
             <article class="initiative">
@@ -52,14 +69,63 @@ def render_html(data: dict[str, Any], template_path: Path) -> str:
             """
         )
 
+        items = group.get("detailed_items", []) or []
+        item_rows = []
+        for item in items[:12]:
+            item_rows.append(
+                f"""
+                <article class="detail-item">
+                  <div class="detail-item-head">
+                    <span class="detail-item-id">{html.escape(str(item.get('id', 'SEM-ID')))} · {html.escape(str(item.get('repo', 'trabalho-atual')))}</span>
+                    <span class="badge {badge_class(str(item.get('priority', 'media')))}">{html.escape(str(item.get('priority', 'media')).upper())}</span>
+                  </div>
+                  <div class="detail-item-title">{html.escape(str(item.get('title', 'Item sem titulo')))}</div>
+                  <div class="detail-item-meta">{html.escape(item_meta(item))}</div>
+                  <div class="detail-item-desc">{html.escape(str(item.get('description', 'Sem detalhe registrado.')))}</div>
+                  <div class="detail-item-source">Fonte: {html.escape(str(item.get('source', 'Sem fonte informada.')))}</div>
+                </article>
+                """
+            )
+
+        if not item_rows:
+            item_rows = ["<div class='detail-item'>Sem itens detalhados nesta iniciativa.</div>"]
+
+        details_html.append(
+            f"""
+            <section class="detail-section">
+              <div class="detail-section-head">
+                <span class="emoji">{html.escape(str(group.get('emoji', '📌')))}</span>
+                <h2>{html.escape(str(group.get('title', 'Iniciativa')))}</h2>
+                <span class="badge {badge_class(str(group.get('urgency', 'media')))}">{html.escape(str(group.get('urgency', 'media')).upper())}</span>
+              </div>
+              <p>{html.escape(str(group.get('summary', 'Detalhamento dos itens da iniciativa.')))}</p>
+              <div class="detail-items">
+                {"\n".join(item_rows)}
+              </div>
+            </section>
+            """
+        )
+
+    if not details_html:
+        details_html.append(
+            """
+            <section class="detail-section">
+              <div class="detail-section-head"><h2>Detalhamento</h2></div>
+              <p>Nenhum item de backlog foi agrupado para detalhamento.</p>
+            </section>
+            """
+        )
+
     return (
         template.replace("{{DATE}}", html.escape(str(data.get("date", ""))))
         .replace("{{TITLE}}", html.escape(str(data.get("title", "Relatorio gerencial"))))
         .replace("{{CURRENT_TASKS}}", current_html)
         .replace("{{GROUPS}}", "\n".join(groups_html))
+        .replace("{{DETAILED_GROUPS}}", "\n".join(details_html))
         .replace("{{MANUAL_COUNT}}", str(stats.get("manual_tasks", 0)))
         .replace("{{BACKLOG_COUNT}}", str(stats.get("backlog_items", 0)))
         .replace("{{REPO_COUNT}}", str(len(stats.get("repos", []))))
+        .replace("{{DETAIL_COUNT}}", str(int(stats.get("detailed_items", 0))))
     )
 
 
@@ -72,7 +138,7 @@ def render_with_playwright(html_path: Path, pdf_path: Path) -> bool:
         browser = p.chromium.launch()
         page = browser.new_page(viewport={"width": 1240, "height": 1754}, device_scale_factor=1)
         page.goto(html_path.as_uri(), wait_until="networkidle")
-        page.pdf(path=str(pdf_path), format="A4", print_background=True, margin={"top": "0", "right": "0", "bottom": "0", "left": "0"})
+        page.pdf(path=str(pdf_path), format="A4", print_background=True, prefer_css_page_size=True, margin={"top": "10mm", "right": "8mm", "bottom": "10mm", "left": "8mm"})
         browser.close()
     return True
 
@@ -99,22 +165,8 @@ def render_with_chromium(html_path: Path, pdf_path: Path) -> bool:
     return True
 
 
-def font_path() -> str | None:
-    try:
-        completed = subprocess.run(
-            ["fc-match", "-f", "%{file}", "DejaVu Sans"],
-            check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            text=True,
-        )
-        return completed.stdout.strip() or None
-    except Exception:
-        return None
-
-
 def draw_wrapped(draw: Any, xy: tuple[int, int], text: str, font: Any, fill: str, width: int, line_height: int, max_lines: int | None = None) -> int:
-    chars = max(18, width // max(7, int(font.size * 0.48)))
+    chars = max(20, width // max(7, max(1, int(font.size * 0.5))))
     lines: list[str] = []
     for paragraph in str(text).splitlines() or [""]:
         lines.extend(textwrap.wrap(paragraph, width=chars) or [""])
@@ -133,92 +185,116 @@ def render_with_pillow(data: dict[str, Any], pdf_path: Path) -> bool:
     except Exception:
         return False
 
-    scale = 2
+    scale = 3
     width, height = 1240, 1754
-    image = Image.new("RGB", (width, height), "#f7fafc")
+    image = Image.new("RGB", (width * scale, height * scale), "#f7fafc")
     draw = ImageDraw.Draw(image)
 
     fp = font_path()
     font = lambda size: ImageFont.truetype(fp, size) if fp else ImageFont.load_default()
-    title_font = font(42)
-    h2_font = font(24)
-    h3_font = font(20)
-    body_font = font(17)
-    small_font = font(14)
-    tiny_font = font(12)
+    title_font = font(42 * scale)
+    h2_font = font(24 * scale)
+    h3_font = font(20 * scale)
+    body_font = font(17 * scale)
+    small_font = font(14 * scale)
+    tiny_font = font(12 * scale)
 
-    # Soft executive background.
+    # Background suave em degradê.
     for y in range(height):
         ratio = y / height
         r = int(250 - 10 * ratio)
         g = int(252 - 9 * ratio)
         b = int(255 - 24 * ratio)
-        draw.line([(0, y), (width, y)], fill=(r, g, b))
+        y1 = y * scale
+        draw.line([(0, y1), (width * scale, y1)], fill=(r, g, b))
 
-    margin = 86
-    draw.rounded_rectangle((margin, 70, width - margin, 185), radius=18, fill="#ffffff", outline="#d8e0ea", width=2)
-    draw.text((margin + 28, 92), str(data.get("title", "Relatorio gerencial")), font=title_font, fill="#172033")
-    draw.text((width - margin - 210, 98), f"📅 {data.get('date', '')}", font=body_font, fill="#536173")
-    draw.text((margin + 28, 147), "Resumo executivo para acompanhamento de prioridade, risco e proxima acao.", font=body_font, fill="#536173")
+    sx = lambda v: int(v * scale)
+    margin = sx(86)
+    chart_left = sx(86)
+    draw.rounded_rectangle((margin, sx(70), sx(width) - margin, sx(185)), radius=18 * scale, fill="#ffffff", outline="#d8e0ea", width=2 * scale)
+    draw.text((sx(114), sx(92)), str(data.get("title", "Relatorio gerencial")), font=title_font, fill="#172033")
+    draw.text((sx(width - 210 - 86), sx(98)), f"📅 {data.get('date', '')}", font=body_font, fill="#536173")
+    draw.text((sx(114), sx(147)), "Resumo executivo para acompanhamento de prioridade, risco e proxima acao.", font=body_font, fill="#536173")
 
     stats = data.get("stats", {})
     metrics = [
         ("🎯", stats.get("manual_tasks", 0), "tarefas atuais"),
         ("📌", stats.get("backlog_items", 0), "itens em backlog"),
         ("🗂", len(stats.get("repos", [])), "repositorios"),
+        ("📚", stats.get("detailed_items", 0), "itens detalhados"),
     ]
-    card_w = (width - 2 * margin - 24) // 3
+    card_w = (width - 2 * 86 - 24) // 4
     for i, (emoji, value, label) in enumerate(metrics):
-        x = margin + i * (card_w + 12)
-        draw.rounded_rectangle((x, 210, x + card_w, 306), radius=16, fill="#ffffff", outline="#d8e0ea", width=2)
-        draw.text((x + 22, 232), f"{emoji} {value}", font=h2_font, fill="#172033")
-        draw.text((x + 22, 270), str(label).upper(), font=tiny_font, fill="#536173")
+        x = sx(86) + i * sx(card_w + 12)
+        draw.rounded_rectangle((x, sx(210), x + sx(card_w), sx(306)), radius=16 * scale, fill="#ffffff", outline="#d8e0ea", width=2 * scale)
+        draw.text((x + sx(22), sx(232)), f"{emoji} {value}", font=h2_font, fill="#172033")
+        draw.text((x + sx(22), sx(270)), str(label).upper(), font=tiny_font, fill="#536173")
 
-    left_x, left_y, left_w = margin, 335, 390
-    right_x, right_y, right_w = margin + left_w + 24, 335, width - 2 * margin - left_w - 24
-    draw.rounded_rectangle((left_x, left_y, left_x + left_w, 1020), radius=16, fill="#ffffff", outline="#d8e0ea", width=2)
-    draw.text((left_x + 22, left_y + 22), "🎯 Foco Atual", font=h2_font, fill="#172033")
-    y = left_y + 66
+    left_x, left_y, left_w = 86, 335, 390
+    right_x, right_y, right_w = left_x + left_w + 24, 335, width - 2 * left_x - left_w - 24
+    draw.rounded_rectangle((sx(left_x), sx(left_y), sx(left_x + left_w), sx(1020)), radius=16 * scale, fill="#ffffff", outline="#d8e0ea", width=2 * scale)
+    draw.text((sx(left_x + 22), sx(left_y + 22)), "🎯 Foco Atual", font=h2_font, fill="#172033")
+    y = sx(left_y + 66)
     current_tasks = data.get("current_tasks", [])[:5] or ["Sem tarefas atuais informadas."]
     for task in current_tasks:
-        y = draw_wrapped(draw, (left_x + 28, y), f"• {task}", body_font, "#253047", left_w - 56, 25, max_lines=3) + 8
+        y = draw_wrapped(draw, (sx(left_x + 28), y), f"• {task}", body_font, "#253047", sx(left_w - 56), sx(25), max_lines=3) + sx(8)
 
-    draw.rounded_rectangle((left_x, 1044, left_x + left_w, 1455), radius=16, fill="#ffffff", outline="#d8e0ea", width=2)
-    draw.text((left_x + 22, 1066), "⚠️ Riscos", font=h2_font, fill="#172033")
+    draw.rounded_rectangle((sx(left_x), sx(1044), sx(left_x + left_w), sx(1455)), radius=16 * scale, fill="#ffffff", outline="#d8e0ea", width=2 * scale)
+    draw.text((sx(left_x + 22), sx(1066)), "⚠️ Riscos", font=h2_font, fill="#172033")
     risk = "Itens de alta urgencia podem afetar prazo, confiabilidade ou previsibilidade se ficarem sem decisao."
-    y = draw_wrapped(draw, (left_x + 24, 1110), risk, body_font, "#253047", left_w - 48, 25, max_lines=5)
-    draw.text((left_x + 22, y + 28), "✅ Decisoes", font=h2_font, fill="#172033")
-    draw_wrapped(draw, (left_x + 24, y + 72), "Confirmar prioridade dos blocos marcados como ALTA/CRITICA na proxima conversa.", body_font, "#253047", left_w - 48, 25, max_lines=5)
+    y = draw_wrapped(draw, (sx(left_x + 24), sx(1110)), risk, body_font, "#253047", sx(left_w - 48), sx(25), max_lines=5)
+    draw.text((sx(left_x + 22), y + sx(28)), "✅ Decisoes", font=h2_font, fill="#172033")
+    draw_wrapped(draw, (sx(left_x + 24), y + sx(72)), "Confirmar prioridade dos blocos marcados como ALTA/CRITICA na proxima conversa.", body_font, "#253047", sx(left_w - 48), sx(25), max_lines=5)
 
-    draw.rounded_rectangle((right_x, right_y, right_x + right_w, 1455), radius=16, fill="#ffffff", outline="#d8e0ea", width=2)
-    draw.text((right_x + 22, right_y + 22), "🚧 Proximos Blocos de Trabalho", font=h2_font, fill="#172033")
-    y = right_y + 68
+    draw.rounded_rectangle((sx(right_x), sx(right_y), sx(right_x + right_w), sx(1455)), radius=16 * scale, fill="#ffffff", outline="#d8e0ea", width=2 * scale)
+    draw.text((sx(right_x + 22), sx(right_y + 22)), "🚧 Proximos Blocos de Trabalho", font=h2_font, fill="#172033")
+    y = sx(right_y + 68)
     colors = {"critica": "#b42318", "alta": "#c2412d", "media": "#b7791f", "baixa": "#2f7d64"}
     for group in data.get("groups", [])[:5]:
-        if y > 1360:
+        if y > sx(1360):
             break
         urgency = str(group.get("urgency", "media")).lower()
-        draw.rounded_rectangle((right_x + 20, y, right_x + right_w - 20, y + 166), radius=14, fill="#f8fafc", outline="#e2e8f0", width=1)
-        draw.text((right_x + 38, y + 18), f"{group.get('emoji', '📌')} {group.get('title', 'Iniciativa')}", font=h3_font, fill="#172033")
+        draw.rounded_rectangle((sx(right_x + 20), y, sx(right_x + right_w - 20), y + sx(166)), radius=14 * scale, fill="#f8fafc", outline="#e2e8f0", width=1 * scale)
+        draw.text((sx(right_x + 38), y + sx(18)), f"{group.get('emoji', '📌')} {group.get('title', 'Iniciativa')}", font=h3_font, fill="#172033")
         badge = urgency.upper()
         badge_w = 16 + len(badge) * 9
-        draw.rounded_rectangle((right_x + right_w - 42 - badge_w, y + 16, right_x + right_w - 34, y + 42), radius=13, fill=colors.get(urgency, "#b7791f"))
-        draw.text((right_x + right_w - 34 - badge_w, y + 21), badge, font=tiny_font, fill="#ffffff")
-        draw_wrapped(draw, (right_x + 42, y + 54), str(group.get("summary", "")), body_font, "#253047", right_w - 84, 23, max_lines=2)
+        draw.rounded_rectangle((sx(right_x + right_w - 42 - badge_w), y + sx(16), sx(right_x + right_w - 34), y + sx(42)), radius=13 * scale, fill=colors.get(urgency, "#b7791f"))
+        draw.text((sx(right_x + right_w - 34 - badge_w), y + sx(21)), badge, font=tiny_font, fill="#ffffff")
+        draw_wrapped(draw, (sx(right_x + 42), y + sx(54)), str(group.get("summary", "")), body_font, "#253047", sx(right_w - 84), sx(23), max_lines=2)
         repos = ", ".join(group.get("repos", [])[:3]) or "portfolio"
-        draw.text((right_x + 42, y + 104), f"Repos: {repos} · {group.get('microtasks_count', 0)} itens agrupados", font=small_font, fill="#536173")
-        draw_wrapped(draw, (right_x + 42, y + 126), f"Proxima acao: {group.get('next_action', 'Definir prioridade.')}", small_font, "#253047", right_w - 84, 20, max_lines=2)
-        y += 178
+        draw.text((sx(right_x + 42), y + sx(104)), f"Repos: {repos} · {group.get('microtasks_count', 0)} itens agrupados", font=small_font, fill="#536173")
+        draw_wrapped(draw, (sx(right_x + 42), y + sx(126)), f"Proxima acao: {group.get('next_action', 'Definir prioridade.')}", small_font, "#253047", sx(right_w - 84), sx(20), max_lines=2)
+        y += sx(178)
 
-    draw.text((margin, 1508), "📌 Este report agrupa microtarefas por resultado esperado, nao por detalhe tecnico.", font=body_font, fill="#39475a")
+    draw.text((sx(86), sx(1508)), "📌 Este report agrupa microtarefas por resultado esperado, sem exposição de jargão técnico.", font=body_font, fill="#39475a")
 
-    image = image.resize((width // scale, height // scale))
-    image.save(pdf_path, "PDF", resolution=150.0)
+    # Anti-puxar suavemente para saída mais nítida.
+    try:
+        antialias = Image.Resampling.LANCZOS
+    except AttributeError:  # compatibilidade com PIL antigo
+        antialias = Image.ANTIALIAS
+
+    image = image.resize((width, height), antialias)
+    image.save(pdf_path, "PDF", resolution=300.0)
     return True
 
 
+def font_path() -> str | None:
+    try:
+        completed = subprocess.run(
+            ["fc-match", "-f", "%{file}", "DejaVu Sans"],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+        )
+        return completed.stdout.strip() or None
+    except Exception:
+        return None
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Renderiza relatorio gerencial HTML/PDF de uma pagina")
+    parser = argparse.ArgumentParser(description="Renderiza relatorio executivo em PDF do estado de andamento")
     parser.add_argument("--input", required=True, help="JSON gerado por agrupar_tasks.py")
     parser.add_argument("--out", required=True, help="Caminho do PDF final")
     parser.add_argument("--html-out", help="Opcional: salvar HTML intermediario")
