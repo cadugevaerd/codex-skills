@@ -54,7 +54,7 @@ def default_config() -> dict[str, Any]:
             "language": "pt-BR",
             "audience": "gerente",
             "tone": "nao-tecnico",
-            "format": "one-page-pdf",
+            "format": "executive-pdf-with-detail-pages",
             "max_groups": 5,
         },
     }

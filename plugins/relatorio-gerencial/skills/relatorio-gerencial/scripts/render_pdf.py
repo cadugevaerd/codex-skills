@@ -187,8 +187,19 @@ def render_with_pillow(data: dict[str, Any], pdf_path: Path) -> bool:
 
     scale = 3
     width, height = 1240, 1754
-    image = Image.new("RGB", (width * scale, height * scale), "#f7fafc")
-    draw = ImageDraw.Draw(image)
+    def new_page() -> tuple[Any, Any]:
+        page = Image.new("RGB", (width * scale, height * scale), "#f7fafc")
+        page_draw = ImageDraw.Draw(page)
+        for bg_y in range(height):
+            ratio = bg_y / height
+            r = int(250 - 10 * ratio)
+            g = int(252 - 9 * ratio)
+            b = int(255 - 24 * ratio)
+            y1 = bg_y * scale
+            page_draw.line([(0, y1), (width * scale, y1)], fill=(r, g, b))
+        return page, page_draw
+
+    image, draw = new_page()
 
     fp = font_path()
     font = lambda size: ImageFont.truetype(fp, size) if fp else ImageFont.load_default()
@@ -198,15 +209,6 @@ def render_with_pillow(data: dict[str, Any], pdf_path: Path) -> bool:
     body_font = font(17 * scale)
     small_font = font(14 * scale)
     tiny_font = font(12 * scale)
-
-    # Background suave em degradê.
-    for y in range(height):
-        ratio = y / height
-        r = int(250 - 10 * ratio)
-        g = int(252 - 9 * ratio)
-        b = int(255 - 24 * ratio)
-        y1 = y * scale
-        draw.line([(0, y1), (width * scale, y1)], fill=(r, g, b))
 
     sx = lambda v: int(v * scale)
     margin = sx(86)
@@ -268,14 +270,52 @@ def render_with_pillow(data: dict[str, Any], pdf_path: Path) -> bool:
 
     draw.text((sx(86), sx(1508)), "📌 Este report agrupa microtarefas por resultado esperado, sem exposição de jargão técnico.", font=body_font, fill="#39475a")
 
+    pages = [image]
+    detail_groups = [group for group in data.get("groups", [])[:5] if group.get("detailed_items")]
+    if detail_groups:
+        detail_page, detail_draw = new_page()
+        pages.append(detail_page)
+        detail_draw.text((sx(86), sx(72)), "Detalhamento dos itens", font=title_font, fill="#172033")
+        detail_draw.text((sx(86), sx(132)), "Backlog e tarefas atuais agrupados por iniciativa.", font=body_font, fill="#536173")
+        y = sx(195)
+
+        def ensure_space(required_height: int = 210) -> None:
+            nonlocal detail_page, detail_draw, y
+            if y + sx(required_height) <= sx(1580):
+                return
+            detail_page, detail_draw = new_page()
+            pages.append(detail_page)
+            detail_draw.text((sx(86), sx(72)), "Detalhamento dos itens", font=title_font, fill="#172033")
+            y = sx(145)
+
+        for group in detail_groups:
+            ensure_space(180)
+            urgency = str(group.get("urgency", "media")).upper()
+            detail_draw.rounded_rectangle((sx(86), y, sx(width - 86), y + sx(92)), radius=16 * scale, fill="#ffffff", outline="#d8e0ea", width=2 * scale)
+            detail_draw.text((sx(112), y + sx(22)), f"{group.get('emoji', '📌')} {group.get('title', 'Iniciativa')}", font=h2_font, fill="#172033")
+            detail_draw.text((sx(width - 225), y + sx(28)), urgency, font=small_font, fill="#536173")
+            y = draw_wrapped(detail_draw, (sx(112), y + sx(58)), str(group.get("summary", "")), small_font, "#536173", sx(width - 224), sx(20), max_lines=2) + sx(20)
+
+            for item in group.get("detailed_items", []):
+                ensure_space(190)
+                top = y
+                detail_draw.rounded_rectangle((sx(104), top, sx(width - 104), top + sx(150)), radius=12 * scale, fill="#ffffff", outline="#e2e8f0", width=1 * scale)
+                detail_draw.text((sx(128), top + sx(18)), f"{item.get('id', 'SEM-ID')} · {item.get('repo', 'trabalho-atual')}", font=tiny_font, fill="#536173")
+                detail_draw.text((sx(width - 225), top + sx(18)), str(item.get("priority", "media")).upper(), font=tiny_font, fill="#b42318")
+                title_y = draw_wrapped(detail_draw, (sx(128), top + sx(42)), str(item.get("title", "Item sem titulo")), h3_font, "#172033", sx(width - 276), sx(25), max_lines=2)
+                meta = item_meta(item)
+                meta_y = draw_wrapped(detail_draw, (sx(128), title_y + sx(4)), meta, tiny_font, "#536173", sx(width - 276), sx(17), max_lines=2)
+                draw_wrapped(detail_draw, (sx(128), meta_y + sx(6)), str(item.get("description", "Sem detalhe registrado.")), small_font, "#253047", sx(width - 276), sx(20), max_lines=3)
+                y = top + sx(166)
+
     # Anti-puxar suavemente para saída mais nítida.
     try:
         antialias = Image.Resampling.LANCZOS
     except AttributeError:  # compatibilidade com PIL antigo
         antialias = Image.ANTIALIAS
 
-    image = image.resize((width, height), antialias)
-    image.save(pdf_path, "PDF", resolution=300.0)
+    resized_pages = [page.resize((width, height), antialias) for page in pages]
+    resized_pages[0].save(pdf_path, "PDF", resolution=300.0, save_all=True, append_images=resized_pages[1:])
     return True
 
 

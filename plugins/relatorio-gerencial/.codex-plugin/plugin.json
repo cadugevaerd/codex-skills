@@ -1,7 +1,7 @@
 {
   "name": "relatorio-gerencial",
-  "version": "0.1.0",
-  "description": "Gera relatorios executivos de uma pagina a partir de tarefas atuais e backlogs multi-repositorio.",
+  "version": "0.1.1",
+  "description": "Gera relatorios executivos com resumo e paginas de detalhe a partir de tarefas atuais e backlogs multi-repositorio.",
   "author": {
     "name": "Carlos Araujo",
     "email": "cadu.gevaerd@gmail.com",
@@ -14,8 +14,8 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "Relatorio Gerencial",
-    "shortDescription": "PDF executivo de tarefas e backlog.",
-    "longDescription": "Coleta backlogs de repositorios configurados, combina com tarefas atuais informadas manualmente, agrupa microtarefas em iniciativas e gera um PDF visual de uma pagina em linguagem nao tecnica.",
+    "shortDescription": "PDF executivo de tarefas e backlog com detalhe.",
+    "longDescription": "Coleta backlogs de repositorios configurados, combina com tarefas atuais informadas manualmente, agrupa microtarefas em iniciativas e gera um PDF visual com resumo e paginas de detalhe em linguagem nao tecnica.",
     "developerName": "Carlos Araujo",
     "category": "Productivity",
     "capabilities": ["Read", "Write", "Generate"],

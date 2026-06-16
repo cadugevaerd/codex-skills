@@ -1,11 +1,11 @@
 ---
 name: relatorio-gerencial
-description: Gera um PDF executivo de uma pagina, visualmente agradavel e com emojis, para enviar ao gerente com tarefas atuais informadas manualmente e backlog coletado de varios repositorios. Use quando o usuario pedir report/status gerencial, resumo nao tecnico de trabalho atual, PDF para gerente, consolidacao de backlog multi-repo, adicionar/remover repositorios gerenciados, ou mencionar relatorio gerencial.
+description: Gera um PDF executivo com resumo inicial e paginas de detalhe, visualmente agradavel e com emojis, para enviar ao gerente com tarefas atuais informadas manualmente e backlog coletado de varios repositorios. Use quando o usuario pedir report/status gerencial, resumo nao tecnico de trabalho atual, PDF com detalhes para gerente, consolidacao de backlog multi-repo, adicionar/remover repositorios gerenciados, ou mencionar relatorio gerencial.
 ---
 
 # Relatorio Gerencial
 
-Use esta skill para transformar tarefas atuais e backlog tecnico em um report executivo, nao tecnico, de no maximo uma pagina.
+Use esta skill para transformar tarefas atuais e backlog tecnico em um report executivo, nao tecnico, com primeira pagina de resumo e paginas posteriores de detalhamento.
 
 ## Fonte de Verdade
 
@@ -42,7 +42,7 @@ python3 scripts/relatorio_config.py list
 4. Colete `.specify/backlog.json` de todos os repositorios habilitados.
 5. Use agentes em paralelo quando disponivel: um agente por repositorio para inspecionar e resumir o backlog daquele repo. Cada agente deve retornar JSON normalizado; o agente principal consolida e escreve o PDF.
 6. Agrupe microtarefas por resultado de negocio, nao por arquivo, modulo ou id tecnico.
-7. Gere um PDF de uma pagina com linguagem de gerente, emojis e hierarquia visual.
+7. Gere um PDF com primeira pagina executiva e paginas posteriores detalhando cada item do backlog, usando linguagem de gerente, emojis e hierarquia visual.
 8. Responda no chat com o caminho do PDF e 3-5 bullets do que entrou no report.
 
 ## Scripts
@@ -52,7 +52,7 @@ Use os scripts em vez de reimplementar a logica:
 - `scripts/relatorio_config.py`: cria/lista/adiciona/remove/habilita/desabilita repositorios no JSON global.
 - `scripts/coletar_backlogs.py`: coleta e normaliza backlogs dos repos habilitados.
 - `scripts/agrupar_tasks.py`: combina tarefas manuais e backlog, unindo microtarefas em iniciativas maiores.
-- `scripts/render_pdf.py`: gera HTML e PDF de uma pagina usando Playwright, WeasyPrint ou Chromium headless quando disponivel.
+- `scripts/render_pdf.py`: gera HTML e PDF multipagina usando Playwright, WeasyPrint ou Chromium headless quando disponivel.
 
 Exemplo de execucao:
 
@@ -76,11 +76,11 @@ Cada iniciativa deve ter: titulo, emoji, explicacao curta, repos afetados, urgen
 
 ## Saida
 
-O PDF deve caber em uma pagina. Use secoes:
+A primeira pagina do PDF deve ser um resumo executivo. As paginas seguintes devem detalhar os itens de backlog agrupados. Use secoes:
 
 - 🎯 Foco Atual
 - ⚠️ Riscos e Atencoes
 - 🚧 Proximos Blocos
 - ✅ Decisoes Necessarias
 
-Evite jargao tecnico, stack traces, nomes de arquivos, ids de backlog como texto principal e listas longas. Se houver informacao demais, priorize tarefas atuais, riscos altos e no maximo 5 grupos.
+Evite jargao tecnico, stack traces, nomes de arquivos, ids de backlog como texto principal e listas longas. Se houver informacao demais, priorize tarefas atuais e riscos altos no resumo; mantenha o detalhamento nas paginas posteriores.
