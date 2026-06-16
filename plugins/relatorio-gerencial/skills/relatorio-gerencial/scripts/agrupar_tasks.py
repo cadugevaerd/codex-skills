@@ -44,7 +44,6 @@ THEMES = [
 
 PRIORITY_WEIGHT = {"critica": 4, "alta": 3, "media": 2, "baixa": 1}
 DETAIL_EXCERPT_CHARS = 260
-MAX_ITEM_DETAILS_PER_GROUP = 20
 
 
 def read_backlogs(path: Path) -> list[dict[str, Any]]:
@@ -172,7 +171,7 @@ def build_item_details(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     )
 
     details = []
-    for item in ordered[:MAX_ITEM_DETAILS_PER_GROUP]:
+    for item in ordered:
         raw = item.get("raw") if isinstance(item.get("raw"), dict) else {}
         details.append(
             {

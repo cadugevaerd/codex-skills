@@ -71,7 +71,7 @@ def render_html(data: dict[str, Any], template_path: Path) -> str:
 
         items = group.get("detailed_items", []) or []
         item_rows = []
-        for item in items[:12]:
+        for item in items:
             item_rows.append(
                 f"""
                 <article class="detail-item">
