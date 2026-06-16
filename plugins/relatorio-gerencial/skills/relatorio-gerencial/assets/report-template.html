@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>{{TITLE}}</title>
+  <style>
+    @page { size: A4; margin: 0; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, Arial, sans-serif;
+      color: #172033;
+      background: #f4f7fb;
+    }
+    .page {
+      width: 210mm;
+      height: 297mm;
+      padding: 14mm;
+      background: linear-gradient(135deg, #f9fbff 0%, #eef5f1 55%, #fff8ec 100%);
+      overflow: hidden;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      align-items: flex-start;
+      padding-bottom: 10px;
+      border-bottom: 2px solid rgba(23, 32, 51, 0.12);
+    }
+    h1 {
+      margin: 0 0 6px;
+      font-size: 26px;
+      line-height: 1.05;
+      letter-spacing: 0;
+    }
+    .subtitle {
+      margin: 0;
+      font-size: 12px;
+      color: #536173;
+      max-width: 128mm;
+    }
+    .date {
+      min-width: 36mm;
+      text-align: right;
+      font-size: 12px;
+      color: #536173;
+      font-weight: 700;
+    }
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin: 12px 0;
+    }
+    .metric {
+      background: rgba(255, 255, 255, 0.78);
+      border: 1px solid rgba(23, 32, 51, 0.10);
+      border-radius: 8px;
+      padding: 9px 10px;
+    }
+    .metric strong {
+      display: block;
+      font-size: 18px;
+      line-height: 1;
+    }
+    .metric span {
+      display: block;
+      margin-top: 3px;
+      font-size: 10px;
+      color: #5f6d7f;
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 72mm 1fr;
+      gap: 10px;
+      align-items: start;
+    }
+    section {
+      background: rgba(255, 255, 255, 0.82);
+      border: 1px solid rgba(23, 32, 51, 0.10);
+      border-radius: 8px;
+      padding: 10px;
+    }
+    h2 {
+      margin: 0 0 8px;
+      font-size: 14px;
+      line-height: 1.1;
+      letter-spacing: 0;
+    }
+    ul {
+      margin: 0;
+      padding-left: 17px;
+    }
+    li {
+      margin: 0 0 6px;
+      font-size: 11px;
+      line-height: 1.25;
+    }
+    .initiative {
+      break-inside: avoid;
+      margin-bottom: 8px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid rgba(23, 32, 51, 0.10);
+    }
+    .initiative:last-child { border-bottom: 0; margin-bottom: 0; padding-bottom: 0; }
+    .initiative-head {
+      display: grid;
+      grid-template-columns: 22px 1fr auto;
+      gap: 6px;
+      align-items: center;
+      margin-bottom: 4px;
+    }
+    .emoji { font-size: 17px; line-height: 1; }
+    h3 {
+      margin: 0;
+      font-size: 12px;
+      line-height: 1.15;
+      letter-spacing: 0;
+    }
+    .badge {
+      border-radius: 999px;
+      padding: 3px 7px;
+      font-size: 8px;
+      font-weight: 800;
+      color: white;
+      white-space: nowrap;
+    }
+    .badge.danger { background: #c2412d; }
+    .badge.warn { background: #b7791f; }
+    .badge.calm { background: #2f7d64; }
+    p {
+      margin: 0 0 5px;
+      font-size: 10.5px;
+      line-height: 1.25;
+    }
+    .meta, .next {
+      font-size: 9.5px;
+      color: #536173;
+      line-height: 1.2;
+    }
+    .next {
+      margin-top: 4px;
+      font-weight: 700;
+      color: #253047;
+    }
+    .examples {
+      margin-top: 4px;
+      padding-left: 14px;
+    }
+    .examples li {
+      margin-bottom: 2px;
+      font-size: 9.5px;
+      color: #536173;
+    }
+    footer {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 2px solid rgba(23, 32, 51, 0.12);
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      font-size: 10px;
+      color: #39475a;
+    }
+    footer strong { display: block; margin-bottom: 2px; color: #172033; }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header>
+      <div>
+        <h1>{{TITLE}}</h1>
+        <p class="subtitle">Resumo executivo de tarefas atuais e backlog consolidado. Linguagem simplificada para acompanhamento de prioridade, risco e proxima acao.</p>
+      </div>
+      <div class="date">📅 {{DATE}}</div>
+    </header>
+
+    <div class="metrics">
+      <div class="metric"><strong>{{MANUAL_COUNT}}</strong><span>tarefas atuais</span></div>
+      <div class="metric"><strong>{{BACKLOG_COUNT}}</strong><span>itens em backlog</span></div>
+      <div class="metric"><strong>{{REPO_COUNT}}</strong><span>repositorios</span></div>
+    </div>
+
+    <div class="grid">
+      <section>
+        <h2>🎯 Foco Atual</h2>
+        <ul>{{CURRENT_TASKS}}</ul>
+      </section>
+
+      <section>
+        <h2>🚧 Proximos Blocos de Trabalho</h2>
+        {{GROUPS}}
+      </section>
+    </div>
+
+    <footer>
+      <div><strong>⚠️ Riscos</strong>Itens de alta urgencia podem impactar prazo e confiabilidade se ficarem sem dono.</div>
+      <div><strong>✅ Decisoes</strong>Validar prioridade dos blocos marcados como ALTA antes da proxima execucao.</div>
+      <div><strong>📌 Leitura</strong>Este report agrupa microtarefas por resultado esperado, nao por detalhe tecnico.</div>
+    </footer>
+  </main>
+</body>
+</html>

@@ -1,0 +1,28 @@
+{
+  "name": "relatorio-gerencial",
+  "version": "0.1.0",
+  "description": "Gera relatorios executivos de uma pagina a partir de tarefas atuais e backlogs multi-repositorio.",
+  "author": {
+    "name": "Carlos Araujo",
+    "email": "cadu.gevaerd@gmail.com",
+    "url": "https://github.com/cadugevaerd"
+  },
+  "homepage": "https://github.com/cadugevaerd/codex-skills",
+  "repository": "https://github.com/cadugevaerd/codex-skills",
+  "license": "MIT",
+  "keywords": ["relatorio", "gestao", "backlog", "pdf", "portfolio"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Relatorio Gerencial",
+    "shortDescription": "PDF executivo de tarefas e backlog.",
+    "longDescription": "Coleta backlogs de repositorios configurados, combina com tarefas atuais informadas manualmente, agrupa microtarefas em iniciativas e gera um PDF visual de uma pagina em linguagem nao tecnica.",
+    "developerName": "Carlos Araujo",
+    "category": "Productivity",
+    "capabilities": ["Read", "Write", "Generate"],
+    "defaultPrompt": [
+      "/relatorio-gerencial gerar report com minhas tarefas atuais",
+      "/relatorio-gerencial adicionar repositorio ao portfolio",
+      "/relatorio-gerencial remover repositorio do portfolio"
+    ]
+  }
+}

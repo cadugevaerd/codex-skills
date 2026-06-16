@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "updated": "2026-06-16",
+  "repos": [
+    {
+      "name": "masterai-agents-backend",
+      "path": "/home/caraujo/projetos/masterai-agents-backend",
+      "owner": "master-ai",
+      "enabled": true,
+      "backlog_path": ".specify/backlog.json",
+      "description": "Backend dos agentes MasterAI"
+    },
+    {
+      "name": "librechat-private",
+      "path": "/home/caraujo/projetos/librechat-private",
+      "owner": "master-ai",
+      "enabled": true,
+      "backlog_path": ".specify/backlog.json",
+      "description": "Projeto master-ai / LibreChat privado"
+    },
+    {
+      "name": "master-agents",
+      "path": "/home/caraujo/projetos/master-agents",
+      "owner": "master-ai",
+      "enabled": true,
+      "backlog_path": ".specify/backlog.json",
+      "description": "Repositorio master-agents"
+    },
+    {
+      "name": "proxy-cm-ai",
+      "path": "/home/caraujo/projetos/proxy-cm-ai",
+      "owner": "master-ai",
+      "enabled": true,
+      "backlog_path": ".specify/backlog.json",
+      "description": "Proxy CM AI"
+    }
+  ],
+  "report": {
+    "language": "pt-BR",
+    "audience": "gerente",
+    "tone": "nao-tecnico",
+    "format": "one-page-pdf",
+    "max_groups": 5
+  }
+}
