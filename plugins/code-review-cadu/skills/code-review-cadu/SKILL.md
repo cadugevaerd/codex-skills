@@ -1,6 +1,6 @@
 ---
 name: "code-review-cadu"
-description: "Code review de pull request com veredicto GO/NO-GO por finding sobre o merge — NO-GO = merge bloqueado, corrigir nesta PR; GO = merge pode seguir, finding diferível registrado no backlog do projeto (.specify/backlog.json via skill /backlog). Use quando for revisar uma PR do GitHub e quiser a triagem automática dos findings entre 'bloqueia merge' e 'diferir para o backlog'. Fork personalizado (Cadu) do plugin oficial code-review da Anthropic."
+description: "Code review de pull request com veredicto GO/NO-GO por finding sobre o merge — NO-GO = merge bloqueado, corrigir nesta PR; GO = merge pode seguir, finding diferível registrado no backlog global (~/.backlog/backlog.json, carimbando o repo-alvo, via skill /backlog). Use quando for revisar uma PR do GitHub e quiser a triagem automática dos findings entre 'bloqueia merge' e 'diferir para o backlog'. Fork personalizado (Cadu) do plugin oficial code-review da Anthropic."
 argument-hint: "<número ou URL da PR>"
 ---
 
@@ -10,7 +10,7 @@ Fork of the official Anthropic `code-review` plugin (Apache-2.0 — see the
 plugin's LICENSE file), extended with: a **GO/NO-GO verdict per finding** —
 the verdict is about the MERGE (**NO-GO** = merge blocked, fix in this PR;
 **GO** = merge may proceed, finding is deferrable) — and **backlog
-integration** for deferred items (GO → `.specify/backlog.json` via the
+integration** for deferred items (GO → the global `~/.backlog/backlog.json` via the
 `/backlog` skill).
 
 Provide a code review for the given pull request.
@@ -86,8 +86,8 @@ To do this, follow these steps precisely:
        ```
 
     b. Ask the user to confirm which GO issues should go to the backlog.
-    c. After the user's OK, register the confirmed GO issues in batch in the project's backlog (`.specify/backlog.json`) via the `/backlog` skill, and report the generated `BL-NNNN` id next to each finding.
-    d. If the project does not have `.specify/backlog.json`, offer the `/backlog` bootstrap before registering.
+    c. After the user's OK, register the confirmed GO issues in batch in the global backlog (`~/.backlog/backlog.json`, stamping the target `repo`) via the `/backlog` skill, and report the generated `BL-NNNN` id next to each finding.
+    d. If the global `~/.backlog/backlog.json` does not exist yet, the `/backlog` skill bootstraps it before registering.
 
 Examples of false positives, for steps 4 and 5:
 
