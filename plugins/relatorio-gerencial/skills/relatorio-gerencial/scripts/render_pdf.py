@@ -12,7 +12,8 @@ from tempfile import TemporaryDirectory
 from typing import Any
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-DEFAULT_TEMPLATE = SCRIPT_DIR / "assets" / "report-template.html"
+# assets/ é irmão de scripts/ dentro do skill, não filho de scripts/.
+DEFAULT_TEMPLATE = SCRIPT_DIR.parent / "assets" / "report-template.html"
 
 
 def badge_class(urgency: str) -> str:

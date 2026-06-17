@@ -1,7 +1,7 @@
 {
   "name": "relatorio-gerencial",
-  "version": "0.1.1",
-  "description": "Gera relatorios executivos com resumo e paginas de detalhe a partir de tarefas atuais e backlogs multi-repositorio.",
+  "version": "0.2.0",
+  "description": "Gera relatorios executivos com resumo e paginas de detalhe a partir de tarefas atuais e do backlog GLOBAL unico (~/.backlog/backlog.json), agrupando por repo automaticamente.",
   "author": {
     "name": "Carlos Araujo",
     "email": "cadu.gevaerd@gmail.com",

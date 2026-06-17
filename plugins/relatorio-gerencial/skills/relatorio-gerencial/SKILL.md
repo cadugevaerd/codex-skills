@@ -1,86 +1,88 @@
 ---
 name: relatorio-gerencial
-description: Gera um PDF executivo com resumo inicial e paginas de detalhe, visualmente agradavel e com emojis, para enviar ao gerente com tarefas atuais informadas manualmente e backlog coletado de varios repositorios. Use quando o usuario pedir report/status gerencial, resumo nao tecnico de trabalho atual, PDF com detalhes para gerente, consolidacao de backlog multi-repo, adicionar/remover repositorios gerenciados, ou mencionar relatorio gerencial.
+description: Gera um PDF executivo (resumo + páginas de detalhe, visual e com emojis) para enviar ao gerente, combinando as tarefas atuais informadas manualmente com o backlog técnico coletado do backlog GLOBAL (~/.backlog/backlog.json) — todos os repositórios de uma vez, agrupados pelo campo `repo`. Use quando o usuário pedir report/status gerencial, resumo não técnico do trabalho atual, PDF de detalhes para gerente, consolidação de backlog multi-repo, ou mencionar relatório gerencial.
+metadata:
+  author: "civilmaster"
+  source: "originada no codex-skills; portada para o claude-skills; consome o backlog global ~/.backlog/backlog.json"
+user-invocable: true
+disable-model-invocation: false
 ---
 
 # Relatorio Gerencial
 
-Use esta skill para transformar tarefas atuais e backlog tecnico em um report executivo, nao tecnico, com primeira pagina de resumo e paginas posteriores de detalhamento.
+Transforma tarefas atuais + backlog técnico em um report executivo, não técnico,
+com primeira página de resumo e páginas posteriores de detalhamento.
 
 ## Fonte de Verdade
 
-Use `~/.claude/relatorio-gerencial.json` como configuracao global dos repositorios. Na primeira chamada da skill, se esse arquivo nao existir, crie automaticamente com:
+O backlog é coletado do **backlog GLOBAL único `~/.backlog/backlog.json`** (a mesma
+fonte da skill `/backlog`). Os repositórios e itens são **descobertos
+automaticamente** — cada item carrega o campo `repo` (repositório-alvo), então o
+report cobre todos os repos de uma vez **sem precisar registrar/habilitar nada**.
 
-```bash
-python3 scripts/relatorio_config.py init
-```
+- `scripts/coletar_backlogs.py` lê o global por padrão, filtra `resolvido`/
+  `descartado` e agrupa por `repo`. Para um report de um repo só, use
+  `--repo <nome>` (pode repetir).
+- Se `~/.backlog/backlog.json` não existir, a skill `/backlog` faz o bootstrap
+  dele (ou rode `/backlog init`).
 
-O plugin tambem versiona `assets/relatorio-gerencial.example.json` como exemplo de schema. Nao trate esse arquivo como configuracao viva; ele serve para documentar o formato esperado e facilitar revisao no repo.
-
-Repos padrao:
-
-- `masterai-agents-backend`: `/home/caraujo/projetos/masterai-agents-backend`
-- `librechat-private`: `/home/caraujo/projetos/librechat-private`
-- `master-agents`: `/home/caraujo/projetos/master-agents`
-- `proxy-cm-ai`: `/home/caraujo/projetos/proxy-cm-ai`
-
-Gerencie repositorios com:
-
-```bash
-python3 scripts/relatorio_config.py add --name novo-repo --path /caminho/absoluto
-python3 scripts/relatorio_config.py remove --name novo-repo
-python3 scripts/relatorio_config.py disable --name proxy-cm-ai
-python3 scripts/relatorio_config.py enable --name proxy-cm-ai
-python3 scripts/relatorio_config.py list
-```
+> **Config opcional `~/.claude/relatorio-gerencial.json`.** Guarda só preferências
+> do report (idioma, público, `max_groups`). Os comandos de gerenciar repositórios
+> (`relatorio_config.py add/remove/enable/disable/list`) e o flag
+> `coletar_backlogs.py --no-global` são **legado** — só afetam o modo fallback
+> per-projeto (`.specify/backlog.json`), mantido para repos que ainda não estão no
+> global. No fluxo normal você **não** precisa deles.
 
 ## Fluxo
 
-1. Receba do usuario as tarefas atuais manualmente. Trate-as como prioridade do report.
-2. Garanta que a configuracao global exista; na primeira execucao, rode `scripts/relatorio_config.py init` sem pedir confirmacao.
-3. Aplique pedidos de adicionar, remover, habilitar ou desabilitar repositorios antes de gerar o report.
-4. Colete `.specify/backlog.json` de todos os repositorios habilitados.
-5. Use agentes em paralelo quando disponivel: um agente por repositorio para inspecionar e resumir o backlog daquele repo. Cada agente deve retornar JSON normalizado; o agente principal consolida e escreve o PDF.
-6. Agrupe microtarefas por resultado de negocio, nao por arquivo, modulo ou id tecnico.
-7. Gere um PDF com primeira pagina executiva e paginas posteriores detalhando cada item do backlog, usando linguagem de gerente, emojis e hierarquia visual.
-8. Responda no chat com o caminho do PDF e 3-5 bullets do que entrou no report.
+1. Receba do usuário as tarefas atuais manualmente. Trate-as como prioridade do report.
+2. Garanta que `~/.backlog/backlog.json` existe (senão, `/backlog init`).
+3. Colete o backlog global de uma vez (`coletar_backlogs.py` — todos os repos, campo `repo` por item). Opcional: `--repo <nome>` para escopar.
+4. Use agentes em paralelo quando disponível: um agente por `repo` para inspecionar e resumir aquele repo. Cada agente retorna JSON normalizado; o agente principal consolida e escreve o PDF.
+5. Agrupe microtarefas por resultado de negócio, não por arquivo, módulo ou id técnico.
+6. Gere um PDF com primeira página executiva e páginas posteriores detalhando cada item, em linguagem de gerente, com emojis e hierarquia visual.
+7. Responda no chat com o caminho do PDF e 3–5 bullets do que entrou no report.
 
 ## Scripts
 
-Use os scripts em vez de reimplementar a logica:
+Use os scripts em vez de reimplementar a lógica:
 
-- `scripts/relatorio_config.py`: cria/lista/adiciona/remove/habilita/desabilita repositorios no JSON global.
-- `scripts/coletar_backlogs.py`: coleta e normaliza backlogs dos repos habilitados.
+- `scripts/coletar_backlogs.py`: coleta e normaliza o backlog **global** (agrupado por `repo`). `--repo` filtra; `--no-global` cai no modo legado per-projeto.
 - `scripts/agrupar_tasks.py`: combina tarefas manuais e backlog, unindo microtarefas em iniciativas maiores.
-- `scripts/render_pdf.py`: gera HTML e PDF multipagina usando Playwright, WeasyPrint ou Chromium headless quando disponivel.
+- `scripts/render_pdf.py`: gera HTML e PDF multipágina via Playwright, WeasyPrint, Chromium headless ou Pillow (o que estiver disponível).
+- `scripts/relatorio_config.py`: **legado/opcional** — só preferências do report e a config de repos do modo fallback.
 
-Exemplo de execucao:
+Exemplo de execução:
 
 ```bash
 python3 scripts/coletar_backlogs.py --out /tmp/backlogs.json
-python3 scripts/agrupar_tasks.py --backlogs /tmp/backlogs.json --manual-tasks /tmp/tasks-atuais.txt --out /tmp/relatorio-dados.json
+python3 scripts/agrupar_tasks.py --backlogs /tmp/backlogs.json --task "Subir agente comercial em dev" --out /tmp/relatorio-dados.json
 python3 scripts/render_pdf.py --input /tmp/relatorio-dados.json --out ./relatorio-gerencial.pdf
 ```
 
 ## Agrupamento
 
-Agrupe itens pequenos em ate 5 iniciativas maiores. Prefira titulos como:
+Agrupe itens pequenos em até 5 iniciativas maiores. Prefira títulos como:
 
 - "Estabilizar o fluxo de atendimento"
-- "Reduzir riscos antes da proxima entrega"
-- "Melhorar confiabilidade das integracoes"
+- "Reduzir riscos antes da próxima entrega"
+- "Melhorar confiabilidade das integrações"
 - "Aumentar visibilidade e controle operacional"
-- "Diminuir divida tecnica acumulada"
+- "Diminuir dívida técnica acumulada"
 
-Cada iniciativa deve ter: titulo, emoji, explicacao curta, repos afetados, urgencia, proxima acao e quantidade de microtarefas incluidas.
+Cada iniciativa deve ter: título, emoji, explicação curta, repos afetados,
+urgência, próxima ação e quantidade de microtarefas incluídas.
 
 ## Saida
 
-A primeira pagina do PDF deve ser um resumo executivo. As paginas seguintes devem detalhar os itens de backlog agrupados. Use secoes:
+A primeira página do PDF é um resumo executivo. As páginas seguintes detalham os
+itens de backlog agrupados. Use seções:
 
 - 🎯 Foco Atual
-- ⚠️ Riscos e Atencoes
-- 🚧 Proximos Blocos
-- ✅ Decisoes Necessarias
+- ⚠️ Riscos e Atenções
+- 🚧 Próximos Blocos
+- ✅ Decisões Necessárias
 
-Evite jargao tecnico, stack traces, nomes de arquivos, ids de backlog como texto principal e listas longas. Se houver informacao demais, priorize tarefas atuais e riscos altos no resumo; mantenha o detalhamento nas paginas posteriores.
+Evite jargão técnico, stack traces, nomes de arquivos, ids de backlog como texto
+principal e listas longas. Se houver informação demais, priorize tarefas atuais e
+riscos altos no resumo; mantenha o detalhamento nas páginas posteriores.
