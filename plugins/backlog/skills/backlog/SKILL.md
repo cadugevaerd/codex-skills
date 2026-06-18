@@ -66,9 +66,16 @@ Cada item:
 ## Bootstrap — quando a estrutura global não existe
 
 **Antes de qualquer operação**, garanta que `~/.backlog/backlog.json` existe. Se
-**não** existir (1ª vez na máquina, ou via comando explícito `init`), crie o
-skeleton abaixo (substituir `<hoje>` pela data atual) e informe. **Nunca**
-sobrescreva um arquivo existente — se já existe, só siga com a operação pedida.
+**não** existir (1ª vez na máquina, ou via comando explícito `init`), **copie o
+arquivo determinístico `backlog.skeleton.json` deste diretório da skill** para
+`~/.backlog/backlog.json`, trocando `"updated": "YYYY-MM-DD"` pela data de hoje, e
+informe. O skeleton abaixo é o **mesmo conteúdo** desse arquivo (mostrado para
+referência) — prefira copiar o arquivo a redigitar. **Nunca** sobrescreva um arquivo
+existente — se já existe, só siga com a operação pedida.
+
+> O arquivo `backlog.example.json` (também neste diretório) é um **fixture de
+> referência** com itens reais (com e sem `due`, já ranqueados) — use-o para conferir
+> a forma exata de um item; **nunca** o copie para `~/.backlog/backlog.json`.
 
 ```json
 {

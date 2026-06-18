@@ -1,0 +1,12 @@
+{
+  "_about": "Backlog GLOBAL único de itens diferidos (features, bugs, débitos, chores) de TODOS os repositórios. Cada item carrega `repo` (repositório-alvo) e `repo_path`. Identidade = (repo, id): o BL-NNNN é único DENTRO do seu repo. Fonte da verdade única: ~/.backlog/backlog.json. Operado pela skill global /backlog (Claude Code e Codex). Este arquivo é o SKELETON de bootstrap: copie para ~/.backlog/backlog.json quando não existir e troque `updated` pela data de hoje.",
+  "version": 2,
+  "updated": "YYYY-MM-DD",
+  "next_id": {},
+  "enums": {
+    "type": ["feature", "bug", "debt", "chore"],
+    "status": ["aberto", "em-andamento", "promovido", "resolvido", "descartado"],
+    "priority": ["critica", "alta", "media", "baixa"]
+  },
+  "items": []
+}

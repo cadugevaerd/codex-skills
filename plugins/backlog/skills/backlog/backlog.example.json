@@ -1,0 +1,70 @@
+{
+  "_about": "EXEMPLO/fixture do backlog global — NÃO é a fonte da verdade. Mostra a forma exata de um item e a interação `due` × `rank` × severidade após um `format`. A fonte real é ~/.backlog/backlog.json (estrutura igual a backlog.skeleton.json).",
+  "version": 2,
+  "updated": "2026-06-18",
+  "next_id": { "masterai-agents-backend": 13 },
+  "enums": {
+    "type": ["feature", "bug", "debt", "chore"],
+    "status": ["aberto", "em-andamento", "promovido", "resolvido", "descartado"],
+    "priority": ["critica", "alta", "media", "baixa"]
+  },
+  "items": [
+    {
+      "id": "BL-0007",
+      "repo": "masterai-agents-backend",
+      "repo_path": "/home/caraujo/projetos/masterai-agents-backend",
+      "type": "bug",
+      "title": "Corrigir timeout do extrair_audiograma em PDFs > 20 páginas",
+      "status": "aberto",
+      "priority": "critica",
+      "rank": 98,
+      "agent": "medicina",
+      "created": "2026-06-12",
+      "updated": "2026-06-18",
+      "due": "2026-06-30",
+      "source": "relato de UAT — PDF da clínica X estoura 60s",
+      "detail": null,
+      "related": ["app/medicina/extracao.py", "app/medicina/config.yaml"],
+      "promoted_to": null,
+      "notes": "Tem prazo de entrega (2026-06-30), por isso ranqueia acima do BL-0012 dentro da faixa crítica."
+    },
+    {
+      "id": "BL-0012",
+      "repo": "masterai-agents-backend",
+      "repo_path": "/home/caraujo/projetos/masterai-agents-backend",
+      "type": "bug",
+      "title": "Validar schema antes de persistir",
+      "status": "aberto",
+      "priority": "critica",
+      "rank": 88,
+      "agent": "ingestao",
+      "created": "2026-06-14",
+      "updated": "2026-06-18",
+      "due": null,
+      "source": "varredura /backlog — app/ingestao/store.py:42",
+      "detail": null,
+      "related": ["app/ingestao/store.py"],
+      "promoted_to": null,
+      "notes": "Crítico, mas sem prazo — fica abaixo do BL-0007 (que tem due) na mesma faixa."
+    },
+    {
+      "id": "BL-0009",
+      "repo": "masterai-agents-backend",
+      "repo_path": "/home/caraujo/projetos/masterai-agents-backend",
+      "type": "debt",
+      "title": "Extrair cliente HTTP para módulo próprio",
+      "status": "aberto",
+      "priority": "alta",
+      "rank": 72,
+      "agent": "core",
+      "created": "2026-06-10",
+      "updated": "2026-06-18",
+      "due": null,
+      "source": "grilling de arquitetura",
+      "detail": null,
+      "related": ["app/core/http.py"],
+      "promoted_to": null,
+      "notes": "Severidade alta sem prazo. Mesmo com due, ficaria nesta faixa — a criticidade é o eixo primário."
+    }
+  ]
+}
