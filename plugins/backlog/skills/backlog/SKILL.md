@@ -52,6 +52,7 @@ Cada item:
 | `agent` | string\|null | módulo/runtime/área afetada, ou `null` se transversal/infra. |
 | `created` | date | data de captura (não muda). |
 | `updated` | date | última mudança no item. |
+| `due` | date\|null | **data alvo de entrega** (ISO `YYYY-MM-DD`), **opcional**. `null` quando não há prazo. Eixo de urgência: no `format`, itens com `due` sobem **dentro da sua faixa de severidade** e uma `due` próxima/vencida pode justificar subir a severidade. Ausência do campo = `null` (sem migração). |
 | `source` | string | de onde nasceu (grilling, bug em prod, e-mail, varredura…). |
 | `detail` | string\|null | path de `<repo_path>/docs/backlog/<id>-*.md` quando há detalhe longo; senão `null`. |
 | `related` | string[] | paths de código, specs, ADRs, princípios (relativos ao `repo`). |
@@ -148,6 +149,14 @@ Dois eixos descrevem a urgência: a **severidade** (`priority`, qualitativo) e o
 | `media` | Não é obrigatório, mas **deixa o código melhor** quando feito. |
 | `baixa` | Apenas **estético** / cosmético. |
 
+**Data alvo (`due`) — eixo de urgência opcional.** Itens com prazo de entrega
+carregam `due` (ISO `YYYY-MM-DD`); os demais têm `due = null`. A `due` **não cria
+uma faixa nova** nem atropela a severidade: a criticidade continua sendo o eixo
+primário (uma `critica` sem prazo ainda fica acima de uma `media` com prazo). A
+`due` atua **dentro da faixa** (no `format`, itens com `due` sobem na faixa, `due`
+mais próxima primeiro) e como **sinal de re-triagem** (prazo apertado/vencido pode
+justificar subir a severidade — ex.: `media`→`alta`).
+
 **Rank (`rank`) — score 1–100 com faixas por severidade, único POR REPO.** Maior =
 mais importante; responde "dentro de uma mesma severidade, qual atacar primeiro" e
 dá a **ordem de ataque única dentro daquele repo**. Faixas:
@@ -177,6 +186,9 @@ e **reescreva o arquivo inteiro válido** (JSON puro, sem comentários).
 4. Preencher os campos. Mínimos obrigatórios: `id`, `repo`, `type`, `title`,
    `status` (`aberto`), `priority`, `created` (hoje), `updated` (hoje), `source`.
    Tente preencher `repo_path`, `agent`, `related`, `notes`. `rank` nasce `null`.
+   Se o texto livre traz uma data de entrega/prazo (`due=<data>`, "entregar até",
+   "prazo", "deadline"), normalize para ISO `YYYY-MM-DD` e grave em `due`; senão
+   `due = null`.
 5. Se há detalhe longo, criar `<repo_path>/docs/backlog/<id>-<slug>.md` (header
    apontando id + `~/.backlog/backlog.json`) e setar `detail` para esse path.
 6. `next_id[repo] = n + 1`; `updated` (topo) = hoje; `items.push(item)`.
@@ -189,11 +201,12 @@ e **reescreva o arquivo inteiro válido** (JSON puro, sem comentários).
 
 `list` é **read-only**: lê o JSON e exibe, **nunca muta** nem calcula rank.
 Apresenta tabela com coluna **`repo`** (repo · id · type · title · status · priority
-· rank · agent). Suporta filtros do texto livre: `repo=<nome>` (ou "do repo X"),
+· rank · due · agent). Suporta filtros do texto livre: `repo=<nome>` (ou "do repo X"),
 `status` (default: esconder `resolvido`/`descartado`), `agent`, `type`, `priority`.
 **Default sem filtro de repo = mostra TODOS os repos**, agrupados por `repo`. Dentro
 de cada repo, ordenar por priority (`critica`→`alta`→`media`→`baixa`), depois `rank`
-desc (sem rank por último), depois id.
+desc (sem rank por último; entre os sem rank, quem tem `due` antes, `due` mais
+próxima primeiro), depois id.
 
 ### format — reorganizar (re-triar severidade + atribuir rank) — POR REPO
 
@@ -212,10 +225,17 @@ Passos:
 1. **Ler** o JSON e aplicar o upgrade aditivo do enum `priority`.
 2. **Coletar** os itens ativos **do repo escopado**.
 3. **Re-triar a severidade** de cada um conforme as definições (crítica/alta/media/
-   baixa), usando julgamento a partir de `type`, `notes`, `related`, `source`. Pode
-   mudar o `priority`.
-4. **Ordenar dentro de cada faixa** por impacto + bloqueio primeiro (sobe quem
-   destrava outros / maior impacto); empate quebrado por menor esforço (quick win).
+   baixa), usando julgamento a partir de `type`, `notes`, `related`, `source` e
+   `due`. Pode mudar o `priority`. Uma `due` próxima ou já vencida é **sinal forte
+   de urgência** — considere subir a severidade (ex.: `media`→`alta`) quando o prazo
+   aperta.
+4. **Ordenar dentro de cada faixa** (a criticidade da faixa é preservada — só
+   reordena internamente):
+   - **Itens com `due` vêm antes dos sem `due`**, sempre dentro da mesma faixa.
+   - Entre os **com `due`**: `due` mais próxima primeiro (vencida = mais urgente);
+     empate quebrado por impacto + bloqueio, depois menor esforço (quick win).
+   - Entre os **sem `due`**: impacto + bloqueio primeiro (sobe quem destrava outros
+     / maior impacto); empate quebrado por menor esforço (quick win).
 5. **Atribuir o `rank`** mapeando cada faixa ao intervalo (crítica 76–100, alta
    51–75, média 26–50, baixa 1–25): topo da faixa recebe o maior número disponível.
    Números **distintos dentro do repo**, nunca repetidos. Gaps permitidos sem sair
@@ -231,23 +251,24 @@ Passos:
 
 **Saída — view agrupada (box-drawing).** Cabeçalho do repo, depois um bloco por
 severidade (label + faixa + descrição) com tabela box-drawing (`━` no header, `─`
-entre linhas), colunas `rank | id | title | type | agent`, ordenada por `rank` desc.
-Grupos vazios omitidos. Exemplo:
+entre linhas), colunas `rank | id | title | due | type | agent`, ordenada por `rank`
+desc. A coluna `due` mostra a data alvo (`—` quando `null`). Grupos vazios omitidos.
+Exemplo:
 
 ```
 repo: masterai-agents-backend
 
 CRÍTICA · 76–100 · antes de qualquer coisa
- rank   id        title                                     type    agent
-━━━━━  ━━━━━━━━  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  ━━━━━━  ━━━━━━━━━━━
-  98   BL-0007   Corrigir timeout do extrair_audiograma    bug     medicina
-─────  ────────  ─────────────────────────────────────────  ──────  ───────────
-  88   BL-0012   Validar schema antes de persistir          bug     ingestao
+ rank   id        title                                     due         type    agent
+━━━━━  ━━━━━━━━  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  ━━━━━━━━━━  ━━━━━━  ━━━━━━━━━━━
+  98   BL-0007   Corrigir timeout do extrair_audiograma    2026-06-30  bug     medicina
+─────  ────────  ─────────────────────────────────────────  ──────────  ──────  ───────────
+  88   BL-0012   Validar schema antes de persistir          —           bug     ingestao
 
 ALTA · 51–75 · pare assim que puder
- rank   id        title                                     type    agent
-━━━━━  ━━━━━━━━  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  ━━━━━━  ━━━━━━━━━━━
-  72   BL-0009   Extrair cliente HTTP para módulo próprio   debt    core
+ rank   id        title                                     due         type    agent
+━━━━━  ━━━━━━━━  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  ━━━━━━━━━━  ━━━━━━  ━━━━━━━━━━━
+  72   BL-0009   Extrair cliente HTTP para módulo próprio   —           debt    core
 ```
 
 ### promote — virou trabalho real
@@ -303,6 +324,7 @@ quando o `BL-NNNN` puder existir em mais de um repo.
   "agent": "medicina",
   "created": "2026-06-12",
   "updated": "2026-06-12",
+  "due": "2026-06-30",
   "source": "relato de UAT — PDF da clínica X estoura 60s",
   "detail": null,
   "related": ["app/medicina/extracao.py", "app/medicina/config.yaml"],
