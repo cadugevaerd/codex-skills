@@ -1,0 +1,39 @@
+{
+  "name": "code-debug",
+  "version": "1.0.0",
+  "description": "Debug disciplinado para achar causa raiz comprovada a partir de um comando de reproducao, logs e instrumentacao minima.",
+  "author": {
+    "name": "Carlos Araujo",
+    "email": "cadu.gevaerd@gmail.com",
+    "url": "https://github.com/cadugevaerd"
+  },
+  "homepage": "https://github.com/cadugevaerd/codex-skills",
+  "repository": "https://github.com/cadugevaerd/codex-skills",
+  "license": "MIT",
+  "keywords": [
+    "debug",
+    "root-cause",
+    "logs",
+    "instrumentation",
+    "bugfix",
+    "troubleshooting"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Code Debug",
+    "shortDescription": "Investiga erro ate causa raiz comprovada.",
+    "longDescription": "Executa debugging disciplinado: reproduz o comando, coleta evidencias, adiciona logs quando necessario, evita suposicoes e entrega relatorio de causa raiz com sugestao de fix.",
+    "developerName": "Carlos Araujo",
+    "category": "Development",
+    "capabilities": [
+      "Debug",
+      "Logs",
+      "Root Cause",
+      "Code Analysis"
+    ],
+    "defaultPrompt": [
+      "/code-debug pytest tests/test_x.py -q",
+      "/code-debug npm test -- --runInBand"
+    ]
+  }
+}
