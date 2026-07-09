@@ -14,6 +14,7 @@ plugin individual.
 | `relatorio-gerencial` | Gera relatorios executivos (uma pagina) de tarefas atuais e backlog multi-repositorio com linguagem gerencial e PDF. |
 | `grillme-langgraph` | Entrevista tecnica para desenhar um fluxo LangGraph com diagrama, State CRUE, tabela de nodes e fronteiras deterministicas. |
 | `grillme-gestor` | Versao sem jargao tecnico da `grillme-langgraph`, voltada a gestores, salvando o artefato tecnico em markdown. |
+| `rag-kag-decision` | Decide quando usar RAG, KAG, GraphRAG ou abordagem hibrida conforme documentos, entidades, relacoes, regras, temporalidade, custo e risco. |
 
 ## Instalacao local
 
@@ -27,6 +28,7 @@ codex plugin add code-debug@codex-skills
 codex plugin add relatorio-gerencial@codex-skills
 codex plugin add grillme-langgraph@codex-skills
 codex plugin add grillme-gestor@codex-skills
+codex plugin add rag-kag-decision@codex-skills
 ```
 
 Para listar o catalogo:
@@ -58,6 +60,9 @@ plugins/
   grillme-gestor/
     .codex-plugin/plugin.json
     skills/grillme-gestor/
+  rag-kag-decision/
+    .codex-plugin/plugin.json
+    skills/rag-kag-decision/
 ```
 
 ## Notas da conversao
@@ -70,6 +75,7 @@ plugins/
   mantendo compatibilidade com `CLAUDE.md` em projetos herdados.
 - A skill `code-review-cadu` foi ajustada para falar em revisores/subagentes
 genericos do Codex, sem nomes de modelos Claude.
+- A skill `rag-kag-decision` ajuda a escolher RAG, KAG, GraphRAG ou hibrido com base em documentos, entidades, relacoes, regras, temporalidade, custo e risco.
 
 ## Licenca
 
