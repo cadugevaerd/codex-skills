@@ -1,0 +1,41 @@
+{
+  "name": "modelos-custo-beneficio",
+  "version": "0.1.0",
+  "description": "Seleciona os 5 modelos LLM latest com melhor custo-beneficio por requisitos: throughput, modalidades, Tool Calls, structured outputs, contexto e custo. **PRÉ-REQUISITO:** `OPENROUTER_API_KEY` deve estar no ambiente (carregue via `op item get 'OpenRouter API Key' --vault 'Automação' --fields credential --reveal`).",
+  "author": {
+    "name": "Carlos Araujo",
+    "email": "cadu.gevaerd@gmail.com",
+    "url": "https://github.com/cadugevaerd"
+  },
+  "homepage": "https://github.com/cadugevaerd/codex-skills",
+  "repository": "https://github.com/cadugevaerd/codex-skills",
+  "license": "MIT",
+  "keywords": [
+    "llm",
+    "models",
+    "openrouter",
+    "cost",
+    "throughput",
+    "tool-calling",
+    "structured-outputs"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Modelos Custo-Beneficio",
+    "shortDescription": "Recomenda modelos LLM por custo-beneficio e requisitos.",
+    "longDescription": "Consulta OpenRouter em tempo real e filtra modelos latest por throughput, modalidades, Tool Calls, structured outputs, contexto e custo.",
+    "developerName": "Carlos Araujo",
+    "category": "Development",
+    "capabilities": [
+      "Model Selection",
+      "OpenRouter",
+      "Cost Analysis",
+      "Tool Calling",
+      "Structured Outputs"
+    ],
+    "defaultPrompt": [
+      "/modelos-custo-beneficio throughput_min=50 input=text,image tool_calls=true structured_outputs=true",
+      "/modelos-custo-beneficio min_context=128000 max_cost_per_1m=3 tool_calls=true"
+    ]
+  }
+}
