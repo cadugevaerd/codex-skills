@@ -1,0 +1,41 @@
+{
+  "name": "rag-kag-decision",
+  "version": "1.0.0",
+  "description": "Decide quando usar RAG, KAG, GraphRAG ou abordagem hibrida em arquiteturas LLM com conhecimento externo.",
+  "author": {
+    "name": "Carlos Araujo",
+    "email": "cadu.gevaerd@gmail.com",
+    "url": "https://github.com/cadugevaerd"
+  },
+  "homepage": "https://github.com/cadugevaerd/codex-skills",
+  "repository": "https://github.com/cadugevaerd/codex-skills",
+  "license": "MIT",
+  "keywords": [
+    "rag",
+    "kag",
+    "graphrag",
+    "llm",
+    "knowledge-graph",
+    "architecture",
+    "decision"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "RAG KAG Decision",
+    "shortDescription": "Decide entre RAG, KAG, GraphRAG ou hibrido.",
+    "longDescription": "Ajuda a escolher a arquitetura de conhecimento para LLMs com base em documentos, entidades, relacoes, regras, temporalidade, custo e risco.",
+    "developerName": "Carlos Araujo",
+    "category": "Development",
+    "capabilities": [
+      "Architecture",
+      "RAG",
+      "KAG",
+      "Knowledge Graph",
+      "Decision Framework"
+    ],
+    "defaultPrompt": [
+      "/rag-kag-decision base documental de suporte com FAQs e manuais",
+      "/rag-kag-decision sistema ITSM com usuários, ativos, chamados e SLA"
+    ]
+  }
+}
