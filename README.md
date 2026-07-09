@@ -15,6 +15,7 @@ plugin individual.
 | `grillme-langgraph` | Entrevista tecnica para desenhar um fluxo LangGraph com diagrama, State CRUE, tabela de nodes e fronteiras deterministicas. |
 | `grillme-gestor` | Versao sem jargao tecnico da `grillme-langgraph`, voltada a gestores, salvando o artefato tecnico em markdown. |
 | `rag-kag-decision` | Decide quando usar RAG, KAG, GraphRAG ou abordagem hibrida conforme documentos, entidades, relacoes, regras, temporalidade, custo e risco. |
+| `modelos-custo-beneficio` | Consulta OpenRouter em tempo real e recomenda 5 modelos LLM latest por custo-beneficio, filtrando throughput minimo, input modalities, Tool Calls, structured outputs, contexto e custo. |
 
 ## Instalacao local
 
@@ -29,6 +30,7 @@ codex plugin add relatorio-gerencial@codex-skills
 codex plugin add grillme-langgraph@codex-skills
 codex plugin add grillme-gestor@codex-skills
 codex plugin add rag-kag-decision@codex-skills
+codex plugin add modelos-custo-beneficio@codex-skills
 ```
 
 Para listar o catalogo:
@@ -63,6 +65,9 @@ plugins/
   rag-kag-decision/
     .codex-plugin/plugin.json
     skills/rag-kag-decision/
+  modelos-custo-beneficio/
+    .codex-plugin/plugin.json
+    skills/modelos-custo-beneficio/
 ```
 
 ## Notas da conversao
@@ -76,6 +81,7 @@ plugins/
 - A skill `code-review-cadu` foi ajustada para falar em revisores/subagentes
 genericos do Codex, sem nomes de modelos Claude.
 - A skill `rag-kag-decision` ajuda a escolher RAG, KAG, GraphRAG ou hibrido com base em documentos, entidades, relacoes, regras, temporalidade, custo e risco.
+- A skill `modelos-custo-beneficio` consulta OpenRouter em tempo real e aceita requisitos via parametro (`throughput_min`, `input`, `tool_calls`, `structured_outputs`, `min_context`, `max_cost_per_1m`).
 
 ## Licenca
 
