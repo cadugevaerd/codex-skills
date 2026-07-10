@@ -16,6 +16,7 @@ plugin individual.
 | `grillme-gestor` | Versao sem jargao tecnico da `grillme-langgraph`, voltada a gestores, salvando o artefato tecnico em markdown. |
 | `rag-kag-decision` | Decide quando usar RAG, KAG, GraphRAG ou abordagem hibrida conforme documentos, entidades, relacoes, regras, temporalidade, custo e risco. |
 | `modelos-custo-beneficio` | Consulta OpenRouter em tempo real e recomenda 5 modelos LLM latest por custo-beneficio, filtrando throughput minimo, input modalities, Tool Calls, structured outputs, contexto e custo. |
+| `facilitador-reunioes` | Cria convites, objetivos claros, pré-briefing, roteiro de condução e próximos passos para reuniões objetivas. |
 
 ## Instalacao local
 
@@ -31,6 +32,7 @@ codex plugin add grillme-langgraph@codex-skills
 codex plugin add grillme-gestor@codex-skills
 codex plugin add rag-kag-decision@codex-skills
 codex plugin add modelos-custo-beneficio@codex-skills
+codex plugin add facilitador-reunioes@codex-skills
 ```
 
 Para listar o catalogo:
@@ -68,6 +70,9 @@ plugins/
   modelos-custo-beneficio/
     .codex-plugin/plugin.json
     skills/modelos-custo-beneficio/
+  facilitador-reunioes/
+    .codex-plugin/plugin.json
+    skills/facilitador-reunioes/
 ```
 
 ## Notas da conversao
@@ -82,6 +87,7 @@ plugins/
 genericos do Codex, sem nomes de modelos Claude.
 - A skill `rag-kag-decision` ajuda a escolher RAG, KAG, GraphRAG ou hibrido com base em documentos, entidades, relacoes, regras, temporalidade, custo e risco.
 - A skill `modelos-custo-beneficio` consulta OpenRouter em tempo real e aceita requisitos via parametro (`throughput_min`, `input`, `tool_calls`, `structured_outputs`, `min_context`, `max_cost_per_1m`).
+- A skill `facilitador-reunioes` transforma pedidos vagos em convite com objetivo, pré-briefing, pauta, condução e próximos passos com dono/prazo.
 
 ## Licenca
 
