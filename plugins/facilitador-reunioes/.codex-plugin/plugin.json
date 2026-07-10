@@ -1,0 +1,38 @@
+{
+  "name": "facilitador-reunioes",
+  "version": "0.1.0",
+  "description": "Facilita reuniões objetivas: define título, objetivo claro, pré-briefing, condução e próximos passos antes de encerrar.",
+  "author": {
+    "name": "Carlos Araujo",
+    "email": "cadu.gevaerd@gmail.com",
+    "url": "https://github.com/cadugevaerd"
+  },
+  "homepage": "https://github.com/cadugevaerd/codex-skills",
+  "repository": "https://github.com/cadugevaerd/codex-skills",
+  "license": "MIT",
+  "keywords": [
+    "meeting",
+    "reuniao",
+    "facilitation",
+    "agenda",
+    "productivity"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Facilitador de Reunioes",
+    "shortDescription": "Cria convites, pautas e fechamentos de reunioes objetivas.",
+    "longDescription": "Ajuda a definir titulo, objetivo claro, pre-briefing, roteiro de conducao e proximos passos com dono e prazo.",
+    "developerName": "Carlos Araujo",
+    "category": "Productivity",
+    "capabilities": [
+      "Meeting Facilitation",
+      "Agenda Design",
+      "Decision Framing",
+      "Action Items"
+    ],
+    "defaultPrompt": [
+      "/facilitador-reunioes criar reuniao para decidir responsavel e prazo do novo fluxo",
+      "/facilitador-reunioes revisar este convite e deixar objetivo"
+    ]
+  }
+}

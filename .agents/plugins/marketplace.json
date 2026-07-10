@@ -99,6 +99,18 @@
         "authentication": "ON_INSTALL"
       },
       "category": "Development"
+    },
+    {
+      "name": "facilitador-reunioes",
+      "source": {
+        "source": "local",
+        "path": "./plugins/facilitador-reunioes"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
     }
   ]
 }
