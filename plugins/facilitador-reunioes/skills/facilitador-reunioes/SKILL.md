@@ -8,6 +8,16 @@ argument-hint: "<tema da reunião, participantes, decisão esperada, contexto>"
 
 Use esta skill quando o usuário quiser **criar, preparar, revisar, conduzir ou encerrar uma reunião**.
 
+Também acione quando detectar frases como:
+
+- "Vamos marcar uma reunião sobre..."
+- "Precisamos alinhar..."
+- "Quero discutir..."
+- "Faz uma pauta..."
+- "Me ajuda a conduzir essa reunião..."
+- "A reunião foi improdutiva..."
+- "Como encerrar essa call?"
+
 Objetivo: reduzir reuniões vagas, longas e sem consequência. A reunião só deve existir se houver **objetivo claro**, **resultado esperado** e **dono dos próximos passos**.
 
 ## Princípio central
@@ -167,6 +177,29 @@ Nunca finalize uma reunião sem registrar:
 | Como comunicar | Sim |
 
 Se não houver decisão, registre o impasse e a próxima ação para destravar.
+
+Quando estiver ajudando **durante ou após** a reunião, produza uma ata operacional curta:
+
+```markdown
+# Registro da Reunião
+
+## Decisões tomadas
+- ...
+
+## Pendências / itens não decididos
+- ... — motivo: ...
+
+## Próximos passos
+| Ação | Responsável | Prazo | Critério de conclusão |
+|---|---|---:|---|
+| ... | ... | ... | ... |
+
+## Itens estacionados
+- ... — encaminhamento: ...
+
+## Necessita nova reunião?
+Sim/Não. Se sim: objetivo, participantes e pré-requisitos.
+```
 
 ## Formato de saída
 
