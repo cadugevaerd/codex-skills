@@ -47,7 +47,7 @@ def collect_global(path: Path, repo_filter: set[str] | None) -> tuple[list[dict[
     items = [
         normalize_global_item(item)
         for item in raw_items
-        if item.get("status") not in {"resolvido", "descartado"}
+        if item.get("status") not in {"resolvido", "descartado", "mesclado"}
         and (not repo_filter or item.get("repo") in repo_filter)
     ]
     by_repo: dict[str, list[dict[str, Any]]] = {}
@@ -150,7 +150,7 @@ def collect_repo(repo: dict[str, Any]) -> dict[str, Any]:
         result["items"] = [
             normalize_item(repo, item)
             for item in raw_items
-            if item.get("status") not in {"resolvido", "descartado"}
+            if item.get("status") not in {"resolvido", "descartado", "mesclado"}
         ]
         result["ok"] = True
         result["updated"] = backlog_data.get("updated") if isinstance(backlog_data, dict) else None
