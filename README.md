@@ -8,7 +8,7 @@ plugin individual.
 
 | Plugin | O que faz |
 | --- | --- |
-| `backlog` | Mantem `.specify/backlog.json` como fonte da verdade de itens diferidos, com bootstrap de `BACKLOG.md` e instrucoes para agentes. A operacao `format` re-tria a severidade (4 niveis) e atribui o rank 1-100 (ordem de ataque). |
+| `backlog` | Mantém o backlog **GLOBAL** `~/.backlog/backlog.json` como fonte única de trabalho diferido para todos os repositórios. Registra, tria, promove, resolve e descarta itens; `merge` propõe a absorção auditável de duplicatas abertas no mesmo repo, confirma por repo e oferece undo seguro. |
 | `code-review-cadu` | Revisa PRs com veredicto `GO`/`NO-GO` por finding e encaminha itens diferiveis ao backlog apos confirmacao. |
 | `code-debug` | Debug por causa raiz: reproduz comando, analisa logs, instrumenta quando necessario e entrega relatorio com causa comprovada e sugestao de fix. |
 | `relatorio-gerencial` | Gera relatorios executivos (uma pagina) de tarefas atuais e backlog multi-repositorio com linguagem gerencial e PDF. |
@@ -40,6 +40,21 @@ Para listar o catalogo:
 ```bash
 codex plugin list --marketplace codex-skills
 ```
+
+## Uso do backlog global
+
+```text
+/backlog add Corrigir timeout de webhook repo=api-pagamentos
+/backlog list repo=api-pagamentos
+/backlog format repo=api-pagamentos
+/backlog merge repo=api-pagamentos       # proposta/dry-run; confirma antes de gravar
+/backlog merge repo=all                  # confirma cada repo separadamente
+/backlog merge undo <event_id>           # só se o estado auditado ainda corresponder
+```
+
+O `merge` nunca cria IDs: preserva um item canônico aberto já existente e marca de
+1 a 3 fontes como `mesclado`, com `merge_history` append-only no schema v3. Itens
+mesclados não entram na listagem padrão nem no relatório gerencial.
 
 ## Estrutura
 
@@ -84,7 +99,7 @@ plugins/
 - A skill `backlog` usa `AGENTS.md` como arquivo normativo principal no Codex,
   mantendo compatibilidade com `CLAUDE.md` em projetos herdados.
 - A skill `code-review-cadu` foi ajustada para falar em revisores/subagentes
-genericos do Codex, sem nomes de modelos Claude.
+  genericos do Codex, sem nomes de modelos Claude.
 - A skill `rag-kag-decision` ajuda a escolher RAG, KAG, GraphRAG ou hibrido com base em documentos, entidades, relacoes, regras, temporalidade, custo e risco.
 - A skill `modelos-custo-beneficio` consulta OpenRouter em tempo real e aceita requisitos via parametro (`throughput_min`, `input`, `tool_calls`, `structured_outputs`, `min_context`, `max_cost_per_1m`).
 - A skill `facilitador-reunioes` transforma pedidos vagos em convite com objetivo, pré-briefing, pauta, condução e próximos passos com dono/prazo.

@@ -1,11 +1,13 @@
 {
-  "_about": "EXEMPLO/fixture do backlog global — NÃO é a fonte da verdade. Mostra a forma exata de um item e a interação `due` × `rank` × severidade após um `format`. A fonte real é ~/.backlog/backlog.json (estrutura igual a backlog.skeleton.json).",
-  "version": 2,
-  "updated": "2026-06-18",
-  "next_id": { "masterai-agents-backend": 13 },
+  "_about": "EXEMPLO/fixture do backlog global schema v3 — NÃO é a fonte da verdade. Mostra itens ativos, uma fonte absorvida e um evento de merge auditável. A fonte real é ~/.backlog/backlog.json; hashes são valores de exemplo do evento e, em produção, são SHA-256 do snapshot/documento canônico definido pela política.",
+  "version": 3,
+  "updated": "2026-06-19",
+  "next_id": {
+    "masterai-agents-backend": 13
+  },
   "enums": {
     "type": ["feature", "bug", "debt", "chore"],
-    "status": ["aberto", "em-andamento", "promovido", "resolvido", "descartado"],
+    "status": ["aberto", "em-andamento", "promovido", "resolvido", "descartado", "mesclado"],
     "priority": ["critica", "alta", "media", "baixa"]
   },
   "items": [
@@ -14,19 +16,44 @@
       "repo": "masterai-agents-backend",
       "repo_path": "/home/caraujo/projetos/masterai-agents-backend",
       "type": "bug",
-      "title": "Corrigir timeout do extrair_audiograma em PDFs > 20 páginas",
+      "title": "Corrigir timeout da extração de audiograma em PDFs grandes",
       "status": "aberto",
       "priority": "critica",
-      "rank": 98,
+      "rank": null,
       "agent": "medicina",
       "created": "2026-06-12",
-      "updated": "2026-06-18",
+      "updated": "2026-06-19",
       "due": "2026-06-30",
       "source": "relato de UAT — PDF da clínica X estoura 60s",
-      "detail": null,
-      "related": ["app/medicina/extracao.py", "app/medicina/config.yaml"],
+      "detail": "docs/backlog/BL-0007-timeout-audiograma.md",
+      "related": ["app/medicina/config.yaml", "app/medicina/extracao.py"],
       "promoted_to": null,
-      "notes": "Tem prazo de entrega (2026-06-30), por isso ranqueia acima do BL-0012 dentro da faixa crítica."
+      "merged_into": null,
+      "notes": "Resultado verificável por PR: PDFs com mais de 20 páginas concluem dentro do limite acordado. Escopo e prioridade foram consolidados no merge evt-20260619-0001."
+    },
+    {
+      "id": "BL-0011",
+      "repo": "masterai-agents-backend",
+      "repo_path": "/home/caraujo/projetos/masterai-agents-backend",
+      "type": "bug",
+      "title": "Investigar falha de timeout em PDFs de audiograma extensos",
+      "status": "mesclado",
+      "priority": "alta",
+      "rank": null,
+      "agent": "medicina",
+      "created": "2026-06-16",
+      "updated": "2026-06-19",
+      "due": "2026-07-02",
+      "source": "triagem de incidente — clínica X",
+      "detail": "docs/backlog/BL-0011-timeout-pdf-extenso.md",
+      "related": ["app/medicina/extracao.py", "tests/medicina/test_extracao.py"],
+      "promoted_to": null,
+      "merged_into": {
+        "repo": "masterai-agents-backend",
+        "id": "BL-0007",
+        "event_id": "evt-20260619-0001"
+      },
+      "notes": "Absorvido sem apagar o detalhe original; consultar merge_history para o snapshot anterior e a justificativa."
     },
     {
       "id": "BL-0012",
@@ -45,26 +72,89 @@
       "detail": null,
       "related": ["app/ingestao/store.py"],
       "promoted_to": null,
-      "notes": "Crítico, mas sem prazo — fica abaixo do BL-0007 (que tem due) na mesma faixa."
-    },
+      "merged_into": null,
+      "notes": "Crítico, mas sem prazo — fica abaixo de item crítico com due na mesma faixa."
+    }
+  ],
+  "merge_history": [
     {
-      "id": "BL-0009",
-      "repo": "masterai-agents-backend",
-      "repo_path": "/home/caraujo/projetos/masterai-agents-backend",
-      "type": "debt",
-      "title": "Extrair cliente HTTP para módulo próprio",
-      "status": "aberto",
-      "priority": "alta",
-      "rank": 72,
-      "agent": "core",
-      "created": "2026-06-10",
-      "updated": "2026-06-18",
-      "due": null,
-      "source": "grilling de arquitetura",
-      "detail": null,
-      "related": ["app/core/http.py"],
-      "promoted_to": null,
-      "notes": "Severidade alta sem prazo. Mesmo com due, ficaria nesta faixa — a criticidade é o eixo primário."
+      "event_id": "evt-20260619-0001",
+      "timestamp_utc": "2026-06-19T14:32:11Z",
+      "policy_version": "backlog-merge-v1",
+      "actor": "claude-code/backlog",
+      "canonical": {
+        "repo": "masterai-agents-backend",
+        "id": "BL-0007"
+      },
+      "absorbed": [
+        {
+          "repo": "masterai-agents-backend",
+          "id": "BL-0011"
+        }
+      ],
+      "proposal_hash": "d2233d6735bd3ca447751ace96605eedc6ab66a44d403887c8e35aad2da1e46b",
+      "pre_hash": "6349a53c1dc16d87e65092ba0e2cddd2bb26abe2ed5ffea223270922552eec3e",
+      "post_hash": "412673c1c1fc9e4373281788c33a58a3592ad9ee59561cc503c2669daab1da5d",
+      "idempotency_key": "merge/masterai-agents-backend/BL-0007/BL-0011/6349a53c1dc16d87",
+      "rationale": "Os dois itens descrevem a mesma falha e o mesmo resultado testável por PR; BL-0007 já era o canônico existente.",
+      "subagent_evidence": {
+        "decision": "merge",
+        "confidence": 93,
+        "canonical_id": "BL-0007",
+        "one_work_statement": "Entregar em um PR a correção que faz a extração de audiogramas em PDFs grandes concluir dentro do limite acordado.",
+        "canonical_title": "Corrigir timeout da extração de audiograma em PDFs grandes",
+        "canonical_type": "bug",
+        "evidence": [
+          "Ambos citam timeout na extração de audiograma para PDFs extensos.",
+          "Ambos apontam para app/medicina/extracao.py e a mesma validação por PR."
+        ],
+        "conflicts": [],
+        "risks": [
+          "Revalidar o limite de tempo com fixture de mais de 20 páginas no PR."
+        ]
+      },
+      "snapshots_before": [
+        {
+          "id": "BL-0007",
+          "repo": "masterai-agents-backend",
+          "repo_path": "/home/caraujo/projetos/masterai-agents-backend",
+          "type": "bug",
+          "title": "Corrigir timeout do extrair_audiograma em PDFs > 20 páginas",
+          "status": "aberto",
+          "priority": "alta",
+          "rank": 72,
+          "agent": "medicina",
+          "created": "2026-06-12",
+          "updated": "2026-06-18",
+          "due": "2026-06-30",
+          "source": "relato de UAT — PDF da clínica X estoura 60s",
+          "detail": "docs/backlog/BL-0007-timeout-audiograma.md",
+          "related": ["app/medicina/extracao.py", "app/medicina/config.yaml"],
+          "promoted_to": null,
+          "merged_into": null,
+          "notes": "Provável reasoning budget mal calibrado."
+        },
+        {
+          "id": "BL-0011",
+          "repo": "masterai-agents-backend",
+          "repo_path": "/home/caraujo/projetos/masterai-agents-backend",
+          "type": "bug",
+          "title": "Investigar falha de timeout em PDFs de audiograma extensos",
+          "status": "aberto",
+          "priority": "alta",
+          "rank": 69,
+          "agent": "medicina",
+          "created": "2026-06-16",
+          "updated": "2026-06-18",
+          "due": "2026-07-02",
+          "source": "triagem de incidente — clínica X",
+          "detail": "docs/backlog/BL-0011-timeout-pdf-extenso.md",
+          "related": ["app/medicina/extracao.py", "tests/medicina/test_extracao.py"],
+          "promoted_to": null,
+          "merged_into": null,
+          "notes": "Confirmar cenário de PDF extenso antes de implementar."
+        }
+      ]
     }
   ]
 }

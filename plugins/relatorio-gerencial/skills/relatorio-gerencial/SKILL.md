@@ -20,9 +20,9 @@ fonte da skill `/backlog`). Os repositórios e itens são **descobertos
 automaticamente** — cada item carrega o campo `repo` (repositório-alvo), então o
 report cobre todos os repos de uma vez **sem precisar registrar/habilitar nada**.
 
-- `scripts/coletar_backlogs.py` lê o global por padrão, filtra `resolvido`/
-  `descartado` e agrupa por `repo`. Para um report de um repo só, use
-  `--repo <nome>` (pode repetir).
+- `scripts/coletar_backlogs.py` lê o global por padrão, exclui os status
+  `resolvido`, `descartado` e `mesclado`, e agrupa por `repo`. Para um report de
+  um repo só, use `--repo <nome>` (pode repetir).
 - Se `~/.backlog/backlog.json` não existir, a skill `/backlog` faz o bootstrap
   dele (ou rode `/backlog init`).
 
@@ -47,7 +47,7 @@ report cobre todos os repos de uma vez **sem precisar registrar/habilitar nada**
 
 Use os scripts em vez de reimplementar a lógica:
 
-- `scripts/coletar_backlogs.py`: coleta e normaliza o backlog **global** (agrupado por `repo`). `--repo` filtra; `--no-global` cai no modo legado per-projeto.
+- `scripts/coletar_backlogs.py`: coleta e normaliza o backlog **global** (agrupado por `repo`), excluindo itens resolvidos, descartados e mesclados. `--repo` filtra; `--no-global` cai no modo legado per-projeto.
 - `scripts/agrupar_tasks.py`: combina tarefas manuais e backlog, unindo microtarefas em iniciativas maiores.
 - `scripts/render_pdf.py`: gera HTML e PDF multipágina via Playwright, WeasyPrint, Chromium headless ou Pillow (o que estiver disponível).
 - `scripts/relatorio_config.py`: **legado/opcional** — só preferências do report e a config de repos do modo fallback.
