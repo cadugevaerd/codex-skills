@@ -1,7 +1,7 @@
 {
   "name": "backlog",
-  "version": "1.2.0",
-  "description": "Fonte da verdade GLOBAL (~/.backlog/backlog.json) para itens diferidos: registra, tria, promove, resolve, descarta e mescla duplicatas abertas com confirmação, auditoria e undo seguro.",
+  "version": "1.3.0",
+  "description": "Fonte da verdade GLOBAL (~/.backlog/backlog.json) para itens diferidos: registra, tria, promove, resolve, descarta, mescla duplicatas abertas e gera consolidado por cluster em linguagem não técnica.",
   "author": {
     "name": "Carlos Araujo",
     "email": "cadu.gevaerd@gmail.com",
@@ -14,14 +14,15 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "Backlog",
-    "shortDescription": "Backlog global com merge auditável.",
-    "longDescription": "Mantém a fonte global ~/.backlog/backlog.json para todos os repositórios. Registra, tria, promove, resolve e descarta itens; /backlog merge propõe e, após confirmação por repo, absorve duplicatas abertas no canônico existente com histórico append-only e undo fail-closed.",
+    "shortDescription": "Backlog global, merge auditável e consolidado por cluster.",
+    "longDescription": "Mantém a fonte global ~/.backlog/backlog.json para todos os repositórios. Registra, tria, promove, resolve e descarta itens; /backlog merge absorve duplicatas abertas de forma auditável e /backlog consolidado gera consolidado_backlog.md por cluster, com problema e resolução em linguagem não técnica.",
     "developerName": "Carlos Araujo",
     "category": "Productivity",
     "capabilities": ["Write", "Workflow"],
     "defaultPrompt": [
       "/backlog add revisar pendencias do projeto",
       "/backlog list",
+      "/backlog consolidado repo=all",
       "/backlog format",
       "/backlog merge repo=all",
       "/backlog merge undo <event_id>",

@@ -8,7 +8,7 @@ plugin individual.
 
 | Plugin | O que faz |
 | --- | --- |
-| `backlog` | Mantém o backlog **GLOBAL** `~/.backlog/backlog.json` como fonte única de trabalho diferido para todos os repositórios. Registra, tria, promove, resolve e descarta itens; `merge` propõe a absorção auditável de duplicatas abertas no mesmo repo, confirma por repo e oferece undo seguro. |
+| `backlog` | Mantém o backlog **GLOBAL** `~/.backlog/backlog.json` como fonte única de trabalho diferido para todos os repositórios. Registra, tria, promove, resolve e descarta itens; `merge` propõe a absorção auditável de duplicatas abertas no mesmo repo, e `consolidado` gera `consolidado_backlog.md` por clusters de negócio, com problema e resolução em linguagem não técnica. |
 | `code-review-cadu` | Revisa PRs com veredicto `GO`/`NO-GO` por finding e encaminha itens diferiveis ao backlog apos confirmacao. |
 | `code-debug` | Debug por causa raiz: reproduz comando, analisa logs, instrumenta quando necessario e entrega relatorio com causa comprovada e sugestao de fix. |
 | `relatorio-gerencial` | Gera relatorios executivos (uma pagina) de tarefas atuais e backlog multi-repositorio com linguagem gerencial e PDF. |
@@ -46,6 +46,8 @@ codex plugin list --marketplace codex-skills
 ```text
 /backlog add Corrigir timeout de webhook repo=api-pagamentos
 /backlog list repo=api-pagamentos
+/backlog consolidado repo=all               # preview e gera ./consolidado_backlog.md após confirmação
+/backlog consolidado repo=api-pagamentos output=./consolidado_backlog.md
 /backlog format repo=api-pagamentos
 /backlog merge repo=api-pagamentos       # proposta/dry-run; confirma antes de gravar
 /backlog merge repo=all                  # confirma cada repo separadamente
@@ -55,6 +57,12 @@ codex plugin list --marketplace codex-skills
 O `merge` nunca cria IDs: preserva um item canônico aberto já existente e marca de
 1 a 3 fontes como `mesclado`, com `merge_history` append-only no schema v3. Itens
 mesclados não entram na listagem padrão nem no relatório gerencial.
+
+`/backlog consolidado` é somente leitura da fonte global: agrupa itens `aberto` e
+`em-andamento` por objetivo de negócio e gera `consolidado_backlog.md` com
+**Problema** e **O que será resolvido** em linguagem não técnica. O arquivo é um
+cache derivado; ele não altera `backlog.json` e pede confirmação antes de substituir
+um consolidado existente.
 
 ## Estrutura
 
