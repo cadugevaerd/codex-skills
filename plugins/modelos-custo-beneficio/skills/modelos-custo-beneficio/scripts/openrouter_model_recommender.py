@@ -99,38 +99,41 @@ def weighted_cost_per_1m(pricing: dict[str, Any], input_weight: float, output_we
     return (prompt * input_weight) + (completion * output_weight)
 
 
+def finite_float(value: Any) -> float | None:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if math.isfinite(parsed) else None
+
+
 def metric_p50(value: Any) -> float | None:
     if value is None:
         return None
     if isinstance(value, (int, float)):
-        return float(value)
+        return finite_float(value)
     if isinstance(value, dict):
         for key in ("p50", "median", "avg"):
             if key in value and value[key] is not None:
-                try:
-                    return float(value[key])
-                except (TypeError, ValueError):
-                    return None
+                return finite_float(value[key])
     return None
 
 
 def metric_p75_or_p50(value: Any) -> tuple[float | None, str | None]:
-    """Return OpenRouter throughput with the required p75 -> p50 fallback."""
+    """Return finite OpenRouter throughput with the required p75 -> p50 fallback."""
     if value is None:
         return None, None
     if isinstance(value, (int, float)):
-        return float(value), "p50 fallback"
+        parsed = finite_float(value)
+        return (parsed, "p50 fallback") if parsed is not None else (None, None)
     if not isinstance(value, dict):
         return None, None
     for key, label in (("p75", "p75"), ("p50", "p50 fallback"), ("median", "p50 fallback"), ("avg", "p50 fallback")):
         if value.get(key) is None:
             continue
-        try:
-            return float(value[key]), label
-        except (TypeError, ValueError):
-            # A métrica preferida publicada, mas inválida, não pode bloquear
-            # o fallback permitido para p50/median/avg.
-            continue
+        parsed = finite_float(value[key])
+        if parsed is not None:
+            return parsed, label
     return None, None
 
 
@@ -654,6 +657,19 @@ def pipe_safe(value: Any) -> str:
     return str(value).replace("|", "\\|")
 
 
+def evaluation_guide(args: argparse.Namespace) -> list[str]:
+    return [
+        "Cobertura obrigatória: idioma nativo, Markdown, Tool Calls e antialucinação; se algum gate não existir, crie casos executáveis antes do teste.",
+        f"Idioma nativo: use `{args.eval_language}` em prompts, entradas, respostas esperadas e critérios.",
+        "Markdown: valide sintaxe/estrutura requerida e fences não fechados de forma determinística.",
+        "Tool Calls: teste o mesmo modelo via :exacto, incluindo tool selection, schema/argumentos e recuperação de falha.",
+        "Antialucinação: use casos grounded e sem resposta; reprove afirmações, citações ou resultados de tools inventados.",
+        "Ganho vs. mercado: compare o mesmo corpus contra ≥3 baselines atuais de provedores distintos, com IDs/versões/providers pinados; registre Δ pass_rate global/por gate, custo, latência e throughput.",
+        "Execução prioritariamente paralela: isole combinações independentes de modelo + variante + reasoning, limite concorrência por provider/rate limit/orçamento e agregue só após todos os jobs terminarem.",
+        "Cada gate e a taxa global devem atingir pass_rate >= 95% (ou limiar local); gate ausente/falho desqualifica.",
+        "Desça xhigh → high → medium → low → minimal; só escolha principal/fallback após dois modelos distintos aprovados em todos os gates.",
+    ]
+
 def render_markdown(records: list[dict[str, Any]], args: argparse.Namespace, counts: dict[str, int], aa_used: bool) -> str:
     filters = []
     if args.min_throughput is not None:
@@ -685,11 +701,14 @@ def render_markdown(records: list[dict[str, Any]], args: argparse.Namespace, cou
             reasoning_text = f"effort: `{reasoning.get('initial')}`"
         else:
             reasoning_text = "max_tokens: mapa local começa em `xhigh`"
+        provider = pipe_safe(rec.get("provider"))
+        endpoint = pipe_safe(rec.get("endpoint"))
+        route = f"{provider}<br>`{endpoint}`" if provider and endpoint else provider or f"`{endpoint}`"
         lines.append(
             "| {idx} | `{model}` | {endpoint}<br>`{tag}` | {reasoning} | {throughput} |".format(
                 idx=idx,
                 model=pipe_safe(rec.get("model_id")),
-                endpoint=pipe_safe(rec.get("provider") or rec.get("endpoint")),
+                endpoint=route,
                 tag=pipe_safe(rec.get("tag")),
                 reasoning=reasoning_text,
                 throughput=throughput,
@@ -699,16 +718,7 @@ def render_markdown(records: list[dict[str, Any]], args: argparse.Namespace, cou
         [
             "",
             "## Guia para testar no Model Engineering Eval do repositório",
-            "1. **Gate obrigatório:** se a suíte não tiver casos executáveis de idioma nativo, Markdown, Tool Calls e antialucinação, crie-os antes do teste; sem os quatro, nenhum candidato é aprovado.",
-            f"2. Idioma nativo: execute prompts, entradas e critérios em `{args.eval_language}`; não use corpus traduzido automaticamente.",
-            "3. Markdown: valide a estrutura requerida e a sintaxe (inclusive fences não fechados) por parser/linter ou asserções determinísticas.",
-            "4. Tool Calls: teste o mesmo modelo com `:exacto`, validando escolha da tool, schema/argumentos, resultado e recuperação/abstenção diante de tool inválida ou indisponível.",
-            "5. Antialucinação: inclua casos grounded e sem resposta; reprove fatos, citações, resultados de tools ou detalhes inventados. Sem evidência, o modelo deve declarar incerteza, pedir contexto ou recusar.",
-            "6. Ganho vs. mercado: compare o mesmo corpus contra ≥3 baselines atuais de provedores distintos, pinando IDs, versões e providers; inclua o modelo de produção atual quando existir. Registre Δ pass_rate global e por gate (p.p.), custo, latência e throughput.",
-            "7. Execução prioritariamente paralela: dispare combinações independentes de modelo + variante + reasoning em workers isolados, com o mesmo snapshot; limite concorrência por provider/rate limit/orçamento e só agregue após todos os jobs terminarem.",
-            "8. Cada gate e a taxa global precisam atingir pass_rate >= 95% (ou o limiar local). Gate ausente ou falho desqualifica o candidato.",
-            "9. Desça xhigh → high → medium → low → minimal; pule níveis não suportados e pare no primeiro nível que falhar por modelo.",
-            "10. Com pelo menos dois modelos distintos aprovados em todos os gates, escolha principal e fallback por custo total, latência e throughput; runtime continua manual.",
+            *[f"{idx}. {item}" for idx, item in enumerate(evaluation_guide(args), 1)],
         ]
     )
     return "\n".join(lines)
@@ -827,6 +837,8 @@ def run_self_test() -> None:
     assert metric_p75_or_p50({"p75": 61, "p50": 99}) == (61.0, "p75")
     assert metric_p75_or_p50({"p50": 61}) == (61.0, "p50 fallback")
     assert metric_p75_or_p50({"p75": "indisponivel", "p50": 61}) == (61.0, "p50 fallback")
+    assert metric_p75_or_p50({"p75": float("nan"), "p50": 61}) == (61.0, "p50 fallback")
+    assert metric_p75_or_p50({"p75": float("inf"), "p50": float("-inf")}) == (None, None)
     max_tokens_reasoning = reasoning_capability({"reasoning": {"supports_max_tokens": True}})
     assert max_tokens_reasoning and max_tokens_reasoning["mode"] == "max_tokens"
     print("self-test ok")
@@ -869,17 +881,9 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(msg, ensure_ascii=False, indent=2) if args.fmt == "json" else f"# Seleção insuficiente\n\n{msg['hint']}")
         return 2
 
-    evaluation_guide = [
-        "Cobertura obrigatória: idioma nativo, Markdown, Tool Calls e antialucinação; se algum gate não existir, crie casos executáveis antes do teste.",
-        f"Idioma nativo: use `{args.eval_language}` em prompts, entradas, respostas esperadas e critérios.",
-        "Markdown: valide sintaxe/estrutura requerida e fences não fechados de forma determinística.",
-        "Tool Calls: teste o mesmo modelo via :exacto, incluindo tool selection, schema/argumentos e recuperação de falha.",
-        "Antialucinação: use casos grounded e sem resposta; reprove afirmações, citações ou resultados de tools inventados.",
-        "Cada gate e a taxa global devem atingir pass_rate >= 95% (ou limiar local); gate ausente/falho desqualifica.",
-        "Desça xhigh → high → medium → low → minimal; só escolha principal/fallback após dois modelos distintos aprovados em todos os gates.",
-    ]
+    guide = evaluation_guide(args)
     if args.fmt == "json":
-        print(json.dumps({"candidates": records, "eval_guide": evaluation_guide}, ensure_ascii=False, indent=2))
+        print(json.dumps({"candidates": records, "eval_guide": guide}, ensure_ascii=False, indent=2))
     else:
         print(render_markdown(records, args, counts, aa_used))
     return 0

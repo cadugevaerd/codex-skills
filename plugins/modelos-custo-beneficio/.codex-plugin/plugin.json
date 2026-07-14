@@ -34,8 +34,8 @@
       "Structured Outputs"
     ],
     "defaultPrompt": [
-      "/modelos-custo-beneficio throughput_min=60 input=text,image tool_calls=true structured_outputs=true",
-      "/modelos-custo-beneficio throughput_min=60 input=text tool_calls=false min_context=128000 max_cost_per_1m=3"
+      "/modelos-custo-beneficio eval_language=pt-BR throughput_min=60 input=text,image tool_calls=true structured_outputs=true",
+      "/modelos-custo-beneficio eval_language=pt-BR throughput_min=60 input=text tool_calls=true min_context=128000 max_cost_per_1m=3"
     ]
   }
 }
