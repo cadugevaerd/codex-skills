@@ -8,7 +8,7 @@ plugin individual.
 
 | Plugin | O que faz |
 | --- | --- |
-| `backlog` | Mantém o backlog **GLOBAL** `~/.backlog/backlog.json` como fonte única de trabalho diferido para todos os repositórios. Registra, tria, promove, resolve e descarta itens; `merge` propõe a absorção auditável de duplicatas abertas no mesmo repo, e `consolidado` gera `consolidado_backlog.md` por clusters de negócio, com problema e resolução em linguagem não técnica. |
+| `backlog` | Mantém o backlog **GLOBAL** `~/.backlog/backlog.json` como fonte única de trabalho diferido para todos os repositórios. Registra, tria, promove, resolve e descarta itens; `merge` propõe a absorção auditável de duplicatas abertas no mesmo repo, e `consolidado` gera `consolidado_backlog.md` por clusters de negócio e blocos visuais de criticidade, com resumo de prioridade, problema e resolução em linguagem não técnica. |
 | `code-review-cadu` | Revisa PRs com veredicto `GO`/`NO-GO` por finding e encaminha itens diferiveis ao backlog apos confirmacao. |
 | `code-debug` | Debug por causa raiz: reproduz comando, analisa logs, instrumenta quando necessario e entrega relatorio com causa comprovada e sugestao de fix. |
 | `relatorio-gerencial` | Gera relatorios executivos (uma pagina) de tarefas atuais e backlog multi-repositorio com linguagem gerencial e PDF. |
@@ -59,8 +59,7 @@ O `merge` nunca cria IDs: preserva um item canônico aberto já existente e marc
 mesclados não entram na listagem padrão nem no relatório gerencial.
 
 `/backlog consolidado` é somente leitura da fonte global: agrupa itens `aberto` e
-`em-andamento` por objetivo de negócio e gera `consolidado_backlog.md` com
-**Problema** e **O que será resolvido** em linguagem não técnica. O arquivo é um
+`em-andamento` por objetivo de negócio e criticidade; gera `consolidado_backlog.md` com resumo de prioridade e blocos `Crítica`/`Alta`/`Média`/`Baixa`, além de **Problema** e **O que será resolvido** em linguagem não técnica. O arquivo é um
 cache derivado; ele não altera `backlog.json` e pede confirmação antes de substituir
 um consolidado existente.
 

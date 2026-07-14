@@ -1,7 +1,7 @@
 {
   "name": "backlog",
-  "version": "1.3.0",
-  "description": "Fonte da verdade GLOBAL (~/.backlog/backlog.json) para itens diferidos: registra, tria, promove, resolve, descarta, mescla duplicatas abertas e gera consolidado por cluster em linguagem não técnica.",
+  "version": "1.3.1",
+  "description": "Fonte da verdade GLOBAL (~/.backlog/backlog.json) para itens diferidos: registra, tria, promove, resolve, descarta, mescla duplicatas abertas e gera consolidado por cluster e criticidade visual em linguagem não técnica.",
   "author": {
     "name": "Carlos Araujo",
     "email": "cadu.gevaerd@gmail.com",
@@ -14,8 +14,8 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "Backlog",
-    "shortDescription": "Backlog global, merge auditável e consolidado por cluster.",
-    "longDescription": "Mantém a fonte global ~/.backlog/backlog.json para todos os repositórios. Registra, tria, promove, resolve e descarta itens; /backlog merge absorve duplicatas abertas de forma auditável e /backlog consolidado gera consolidado_backlog.md por cluster, com problema e resolução em linguagem não técnica.",
+    "shortDescription": "Backlog global, merge auditável e consolidado por cluster e criticidade.",
+    "longDescription": "Mantém a fonte global ~/.backlog/backlog.json para todos os repositórios. Registra, tria, promove, resolve e descarta itens; /backlog merge absorve duplicatas abertas de forma auditável e /backlog consolidado gera consolidado_backlog.md por cluster e criticidade, com resumo de prioridade, problema e resolução em linguagem não técnica.",
     "developerName": "Carlos Araujo",
     "category": "Productivity",
     "capabilities": ["Write", "Workflow"],

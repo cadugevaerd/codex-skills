@@ -3,7 +3,8 @@
   "version": 3,
   "updated": "2026-06-19",
   "next_id": {
-    "masterai-agents-backend": 13
+    "masterai-agents-backend": 14,
+    "portal-clinicas": 3
   },
   "enums": {
     "type": ["feature", "bug", "debt", "chore"],
@@ -74,6 +75,66 @@
       "promoted_to": null,
       "merged_into": null,
       "notes": "Crítico, mas sem prazo — fica abaixo de item crítico com due na mesma faixa."
+    },
+    {
+      "id": "BL-0013",
+      "repo": "masterai-agents-backend",
+      "repo_path": "/home/caraujo/projetos/masterai-agents-backend",
+      "type": "feature",
+      "title": "Acompanhar a entrega de documentos clínicos pendentes",
+      "status": "em-andamento",
+      "priority": "alta",
+      "rank": 64,
+      "agent": "medicina",
+      "created": "2026-06-19",
+      "updated": "2026-06-19",
+      "due": "2026-07-05",
+      "source": "acompanhamento de operação clínica",
+      "detail": null,
+      "related": ["app/medicina"],
+      "promoted_to": null,
+      "merged_into": null,
+      "notes": "Permite acompanhar pendências clínicas antes de afetarem o atendimento."
+    },
+    {
+      "id": "BL-0001",
+      "repo": "portal-clinicas",
+      "repo_path": "/home/caraujo/projetos/portal-clinicas",
+      "type": "feature",
+      "title": "Exibir situação de documentos pendentes para a clínica",
+      "status": "aberto",
+      "priority": "media",
+      "rank": 38,
+      "agent": "portal",
+      "created": "2026-06-19",
+      "updated": "2026-06-19",
+      "due": "2026-07-10",
+      "source": "solicitação de acompanhamento pela clínica",
+      "detail": null,
+      "related": ["portal/documentos"],
+      "promoted_to": null,
+      "merged_into": null,
+      "notes": "Dá visibilidade às pendências sem alterar o fluxo clínico."
+    },
+    {
+      "id": "BL-0002",
+      "repo": "portal-clinicas",
+      "repo_path": "/home/caraujo/projetos/portal-clinicas",
+      "type": "chore",
+      "title": "Revisar textos de orientação sobre documentos pendentes",
+      "status": "aberto",
+      "priority": "baixa",
+      "rank": null,
+      "agent": "portal",
+      "created": "2026-06-19",
+      "updated": "2026-06-19",
+      "due": null,
+      "source": "revisão de comunicação do portal",
+      "detail": null,
+      "related": ["portal/textos"],
+      "promoted_to": null,
+      "merged_into": null,
+      "notes": "Melhora a compreensão das orientações sem urgência operacional."
     }
   ],
   "merge_history": [

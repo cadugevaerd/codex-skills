@@ -174,9 +174,15 @@ artefato, nunca a fonte global.
    funções, siglas internas, logs, stack traces ou o conteúdo bruto de campos no
    relatório. Não omita incertezas relevantes; prefira `Validar e corrigir...` a
    prometer resultado não comprovado.
-6. Ordene clusters pelo maior nível de urgência, depois pela data alvo mais próxima;
-   dentro deles ordene por urgência, data alvo, rank e `BL-NNNN`. Para itens sem data
-   alvo, escreva `Data alvo: não definida`.
+6. Calcule o **Resumo de prioridade** usando todos os itens elegíveis do escopo.
+   Renderize as faixas na ordem `critica` → `alta` → `media` → `baixa`; omita uma
+   faixa cujo total seja zero.
+7. Ordene clusters pelo maior nível de urgência, depois pela data alvo mais próxima.
+   Dentro de cada cluster, crie blocos de criticidade na mesma ordem e **nunca misture
+   itens de faixas distintas**. Omita blocos vazios. Dentro de cada bloco, agrupe por
+   repositório em ordem alfabética; dentro de cada repositório, ordene por data alvo
+   (não definida por último), rank decrescente (nulo por último) e `BL-NNNN`. Para
+   itens sem data alvo, escreva `Data alvo: não definida`.
 
 O Markdown deve ter exatamente esta estrutura sem incluir raciocínio interno:
 
@@ -187,11 +193,20 @@ Gerado em: YYYY-MM-DD
 Escopo: todos os repositórios | <repo>
 Fonte: ~/.backlog/backlog.json (snapshot SHA-256: <hash>)
 
+## Resumo de prioridade
+- 🔴 Crítica: <N> atividade(s)
+- 🟠 Alta: <N> atividade(s)
+- 🟡 Média: <N> atividade(s)
+- 🔵 Baixa: <N> atividade(s)
+
 ## Cluster: <nome compreensível para negócio>
 
-### <nome do repositório>
+### 🔴 Crítica
+> Ação imediata — <N> atividade(s)
 
-#### BL-NNNN — <atividade em linguagem comum>
+#### <nome do repositório>
+
+##### BL-NNNN — <atividade em linguagem comum>
 - **Problema:** <efeito percebido, risco ou necessidade comprovada>
 - **O que será resolvido:** <resultado esperado, sem prometer além do item>
 - **Andamento:** Aberto | Em andamento
@@ -199,13 +214,19 @@ Fonte: ~/.backlog/backlog.json (snapshot SHA-256: <hash>)
 - **Data alvo:** YYYY-MM-DD | não definida
 ```
 
+Use somente os blocos de criticidade com atividades: `🔴 Crítica` / `Ação imediata`,
+`🟠 Alta` / `Priorizar na próxima janela`, `🟡 Média` / `Planejar conforme capacidade`,
+e `🔵 Baixa` / `Manter no radar`.
+
 O arquivo é um cache descartável, nunca uma segunda fonte de verdade. Grave-o por
 temporário no mesmo filesystem + `fsync` + `rename` atômico; recuse destino symlink
 ou diretório. Antes de substituir um arquivo existente, mostre o resumo (clusters e
 quantidade de atividades) e peça confirmação explícita. Após gravar, releia o arquivo
-e valide: todo item elegível aparece uma vez, nenhum item não elegível aparece, todo
-cluster tem ao menos uma atividade, e cada atividade contém `Problema` e `O que será
-resolvido` preenchidos. Informe o caminho, o hash do snapshot e a contagem final.
+e valide: todo item elegível aparece uma vez, nenhum item não elegível aparece, o
+Resumo de prioridade contém as contagens corretas sem faixas vazias, cada atividade
+está no bloco da sua criticidade, todo cluster tem ao menos uma atividade, e cada
+atividade contém `Problema` e `O que será resolvido` preenchidos. Informe o caminho,
+o hash do snapshot e a contagem final.
 
 ### `format` (por repo, com confirmação)
 
