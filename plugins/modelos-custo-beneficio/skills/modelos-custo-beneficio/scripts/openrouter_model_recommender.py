@@ -128,7 +128,9 @@ def metric_p75_or_p50(value: Any) -> tuple[float | None, str | None]:
         try:
             return float(value[key]), label
         except (TypeError, ValueError):
-            return None, None
+            # A métrica preferida publicada, mas inválida, não pode bloquear
+            # o fallback permitido para p50/median/avg.
+            continue
     return None, None
 
 
@@ -552,6 +554,8 @@ def apply_requirements_json(args: argparse.Namespace) -> None:
         data = json.loads(args.requirements_json)
     except json.JSONDecodeError as exc:
         raise SystemExit(f"requirements-json invalido: {exc}") from exc
+    if not isinstance(data, dict):
+        raise SystemExit("requirements-json invalido: o valor raiz deve ser um objeto JSON")
     aliases = {
         "throughput_min": "min_throughput",
         "min_throughput": "min_throughput",
@@ -567,14 +571,25 @@ def apply_requirements_json(args: argparse.Namespace) -> None:
         "limit": "limit",
         "max_cost_per_1m": "max_cost_per_1m",
     }
+    numeric_types: dict[str, type[int] | type[float]] = {
+        "min_throughput": float,
+        "min_context": int,
+        "limit": int,
+        "max_cost_per_1m": float,
+    }
     for key, dest in aliases.items():
         if key not in data:
             continue
         value = data[key]
-        if dest in {"tool_calls", "structured_outputs"}:
-            value = as_bool(value)
-        if dest in {"input_modalities", "output_modalities"} and isinstance(value, list):
-            value = ",".join(map(str, value))
+        try:
+            if dest in {"tool_calls", "structured_outputs"}:
+                value = as_bool(value)
+            elif dest in numeric_types:
+                value = numeric_types[dest](value)
+            elif dest in {"input_modalities", "output_modalities"} and isinstance(value, list):
+                value = ",".join(map(str, value))
+        except (TypeError, ValueError) as exc:
+            raise SystemExit(f"requirements-json invalido para {key}: {value!r}") from exc
         setattr(args, dest, value)
 
 
@@ -604,7 +619,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--exclude-provider", action="append", default=[], help="Excluir provider do model_id")
     parser.add_argument("--model-contains", action="append", default=[], help="Termo obrigatorio no id/nome do modelo")
     parser.add_argument("--exclude-model-contains", action="append", default=[], help="Termo proibido no id/nome do modelo")
-    parser.add_argument("--use-artificial-analysis", action="store_true", help="Mesclar throughput/qualidade da Artificial Analysis se AA_API_KEY existir")
+    parser.add_argument("--use-artificial-analysis", action="store_true", help="Mesclar índice de qualidade da Artificial Analysis se AA_API_KEY existir; throughput continua sendo exclusivamente OpenRouter")
     parser.add_argument("--workers", type=int, default=16, help="Concorrencia para consultar endpoints OpenRouter")
     parser.add_argument("--format", dest="fmt", choices=["markdown", "json"], default="markdown")
     parser.add_argument("--debug", action="store_true", help="Imprimir contadores de diagnostico em stderr")
@@ -739,6 +754,12 @@ def run_self_test() -> None:
     ])
     args.requirements_json = None
     apply_requirements_json(args)
+    json_args = parser.parse_args([
+        "--requirements-json",
+        '{"throughput_min":"60","min_context":"4096","limit":"2","max_cost_per_1m":"3.5"}',
+    ])
+    apply_requirements_json(json_args)
+    assert (json_args.min_throughput, json_args.min_context, json_args.limit, json_args.max_cost_per_1m) == (60.0, 4096, 2, 3.5)
     models = [
         {
             "id": "openai/gpt-5",
@@ -795,6 +816,7 @@ def run_self_test() -> None:
     assert ranked[0]["reasoning"]["initial"] == "xhigh", ranked
     assert metric_p75_or_p50({"p75": 61, "p50": 99}) == (61.0, "p75")
     assert metric_p75_or_p50({"p50": 61}) == (61.0, "p50 fallback")
+    assert metric_p75_or_p50({"p75": "indisponivel", "p50": 61}) == (61.0, "p50 fallback")
     max_tokens_reasoning = reasoning_capability({"reasoning": {"supports_max_tokens": True}})
     assert max_tokens_reasoning and max_tokens_reasoning["mode"] == "max_tokens"
     print("self-test ok")
