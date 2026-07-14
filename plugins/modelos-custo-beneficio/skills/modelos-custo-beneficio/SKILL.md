@@ -67,6 +67,7 @@ Não use throughput da Artificial Analysis para satisfazer o filtro hard. `--use
    | Markdown | respostas com a estrutura exigida (títulos/listas/tabelas/fences aplicáveis) e validação determinística de sintaxe, inclusive fences não fechados. |
    | Tool Calls | chamada controlada do mesmo modelo via `:exacto`; valide escolha da ferramenta, schema e argumentos, resultado e recuperação/abstenção para ferramenta inválida/indisponível. |
    | Antialucinação | casos grounded e sem resposta; afirmações devem vir da evidência; sem evidência, deve declarar incerteza, pedir contexto ou recusar. Reprove fatos, citações, resultados de tool ou detalhes inventados. |
+   | Ganho vs. mercado | compare cada candidato no mesmo corpus contra ≥3 baselines atuais, com IDs/versões/providers pinados e de provedores distintos; inclua o modelo de produção atual, se houver. Registre `Δ pass_rate` global e por gate (pontos percentuais), custo, latência e throughput. |
 
 4. Execute cada candidato no reasoning inicial (`xhigh` ou maior suportado; para `max_tokens`, use o mapa local equivalente). Uma combinação `modelo + variante + reasoning` só passa se **cada gate** e a taxa global atingirem `pass_rate >= 95%`, ou o limiar explicitamente configurado pela suíte. Gate ausente ou falho desqualifica o candidato.
 

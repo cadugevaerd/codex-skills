@@ -560,6 +560,9 @@ def apply_requirements_json(args: argparse.Namespace) -> None:
     aliases = {
         "throughput_min": "min_throughput",
         "min_throughput": "min_throughput",
+        "eval_language": "eval_language",
+        "native_language": "eval_language",
+        "application_language": "eval_language",
         "input_types": "input_modalities",
         "inputs": "input_modalities",
         "input_modalities": "input_modalities",
@@ -655,6 +658,7 @@ def render_markdown(records: list[dict[str, Any]], args: argparse.Namespace, cou
     filters = []
     if args.min_throughput is not None:
         filters.append(f"throughput >= {args.min_throughput} t/s")
+    filters.append(f"eval_language={args.eval_language}")
     filters.append(f"input={args.input_modalities}")
     filters.append(f"output={args.output_modalities}")
     if args.tool_calls is not None:
@@ -700,9 +704,10 @@ def render_markdown(records: list[dict[str, Any]], args: argparse.Namespace, cou
             "3. Markdown: valide a estrutura requerida e a sintaxe (inclusive fences não fechados) por parser/linter ou asserções determinísticas.",
             "4. Tool Calls: teste o mesmo modelo com `:exacto`, validando escolha da tool, schema/argumentos, resultado e recuperação/abstenção diante de tool inválida ou indisponível.",
             "5. Antialucinação: inclua casos grounded e sem resposta; reprove fatos, citações, resultados de tools ou detalhes inventados. Sem evidência, o modelo deve declarar incerteza, pedir contexto ou recusar.",
-            "6. Cada gate e a taxa global precisam atingir pass_rate >= 95% (ou o limiar local). Gate ausente ou falho desqualifica o candidato.",
-            "7. Desça xhigh → high → medium → low → minimal; pule níveis não suportados e pare no primeiro nível que falhar por modelo.",
-            "8. Com pelo menos dois modelos distintos aprovados em todos os gates, escolha principal e fallback por custo total, latência e throughput; runtime continua manual.",
+            "6. Ganho vs. mercado: compare o mesmo corpus contra ≥3 baselines atuais de provedores distintos, pinando IDs, versões e providers; inclua o modelo de produção atual quando existir. Registre Δ pass_rate global e por gate (p.p.), custo, latência e throughput.",
+            "7. Cada gate e a taxa global precisam atingir pass_rate >= 95% (ou o limiar local). Gate ausente ou falho desqualifica o candidato.",
+            "8. Desça xhigh → high → medium → low → minimal; pule níveis não suportados e pare no primeiro nível que falhar por modelo.",
+            "9. Com pelo menos dois modelos distintos aprovados em todos os gates, escolha principal e fallback por custo total, latência e throughput; runtime continua manual.",
         ]
     )
     return "\n".join(lines)
@@ -760,10 +765,10 @@ def run_self_test() -> None:
     apply_requirements_json(args)
     json_args = parser.parse_args([
         "--requirements-json",
-        '{"throughput_min":"60","min_context":"4096","limit":"2","max_cost_per_1m":"3.5"}',
+        '{"eval_language":"pt-BR","throughput_min":"60","min_context":"4096","limit":"2","max_cost_per_1m":"3.5"}',
     ])
     apply_requirements_json(json_args)
-    assert (json_args.min_throughput, json_args.min_context, json_args.limit, json_args.max_cost_per_1m) == (60.0, 4096, 2, 3.5)
+    assert (json_args.eval_language, json_args.min_throughput, json_args.min_context, json_args.limit, json_args.max_cost_per_1m) == ("pt-BR", 60.0, 4096, 2, 3.5)
     models = [
         {
             "id": "openai/gpt-5",
