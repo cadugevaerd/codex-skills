@@ -423,7 +423,8 @@ def model_prefilter(models: list[dict[str, Any]], args: argparse.Namespace) -> l
             continue
 
         model_params = params_set(model)
-        if args.tool_calls is True and not supports_tools(model_params):
+        # Tool Calling é um gate obrigatório do Eval, mesmo quando o runtime emite :nitro.
+        if not supports_tools(model_params):
             continue
         if args.structured_outputs is True and not supports_structured(model_params):
             continue
@@ -598,7 +599,8 @@ def build_parser() -> argparse.ArgumentParser:
         description="Acha modelos OpenRouter latest com melhor custo-beneficio para requisitos de capacidade.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument("--requirements-json", help="JSON com requisitos: throughput_min, input_types, tool_calls, structured_outputs, etc.")
+    parser.add_argument("--requirements-json", help="JSON com requisitos: throughput_min, input_types, tool_calls, eval_language, structured_outputs, etc.")
+    parser.add_argument("--eval-language", help="Idioma nativo obrigatório da aplicação para o Eval, ex.: pt-BR")
     parser.add_argument("--limit", type=int, default=5, help="Quantidade de candidatos (2 a 5)")
     parser.add_argument("--candidate-limit", type=int, default=140, help="Maximo de modelos prefiltrados para consultar endpoints")
     parser.add_argument("--min-throughput", type=float, default=60.0, help="Throughput minimo hard em tokens/s: p75 OpenRouter, p50 como fallback")
@@ -693,12 +695,14 @@ def render_markdown(records: list[dict[str, Any]], args: argparse.Namespace, cou
         [
             "",
             "## Guia para testar no Model Engineering Eval do repositório",
-            "1. **Pré-requisito:** use a suíte de Eval já definida pelo repositório; esta skill não cria nem executa o runner.",
-            "2. Execute cada slug acima com a configuração inicial indicada. Para `max_tokens`, aplique o mapa local de percentuais/budgets para `xhigh`.",
-            "3. Uma configuração passa somente com `pass_rate >= 95%` (ou o limiar local explicitamente configurado). Registre payload de reasoning, provider efetivo, custo real, latência e throughput.",
-            "4. Para cada sobrevivente, desça um nível de cada vez: `xhigh → high → medium → low → minimal`; pule níveis não suportados. Pare para aquele modelo na primeira falha, mas continue mesmo que reste apenas um sobrevivente.",
-            "5. Retenha o menor reasoning aprovado por modelo. Com pelo menos dois modelos distintos aprovados, o Eval define `principal` e `fallback` por: menor custo total observado → menor latência → maior throughput.",
-            "6. Revalide no prazo configurado (padrão: 30 dias) ou após mudança de modelo, provider, preço, reasoning ou suíte de Eval. Aplique runtime manualmente; esta skill não altera produção.",
+            "1. **Gate obrigatório:** se a suíte não tiver casos executáveis de idioma nativo, Markdown, Tool Calls e antialucinação, crie-os antes do teste; sem os quatro, nenhum candidato é aprovado.",
+            f"2. Idioma nativo: execute prompts, entradas e critérios em `{args.eval_language}`; não use corpus traduzido automaticamente.",
+            "3. Markdown: valide a estrutura requerida e a sintaxe (inclusive fences não fechados) por parser/linter ou asserções determinísticas.",
+            "4. Tool Calls: teste o mesmo modelo com `:exacto`, validando escolha da tool, schema/argumentos, resultado e recuperação/abstenção diante de tool inválida ou indisponível.",
+            "5. Antialucinação: inclua casos grounded e sem resposta; reprove fatos, citações, resultados de tools ou detalhes inventados. Sem evidência, o modelo deve declarar incerteza, pedir contexto ou recusar.",
+            "6. Cada gate e a taxa global precisam atingir pass_rate >= 95% (ou o limiar local). Gate ausente ou falho desqualifica o candidato.",
+            "7. Desça xhigh → high → medium → low → minimal; pule níveis não suportados e pare no primeiro nível que falhar por modelo.",
+            "8. Com pelo menos dois modelos distintos aprovados em todos os gates, escolha principal e fallback por custo total, latência e throughput; runtime continua manual.",
         ]
     )
     return "\n".join(lines)
@@ -829,6 +833,9 @@ def main(argv: list[str] | None = None) -> int:
         run_self_test()
         return 0
     apply_requirements_json(args)
+    args.eval_language = str(args.eval_language or "").strip()
+    if not args.eval_language:
+        parser.error("--eval-language é obrigatório para validar idioma nativo, Markdown, Tool Calls e antialucinação")
     if not 2 <= args.limit <= 5:
         parser.error("--limit deve estar entre 2 e 5")
     if args.min_throughput < 60:
@@ -857,12 +864,13 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     evaluation_guide = [
-        "Use a suíte de Model Engineering Eval já definida pelo repositório; esta skill não cria nem executa o runner.",
-        "Comece no reasoning indicado; em max_tokens, aplique o mapa local de xhigh.",
-        "Uma configuração passa com pass_rate >= 95% (ou limiar local explicitamente configurado).",
-        "Desça xhigh → high → medium → low → minimal; pule níveis não suportados e pare no primeiro nível que falhar por modelo.",
-        "Com pelo menos dois modelos distintos aprovados, escolha principal e fallback por custo total, latência e throughput.",
-        "Revalide em até 30 dias, ou após alterações de modelo, provider, preço, reasoning ou suíte de Eval; runtime é manual.",
+        "Cobertura obrigatória: idioma nativo, Markdown, Tool Calls e antialucinação; se algum gate não existir, crie casos executáveis antes do teste.",
+        f"Idioma nativo: use `{args.eval_language}` em prompts, entradas, respostas esperadas e critérios.",
+        "Markdown: valide sintaxe/estrutura requerida e fences não fechados de forma determinística.",
+        "Tool Calls: teste o mesmo modelo via :exacto, incluindo tool selection, schema/argumentos e recuperação de falha.",
+        "Antialucinação: use casos grounded e sem resposta; reprove afirmações, citações ou resultados de tools inventados.",
+        "Cada gate e a taxa global devem atingir pass_rate >= 95% (ou limiar local); gate ausente/falho desqualifica.",
+        "Desça xhigh → high → medium → low → minimal; só escolha principal/fallback após dois modelos distintos aprovados em todos os gates.",
     ]
     if args.fmt == "json":
         print(json.dumps({"candidates": records, "eval_guide": evaluation_guide}, ensure_ascii=False, indent=2))

@@ -1,101 +1,86 @@
 ---
 name: "modelos-custo-beneficio"
-description: "Seleciona até 5 candidatos OpenRouter para Model Engineering Eval com reasoning controlável, variantes :exacto/:nitro e throughput hard >=60 t/s (p75; p50 fallback). Não executa Eval nem muda runtime."
-argument-hint: "tool_calls=true|false input=<text,image,file> structured_outputs=true throughput_min=60 [limit=2..5]"
+description: "Seleciona até 5 candidatos OpenRouter para Model Engineering Eval com reasoning controlável, variantes :exacto/:nitro e throughput hard >=60 t/s. Aprovação exige gates de idioma nativo, Markdown, Tool Calls e antialucinação."
+argument-hint: "eval_language=<BCP-47> tool_calls=true|false input=<text,image,file> structured_outputs=true throughput_min=60 [limit=2..5]"
 ---
 
 # Modelos custo-benefício — candidatos para Eval
 
-Use quando o usuário precisar encontrar modelos OpenRouter para avaliar com requisitos técnicos. Esta skill **não decide o modelo de produção** e **não cria/roda o Model Engineering Eval**: ela devolve somente candidatos e o guia de execução no runner já existente do repositório.
+Use para encontrar candidatos OpenRouter conforme requisitos técnicos. Esta skill **não escolhe modelo de produção** e não executa o runner: devolve até cinco candidatos e o contrato obrigatório para a suíte de Eval do repositório.
 
-## Contrato obrigatório
+## Contrato de descoberta
 
 Todo candidato deve cumprir simultaneamente:
 
-1. Ser a versão mais recente de sua família (heurística `created` do OpenRouter).
-2. Não ser modelo/variante gratuita.
-3. Declarar reasoning controlável via `reasoning.supported_efforts` ou `reasoning.supports_max_tokens`.
-4. Ter endpoint OpenRouter com `throughput_last_30m.p75 >= 60 t/s`; quando `p75` não existir, usar `p50` (ou `median`/`avg`) como fallback. Dado ausente **reprova** o endpoint.
-5. Cumprir capacidades solicitadas: inputs, Tool Calls, structured outputs, contexto e teto de custo.
+1. versão mais recente da família (heurística `created` do OpenRouter);
+2. não gratuito;
+3. reasoning controlável via `reasoning.supported_efforts` ou `reasoning.supports_max_tokens`;
+4. endpoint com `throughput_last_30m.p75 >= 60 t/s`; na ausência de `p75`, `p50`/`median`/`avg` é fallback. Dado ausente reprova;
+5. inputs, structured outputs, contexto e teto de custo solicitados;
+6. suporte a `tools`, pois o gate de Tool Calls é obrigatório inclusive para runtime textual.
 
-Não use throughput da Artificial Analysis para satisfazer o filtro hard. `--use-artificial-analysis` é opcional e só pode enriquecer a ordenação preliminar.
+Não use throughput da Artificial Analysis para satisfazer o filtro hard. `--use-artificial-analysis` só enriquece ordenação preliminar.
 
-## Roteamento por tipo de tarefa
+## Roteamento
 
-| Necessidade | Flag | Slug emitido |
+| Necessidade de runtime | Flag | Slug emitido |
 |---|---|---|
-| A tarefa exige Tool Calls | `--tool-calls` | `<modelo>:exacto` |
-| A tarefa é apenas geração textual | `--no-tool-calls` | `<modelo>:nitro` |
+| Runtime exige Tool Calls | `--tool-calls` | `<modelo>:exacto` |
+| Runtime apenas textual | `--no-tool-calls` | `<modelo>:nitro` |
 
-`--no-tool-calls` escolhe `:nitro`; não elimina modelos que também sejam capazes de chamar tools.
+`--no-tool-calls` define o slug de runtime; ele **não** dispensa o gate obrigatório de Tool Calls, que deve testar o mesmo modelo com `:exacto`.
 
 ## Entrada
 
-Converta texto livre em flags. Aceite também `--requirements-json`.
+`eval_language` é obrigatório e deve representar o idioma nativo da aplicação, por exemplo `pt-BR`. Aceite texto livre convertido para flags ou `--requirements-json`.
 
-| Parâmetro | Flag | Observação |
+| Requisito | Flag | Observação |
 |---|---|---|
-| `throughput_min` / `min_throughput` | `--min-throughput` | Piso fixo: 60; valores menores são rejeitados. |
-| `input`, `input_types` | `--input` | Ex.: `text,image` |
-| `output` | `--output` | Ex.: `text` |
-| `tool_calls=true` | `--tool-calls` | Exige `tools` no endpoint. |
-| `tool_calls=false` | `--no-tool-calls` | Rota `:nitro`. |
-| `structured_outputs=true` | `--structured-outputs` | Exige `structured_outputs`, não só `response_format`. |
-| `min_context` | `--min-context` | Janela mínima. |
-| `max_cost_per_1m` | `--max-cost-per-1m` | Teto ponderado. |
-| `limit` | `--limit` | Aceita 2–5; padrão 5. |
+| idioma nativo | `--eval-language` | obrigatório; exemplo `pt-BR` |
+| throughput | `--min-throughput` | piso fixo de 60 t/s |
+| input | `--input` | `text,image`, por exemplo |
+| runtime com Tools | `--tool-calls` | emite `:exacto` |
+| runtime texto | `--no-tool-calls` | emite `:nitro`; mantém gate Tools |
+| structured output | `--structured-outputs` | exige `structured_outputs` |
+| contexto | `--min-context` | janela mínima |
+| custo | `--max-cost-per-1m` | teto ponderado |
+| candidatos | `--limit` | 2–5; padrão 5 |
 
-## Procedimento
+## Procedimento obrigatório
 
-1. Execute o seletor; não recomende modelos de memória.
+1. Execute o seletor sem expor segredos:
 
    ```bash
-   # Não exponha credenciais em saída/log.
    OPENROUTER_API_KEY="$(op item get 'OpenRouter API Key' --vault 'Automação' --fields credential --reveal)" \
    python scripts/openrouter_model_recommender.py \
-     --limit 5 \
-     --min-throughput 60 \
-     --input text,image \
-     --tool-calls \
-     --structured-outputs \
-     --min-context 128000
+     --eval-language pt-BR --limit 5 --min-throughput 60 \
+     --input text,image --tool-calls --structured-outputs --min-context 128000
    ```
 
-2. Interprete o resultado apenas como lista de candidatos para a suíte de Eval local. Se houver 2–4 candidatos, liste todos. Se houver menos de 2, pare: não relaxe automaticamente os requisitos nem invente candidatos.
+2. Se houver menos de dois candidatos, pare; não relaxe requisitos nem invente candidatos.
 
-3. No Model Engineering Eval do repositório, teste cada candidato no reasoning inicial:
-   - `supported_efforts`: comece em `xhigh`, ou no maior nível suportado;
-   - `supports_max_tokens`: aplique o mapa local de tokens para começar no equivalente a `xhigh`.
+3. **Pré-flight da suíte:** procure casos executáveis para os quatro gates abaixo. Se algum não existir, crie-o no framework de Eval já adotado pelo repositório antes de testar candidatos. Sem cobertura nos quatro, **pare: nenhum modelo pode ser aprovado**.
 
-4. Uma configuração só passa com `pass_rate >= 95%`, salvo limiar explicitamente definido pela suíte local. Registre provider efetivo, payload de reasoning, custo real, latência e throughput.
+   | Gate obrigatório | Critério mínimo |
+   |---|---|
+   | Idioma nativo (`eval_language`) | prompts, entradas, respostas esperadas e critérios no idioma real da aplicação; não substitua o corpus por tradução automática. |
+   | Markdown | respostas com a estrutura exigida (títulos/listas/tabelas/fences aplicáveis) e validação determinística de sintaxe, inclusive fences não fechados. |
+   | Tool Calls | chamada controlada do mesmo modelo via `:exacto`; valide escolha da ferramenta, schema e argumentos, resultado e recuperação/abstenção para ferramenta inválida/indisponível. |
+   | Antialucinação | casos grounded e sem resposta; afirmações devem vir da evidência; sem evidência, deve declarar incerteza, pedir contexto ou recusar. Reprove fatos, citações, resultados de tool ou detalhes inventados. |
 
-5. Para cada modelo que passar, reduza o esforço um nível por vez:
+4. Execute cada candidato no reasoning inicial (`xhigh` ou maior suportado; para `max_tokens`, use o mapa local equivalente). Uma combinação `modelo + variante + reasoning` só passa se **cada gate** e a taxa global atingirem `pass_rate >= 95%`, ou o limiar explicitamente configurado pela suíte. Gate ausente ou falho desqualifica o candidato.
 
-   ```text
-   xhigh → high → medium → low → minimal
-   ```
+5. Reduza o reasoning por sobrevivente: `xhigh → high → medium → low → minimal`, ignorando níveis não suportados. Ao falhar, retenha o menor nível anterior aprovado.
 
-   Pule níveis não suportados. Ao primeiro nível que falhar, retenha o menor nível anterior aprovado para aquele modelo. Continue o fluxo mesmo que reste apenas um sobrevivente.
+6. Somente com pelo menos dois modelos distintos aprovados nos quatro gates, o Eval escolhe `principal` e `fallback`: menor custo total observado → menor latência → maior throughput. Aplique runtime manualmente.
 
-6. Se pelo menos dois modelos distintos passarem, o **Eval** define:
-
-   ```text
-   principal = menor custo total observado
-               → menor latência
-               → maior throughput
-
-   fallback  = próximo modelo distinto aprovado
-   ```
-
-   Aplique o resultado no runtime manualmente; esta skill não altera configuração de produção.
-
-7. Revalide no prazo configurado (padrão: 30 dias) ou antes quando houver mudança de modelo, provider, preço, controle de reasoning ou suíte de Eval.
+7. Revalide em até 30 dias, e quando mudarem idioma, contrato Markdown, ferramentas, corpus/grounding, modelo, provider, preço, reasoning ou suíte.
 
 ## Saída
 
-Entregue **somente**:
+Entregue apenas:
 
-- até cinco modelos/variantes candidatos, com endpoint, configuração inicial de reasoning e throughput usado (`p75` ou fallback `p50`);
-- o guia de execução do Eval acima.
+- até cinco candidatos com endpoint, reasoning inicial e throughput;
+- o guia de Eval acima.
 
-Não anuncie vencedor, não exponha ranking como decisão final e não sugira throughput desconhecido como aceitável.
+Não anuncie vencedor antes dos quatro gates aprovados e não altere runtime.
