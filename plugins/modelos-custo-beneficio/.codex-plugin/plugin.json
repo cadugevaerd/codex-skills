@@ -1,7 +1,7 @@
 {
   "name": "modelos-custo-beneficio",
-  "version": "0.1.0",
-  "description": "Seleciona os 5 modelos LLM latest com melhor custo-beneficio por requisitos: throughput, modalidades, Tool Calls, structured outputs, contexto e custo. **PRÉ-REQUISITO:** `OPENROUTER_API_KEY` deve estar no ambiente (carregue via `op item get 'OpenRouter API Key' --vault 'Automação' --fields credential --reveal`).",
+  "version": "0.2.0",
+  "description": "Seleciona até 5 candidatos OpenRouter para Model Engineering Eval: reasoning controlável, throughput hard >=60 t/s (p75; p50 fallback) e variantes :exacto/:nitro. Não executa Eval nem altera runtime. **PRÉ-REQUISITO:** `OPENROUTER_API_KEY` deve estar no ambiente (carregue via `op item get 'OpenRouter API Key' --vault 'Automação' --fields credential --reveal`).",
   "author": {
     "name": "Carlos Araujo",
     "email": "cadu.gevaerd@gmail.com",
@@ -22,8 +22,8 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "Modelos Custo-Beneficio",
-    "shortDescription": "Recomenda modelos LLM por custo-beneficio e requisitos.",
-    "longDescription": "Consulta OpenRouter em tempo real e filtra modelos latest por throughput, modalidades, Tool Calls, structured outputs, contexto e custo.",
+    "shortDescription": "Lista candidatos para Eval por custo, reasoning e throughput hard.",
+    "longDescription": "Consulta OpenRouter em tempo real e devolve até cinco candidatos para Model Engineering Eval com reasoning controlável, throughput p75/p50 >=60 t/s e roteamento :exacto/:nitro; não altera runtime.",
     "developerName": "Carlos Araujo",
     "category": "Development",
     "capabilities": [
@@ -34,8 +34,8 @@
       "Structured Outputs"
     ],
     "defaultPrompt": [
-      "/modelos-custo-beneficio throughput_min=50 input=text,image tool_calls=true structured_outputs=true",
-      "/modelos-custo-beneficio min_context=128000 max_cost_per_1m=3 tool_calls=true"
+      "/modelos-custo-beneficio throughput_min=60 input=text,image tool_calls=true structured_outputs=true",
+      "/modelos-custo-beneficio throughput_min=60 input=text tool_calls=false min_context=128000 max_cost_per_1m=3"
     ]
   }
 }

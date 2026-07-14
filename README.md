@@ -15,7 +15,7 @@ plugin individual.
 | `grillme-langgraph` | Entrevista tecnica para desenhar um fluxo LangGraph com diagrama, State CRUE, tabela de nodes e fronteiras deterministicas. |
 | `grillme-gestor` | Versao sem jargao tecnico da `grillme-langgraph`, voltada a gestores, salvando o artefato tecnico em markdown. |
 | `rag-kag-decision` | Decide quando usar RAG, KAG, GraphRAG ou abordagem hibrida conforme documentos, entidades, relacoes, regras, temporalidade, custo e risco. |
-| `modelos-custo-beneficio` | Consulta OpenRouter em tempo real e recomenda 5 modelos LLM latest por custo-beneficio, filtrando throughput minimo, input modalities, Tool Calls, structured outputs, contexto e custo. |
+| `modelos-custo-beneficio` | Consulta OpenRouter e lista até 5 candidatos para Model Engineering Eval, com reasoning controlável, throughput p75/p50 ≥60 t/s e variantes `:exacto`/`:nitro`; não decide runtime. |
 | `facilitador-reunioes` | Cria convites, objetivos claros, pré-briefing, roteiro de condução e próximos passos para reuniões objetivas. |
 
 ## Instalacao local
@@ -109,7 +109,7 @@ plugins/
 - A skill `code-review-cadu` foi ajustada para falar em revisores/subagentes
   genericos do Codex, sem nomes de modelos Claude.
 - A skill `rag-kag-decision` ajuda a escolher RAG, KAG, GraphRAG ou hibrido com base em documentos, entidades, relacoes, regras, temporalidade, custo e risco.
-- A skill `modelos-custo-beneficio` consulta OpenRouter em tempo real e aceita requisitos via parametro (`throughput_min`, `input`, `tool_calls`, `structured_outputs`, `min_context`, `max_cost_per_1m`).
+- A skill `modelos-custo-beneficio` consulta OpenRouter em tempo real e entrega candidatos para o Model Engineering Eval local: reasoning controlável, throughput p75/p50 >=60 t/s e variantes `:exacto`/`:nitro`, sem alteração de runtime.
 - A skill `facilitador-reunioes` transforma pedidos vagos em convite com objetivo, pré-briefing, pauta, condução e próximos passos com dono/prazo.
 
 ## Licenca

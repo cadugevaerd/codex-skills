@@ -105,13 +105,31 @@ def metric_p50(value: Any) -> float | None:
     if isinstance(value, (int, float)):
         return float(value)
     if isinstance(value, dict):
-        for key in ("p50", "median", "avg", "p75", "p90", "p99"):
+        for key in ("p50", "median", "avg"):
             if key in value and value[key] is not None:
                 try:
                     return float(value[key])
                 except (TypeError, ValueError):
                     return None
     return None
+
+
+def metric_p75_or_p50(value: Any) -> tuple[float | None, str | None]:
+    """Return OpenRouter throughput with the required p75 -> p50 fallback."""
+    if value is None:
+        return None, None
+    if isinstance(value, (int, float)):
+        return float(value), "p50 fallback"
+    if not isinstance(value, dict):
+        return None, None
+    for key, label in (("p75", "p75"), ("p50", "p50 fallback"), ("median", "p50 fallback"), ("avg", "p50 fallback")):
+        if value.get(key) is None:
+            continue
+        try:
+            return float(value[key]), label
+        except (TypeError, ValueError):
+            return None, None
+    return None, None
 
 
 def params_set(obj: dict[str, Any]) -> set[str]:
@@ -125,6 +143,42 @@ def supports_tools(params: set[str]) -> bool:
 def supports_structured(params: set[str]) -> bool:
     # response_format sozinho pode ser JSON mode; structured_outputs indica JSON Schema estrito no OpenRouter.
     return "structured_outputs" in params
+
+
+EFFORT_LEVELS = ("xhigh", "high", "medium", "low", "minimal")
+
+
+def reasoning_capability(model: dict[str, Any]) -> dict[str, Any] | None:
+    """Normalize OpenRouter reasoning metadata without guessing a parameter name."""
+    raw = model.get("reasoning") or {}
+    if not isinstance(raw, dict):
+        return None
+    supported = {
+        str(value).strip().lower()
+        for value in (raw.get("supported_efforts") or [])
+        if str(value).strip().lower() in EFFORT_LEVELS
+    }
+    if supported:
+        ordered = [level for level in EFFORT_LEVELS if level in supported]
+        return {
+            "mode": "effort",
+            "supported_efforts": ordered,
+            "initial": ordered[0],
+            "mandatory": bool(raw.get("mandatory")),
+        }
+    if raw.get("supports_max_tokens") is True:
+        return {
+            "mode": "max_tokens",
+            "supported_efforts": [],
+            "initial": "xhigh",
+            "mandatory": bool(raw.get("mandatory")),
+        }
+    return None
+
+
+def routed_model_id(model_id: str, tool_calls: bool | None) -> tuple[str, str]:
+    variant = ":exacto" if tool_calls is True else ":nitro"
+    return f"{strip_router_variant(model_id)}{variant}", variant
 
 
 def normalize_text(text: str) -> str:
@@ -355,6 +409,8 @@ def model_prefilter(models: list[dict[str, Any]], args: argparse.Namespace) -> l
             continue
         if not args.include_free and is_free_model(model):
             continue
+        if reasoning_capability(model) is None:
+            continue
 
         arch = model.get("architecture") or {}
         inputs = {str(x).lower() for x in (arch.get("input_modalities") or [])}
@@ -366,8 +422,6 @@ def model_prefilter(models: list[dict[str, Any]], args: argparse.Namespace) -> l
 
         model_params = params_set(model)
         if args.tool_calls is True and not supports_tools(model_params):
-            continue
-        if args.tool_calls is False and supports_tools(model_params):
             continue
         if args.structured_outputs is True and not supports_structured(model_params):
             continue
@@ -382,14 +436,11 @@ def model_prefilter(models: list[dict[str, Any]], args: argparse.Namespace) -> l
 def endpoint_records(model: dict[str, Any], endpoints: list[dict[str, Any]], args: argparse.Namespace, aa_item: dict[str, Any] | None) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
     model_params = params_set(model)
+    reasoning = reasoning_capability(model)
+    if reasoning is None:
+        return records
     arch = model.get("architecture") or {}
-    aa_perf = (aa_item or {}).get("performance") or {}
     aa_eval = (aa_item or {}).get("evaluations") or {}
-    aa_throughput = aa_perf.get("median_output_tokens_per_second")
-    try:
-        aa_throughput = float(aa_throughput) if aa_throughput is not None else None
-    except (TypeError, ValueError):
-        aa_throughput = None
 
     quality = aa_eval.get("artificial_analysis_coding_index") or aa_eval.get("artificial_analysis_intelligence_index")
     try:
@@ -400,8 +451,6 @@ def endpoint_records(model: dict[str, Any], endpoints: list[dict[str, Any]], arg
     for ep in endpoints:
         ep_params = params_set(ep) or model_params
         if args.tool_calls is True and not supports_tools(ep_params):
-            continue
-        if args.tool_calls is False and supports_tools(ep_params):
             continue
         if args.structured_outputs is True and not supports_structured(ep_params):
             continue
@@ -421,17 +470,12 @@ def endpoint_records(model: dict[str, Any], endpoints: list[dict[str, Any]], arg
         if args.max_cost_per_1m is not None and cost > args.max_cost_per_1m:
             continue
 
-        throughput = metric_p50(ep.get("throughput_last_30m"))
-        throughput_source = "OpenRouter"
-        if throughput is None and aa_throughput is not None:
-            throughput = aa_throughput
-            throughput_source = "Artificial Analysis"
-
-        if args.min_throughput is not None:
-            if throughput is None and not args.allow_unknown_throughput:
-                continue
-            if throughput is not None and throughput < args.min_throughput:
-                continue
+        throughput, throughput_percentile = metric_p75_or_p50(ep.get("throughput_last_30m"))
+        throughput_source = f"OpenRouter {throughput_percentile}" if throughput_percentile else None
+        # Throughput is a hard OpenRouter endpoint gate. Artificial Analysis can enrich
+        # ranking quality, but cannot substitute provider-specific routing evidence.
+        if throughput is None or throughput < args.min_throughput:
+            continue
 
         uptime = ep.get("uptime_last_30m")
         if uptime is None:
@@ -446,18 +490,20 @@ def endpoint_records(model: dict[str, Any], endpoints: list[dict[str, Any]], arg
         latency = metric_p50(ep.get("latency_last_30m"))
         prompt_cost = price_token_to_1m(pricing.get("prompt"))
         completion_cost = price_token_to_1m(pricing.get("completion"))
-        throughput_for_score = throughput if throughput is not None else max(args.min_throughput or 25.0, 1.0)
-        unknown_penalty = 1.0 if throughput is not None else 0.35
+        throughput_for_score = throughput
         context_factor = 1.0 + min(math.log10(max(context, 1)) / 12.0, 0.5)
         uptime_factor = max(min(uptime_float, 100.0), 0.0) / 100.0
         quality_factor = (quality / 50.0) if quality else 1.0
         effective_cost = max(cost, 0.001)
-        score = (throughput_for_score * uptime_factor * context_factor * quality_factor * unknown_penalty) / effective_cost
+        score = (throughput_for_score * uptime_factor * context_factor * quality_factor) / effective_cost
 
         records.append(
             {
-                "model_id": model.get("id"),
+                "model_id": routed_model_id(str(model.get("id") or ""), args.tool_calls)[0],
+                "base_model_id": model.get("id"),
+                "routing_variant": routed_model_id(str(model.get("id") or ""), args.tool_calls)[1],
                 "model_name": model.get("name"),
+                "reasoning": reasoning,
                 "family_key": family_key(str(model.get("id") or "")),
                 "created": created_ts(model),
                 "created_date": created_date(created_ts(model)),
@@ -538,14 +584,13 @@ def build_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("--requirements-json", help="JSON com requisitos: throughput_min, input_types, tool_calls, structured_outputs, etc.")
-    parser.add_argument("--limit", type=int, default=5, help="Quantidade de modelos na resposta")
+    parser.add_argument("--limit", type=int, default=5, help="Quantidade de candidatos (2 a 5)")
     parser.add_argument("--candidate-limit", type=int, default=140, help="Maximo de modelos prefiltrados para consultar endpoints")
-    parser.add_argument("--min-throughput", type=float, default=None, help="Throughput minimo em tokens/s; usa p50 do OpenRouter ou mediana AA")
-    parser.add_argument("--allow-unknown-throughput", action="store_true", help="Nao elimina endpoint sem dado de throughput; aplica penalidade no score")
+    parser.add_argument("--min-throughput", type=float, default=60.0, help="Throughput minimo hard em tokens/s: p75 OpenRouter, p50 como fallback")
     parser.add_argument("--input", "--input-modalities", dest="input_modalities", default="text", help="Modalidades exigidas: text,image,file,audio,video ou any")
     parser.add_argument("--output", "--output-modalities", dest="output_modalities", default="text", help="Modalidades de saida exigidas ou any")
     parser.add_argument("--tool-calls", dest="tool_calls", action="store_true", default=None, help="Exigir suporte a Tool Calls")
-    parser.add_argument("--no-tool-calls", dest="tool_calls", action="store_false", help="Exigir modelos sem Tool Calls")
+    parser.add_argument("--no-tool-calls", dest="tool_calls", action="store_false", help="Seleção para geração textual; aplica a variante :nitro sem excluir modelos capazes de tools")
     parser.add_argument("--structured-outputs", dest="structured_outputs", action="store_true", default=None, help="Exigir structured_outputs / JSON Schema")
     parser.add_argument("--no-structured-outputs", dest="structured_outputs", action="store_false", help="Exigir modelos sem structured_outputs")
     parser.add_argument("--min-context", type=int, default=0, help="Context window minimo em tokens")
@@ -603,51 +648,42 @@ def render_markdown(records: list[dict[str, Any]], args: argparse.Namespace, cou
         filters.append(f"context >= {args.min_context}")
 
     lines = [
-        f"# Top {len(records)} modelos custo-beneficio",
+        f"# Candidatos para Model Engineering Eval ({len(records)} de {args.limit})",
         "",
-        f"Filtros: `{'; '.join(filters)}`",
-        f"Fonte: OpenRouter `/models` + `/endpoints`" + (" + Artificial Analysis" if aa_used else "") + ".",
+        f"Filtros hard: `{'; '.join(filters)}`; reasoning controlável; não gratuito.",
         "",
+        "| # | Modelo para o Eval | Provider / endpoint | Reasoning inicial | Throughput |",
+        "|---:|---|---|---|---:|",
     ]
-    if args.min_throughput is not None and any(r.get("throughput_tps") is None for r in records):
-        lines.append("> Alguns endpoints nao publicam throughput; foram aceitos porque `--allow-unknown-throughput` foi usado. Sim, dados incompletos: a tradicao continua.")
-        lines.append("")
-    lines.extend(
-        [
-            "| # | Modelo latest | Endpoint | Inputs | Tools | Structured | Context | Throughput | Custo ponderado/1M | Score |",
-            "|---:|---|---|---|---:|---:|---:|---:|---:|---:|",
-        ]
-    )
     for idx, rec in enumerate(records, 1):
         throughput = fmt_num(rec.get("throughput_tps"), " t/s")
         if rec.get("throughput_source"):
             throughput = f"{throughput} ({rec['throughput_source']})"
+        reasoning = rec.get("reasoning") or {}
+        if reasoning.get("mode") == "effort":
+            reasoning_text = f"effort: `{reasoning.get('initial')}`"
+        else:
+            reasoning_text = "max_tokens: mapa local começa em `xhigh`"
         lines.append(
-            "| {idx} | `{model}`<br>{name}<br>criado {created} | {endpoint}<br>`{tag}` | {inputs} | {tools} | {structured} | {context} | {throughput} | {cost}<br>in {pin} / out {pout} | {score:.2f} |".format(
+            "| {idx} | `{model}` | {endpoint}<br>`{tag}` | {reasoning} | {throughput} |".format(
                 idx=idx,
                 model=pipe_safe(rec.get("model_id")),
-                name=pipe_safe(rec.get("model_name")),
-                created=rec.get("created_date"),
                 endpoint=pipe_safe(rec.get("provider") or rec.get("endpoint")),
                 tag=pipe_safe(rec.get("tag")),
-                inputs=",".join(rec.get("input_modalities") or []),
-                tools="✅" if rec.get("tool_calls") else "❌",
-                structured="✅" if rec.get("structured_outputs") else "❌",
-                context=f"{int(rec.get('context_length') or 0):,}",
+                reasoning=reasoning_text,
                 throughput=throughput,
-                cost=fmt_money(rec.get("weighted_usd_per_1m") or math.inf),
-                pin=fmt_money(rec.get("prompt_usd_per_1m") or math.inf),
-                pout=fmt_money(rec.get("completion_usd_per_1m") or math.inf),
-                score=float(rec.get("score") or 0),
             )
         )
     lines.extend(
         [
             "",
-            "## Observacoes",
-            "- `latest` e calculado por familia heuristica + `created` do OpenRouter; confirme manualmente quando a familia do fornecedor tiver nome ambíguo.",
-            "- Score = throughput × uptime × contexto × qualidade(opcional AA) / custo ponderado. Nao e benchmark absoluto de inteligencia.",
-            f"- Diagnostico: modelos={counts.get('models', 0)}, latest={counts.get('latest', 0)}, prefiltrados={counts.get('prefiltered', 0)}, endpoints/candidatos={counts.get('records', 0)}.",
+            "## Guia para testar no Model Engineering Eval do repositório",
+            "1. **Pré-requisito:** use a suíte de Eval já definida pelo repositório; esta skill não cria nem executa o runner.",
+            "2. Execute cada slug acima com a configuração inicial indicada. Para `max_tokens`, aplique o mapa local de percentuais/budgets para `xhigh`.",
+            "3. Uma configuração passa somente com `pass_rate >= 95%` (ou o limiar local explicitamente configurado). Registre payload de reasoning, provider efetivo, custo real, latência e throughput.",
+            "4. Para cada sobrevivente, desça um nível de cada vez: `xhigh → high → medium → low → minimal`; pule níveis não suportados. Pare para aquele modelo na primeira falha, mas continue mesmo que reste apenas um sobrevivente.",
+            "5. Retenha o menor reasoning aprovado por modelo. Com pelo menos dois modelos distintos aprovados, o Eval define `principal` e `fallback` por: menor custo total observado → menor latência → maior throughput.",
+            "6. Revalide no prazo configurado (padrão: 30 dias) ou após mudança de modelo, provider, preço, reasoning ou suíte de Eval. Aplique runtime manualmente; esta skill não altera produção.",
         ]
     )
     return "\n".join(lines)
@@ -672,8 +708,7 @@ def run(args: argparse.Namespace) -> tuple[list[dict[str, Any]], dict[str, int],
     models = sorted(models, key=rough_key)[: max(args.candidate_limit, args.limit)]
 
     aa_index: dict[str, dict[str, Any]] = {}
-    aa_key_present = bool(os.getenv("AA_API_KEY") or os.getenv("ARTIFICIAL_ANALYSIS_API_KEY"))
-    if args.use_artificial_analysis or (args.min_throughput is not None and aa_key_present):
+    if args.use_artificial_analysis:
         aa_index = fetch_artificial_analysis()
     aa_used = bool(aa_index)
 
@@ -699,7 +734,7 @@ def run_self_test() -> None:
         "--input", "text,image",
         "--tool-calls",
         "--structured-outputs",
-        "--min-throughput", "50",
+        "--min-throughput", "60",
         "--limit", "1",
     ])
     args.requirements_json = None
@@ -722,6 +757,7 @@ def run_self_test() -> None:
             "architecture": {"input_modalities": ["text", "image"], "output_modalities": ["text"]},
             "pricing": {"prompt": "0.000001", "completion": "0.000003"},
             "supported_parameters": ["tools", "tool_choice", "structured_outputs"],
+            "reasoning": {"supported_efforts": ["xhigh", "high", "medium", "low", "minimal"]},
         },
         {
             "id": "example/bad-model",
@@ -746,13 +782,21 @@ def run_self_test() -> None:
             "context_length": 400000,
             "pricing": {"prompt": "0.000001", "completion": "0.000003"},
             "supported_parameters": ["tools", "tool_choice", "structured_outputs"],
-            "throughput_last_30m": {"p50": 72.0},
+            "throughput_last_30m": {"p75": 72.0},
             "uptime_last_30m": 99.9,
         }
     ]
     records = endpoint_records(filtered[0], endpoints, args, None)
     ranked = rank_records(records, 1)
     assert len(ranked) == 1 and ranked[0]["throughput_tps"] == 72.0, ranked
+    assert ranked[0]["model_id"] == "openai/gpt-5.1:exacto", ranked
+    assert routed_model_id("openai/gpt-5.1:exacto", False) == ("openai/gpt-5.1:nitro", ":nitro")
+    assert routed_model_id("openai/gpt-5.1", None) == ("openai/gpt-5.1:nitro", ":nitro")
+    assert ranked[0]["reasoning"]["initial"] == "xhigh", ranked
+    assert metric_p75_or_p50({"p75": 61, "p50": 99}) == (61.0, "p75")
+    assert metric_p75_or_p50({"p50": 61}) == (61.0, "p50 fallback")
+    max_tokens_reasoning = reasoning_capability({"reasoning": {"supports_max_tokens": True}})
+    assert max_tokens_reasoning and max_tokens_reasoning["mode"] == "max_tokens"
     print("self-test ok")
 
 
@@ -763,6 +807,10 @@ def main(argv: list[str] | None = None) -> int:
         run_self_test()
         return 0
     apply_requirements_json(args)
+    if not 2 <= args.limit <= 5:
+        parser.error("--limit deve estar entre 2 e 5")
+    if args.min_throughput < 60:
+        parser.error("--min-throughput nao pode ser menor que 60 t/s")
     if args.input_weight < 0 or args.output_weight < 0 or (args.input_weight + args.output_weight) <= 0:
         parser.error("Pesos de input/output invalidos")
     total_weight = args.input_weight + args.output_weight
@@ -778,17 +826,24 @@ def main(argv: list[str] | None = None) -> int:
     if args.debug:
         print(json.dumps(counts, ensure_ascii=False), file=sys.stderr)
 
-    if not records:
+    if len(records) < 2:
         msg = {
-            "error": "Nenhum modelo encontrado para os filtros.",
-            "hint": "Relaxe os filtros, aumente --candidate-limit, use --allow-unknown-throughput, ou configure AA_API_KEY para throughput da Artificial Analysis.",
-            "counts": counts,
+            "error": "Menos de dois candidatos atendem aos filtros hard.",
+            "hint": "São obrigatórios: reasoning controlável, modelo não gratuito e throughput OpenRouter p75 (ou p50 fallback) >= 60 t/s.",
         }
-        print(json.dumps(msg, ensure_ascii=False, indent=2) if args.fmt == "json" else f"# Nenhum modelo encontrado\n\n{msg['hint']}\n\n```json\n{json.dumps(msg, ensure_ascii=False, indent=2)}\n```")
+        print(json.dumps(msg, ensure_ascii=False, indent=2) if args.fmt == "json" else f"# Seleção insuficiente\n\n{msg['hint']}")
         return 2
 
+    evaluation_guide = [
+        "Use a suíte de Model Engineering Eval já definida pelo repositório; esta skill não cria nem executa o runner.",
+        "Comece no reasoning indicado; em max_tokens, aplique o mapa local de xhigh.",
+        "Uma configuração passa com pass_rate >= 95% (ou limiar local explicitamente configurado).",
+        "Desça xhigh → high → medium → low → minimal; pule níveis não suportados e pare no primeiro nível que falhar por modelo.",
+        "Com pelo menos dois modelos distintos aprovados, escolha principal e fallback por custo total, latência e throughput.",
+        "Revalide em até 30 dias, ou após alterações de modelo, provider, preço, reasoning ou suíte de Eval; runtime é manual.",
+    ]
     if args.fmt == "json":
-        print(json.dumps({"data": records, "counts": counts, "source": "openrouter+artificial-analysis" if aa_used else "openrouter"}, ensure_ascii=False, indent=2))
+        print(json.dumps({"candidates": records, "eval_guide": evaluation_guide}, ensure_ascii=False, indent=2))
     else:
         print(render_markdown(records, args, counts, aa_used))
     return 0

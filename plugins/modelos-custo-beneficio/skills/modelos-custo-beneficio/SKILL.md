@@ -1,115 +1,101 @@
 ---
 name: "modelos-custo-beneficio"
-description: "Seleciona os 5 modelos LLM mais custo-beneficio, sempre tentando manter a ultima versao por familia, filtrando por throughput minimo, modalidades de input/output, Tool Calls, structured outputs, contexto e custo. Usa OpenRouter em tempo real e Artificial Analysis opcional quando houver AA_API_KEY."
-argument-hint: "throughput_min=<tokens/s> input=<text,image,file> tool_calls=true structured_outputs=true min_context=<tokens> [limit=5]"
+description: "Seleciona até 5 candidatos OpenRouter para Model Engineering Eval com reasoning controlável, variantes :exacto/:nitro e throughput hard >=60 t/s (p75; p50 fallback). Não executa Eval nem muda runtime."
+argument-hint: "tool_calls=true|false input=<text,image,file> structured_outputs=true throughput_min=60 [limit=2..5]"
 ---
 
-# Modelos custo-beneficio — selector de LLM sem chute
+# Modelos custo-benefício — candidatos para Eval
 
-Use esta skill quando o usuario pedir modelos com melhor custo-beneficio e requisitos tecnicos como:
+Use quando o usuário precisar encontrar modelos OpenRouter para avaliar com requisitos técnicos. Esta skill **não decide o modelo de produção** e **não cria/roda o Model Engineering Eval**: ela devolve somente candidatos e o guia de execução no runner já existente do repositório.
 
-- throughput minimo;
-- tipos de input (`text`, `image`, `file`, `audio`, `video`);
-- Tool Calls / function calling;
-- saida estruturada (`structured_outputs` / JSON Schema);
-- contexto minimo;
-- teto de custo.
+## Contrato obrigatório
 
-A resposta deve trazer **5 modelos por padrao** e deve preferir a **ultima versao por familia de modelo**. Modelo velho barato e sedutor continua sendo velho. O Império chamava isso de legado; aqui chamamos de risco.
+Todo candidato deve cumprir simultaneamente:
 
-## Entrada / parametros aceitos
+1. Ser a versão mais recente de sua família (heurística `created` do OpenRouter).
+2. Não ser modelo/variante gratuita.
+3. Declarar reasoning controlável via `reasoning.supported_efforts` ou `reasoning.supports_max_tokens`.
+4. Ter endpoint OpenRouter com `throughput_last_30m.p75 >= 60 t/s`; quando `p75` não existir, usar `p50` (ou `median`/`avg`) como fallback. Dado ausente **reprova** o endpoint.
+5. Cumprir capacidades solicitadas: inputs, Tool Calls, structured outputs, contexto e teto de custo.
 
-O usuario pode passar parametros em texto livre ou em pares `chave=valor`. Converta para flags do script.
+Não use throughput da Artificial Analysis para satisfazer o filtro hard. `--use-artificial-analysis` é opcional e só pode enriquecer a ordenação preliminar.
 
-| Parametro do usuario | Flag do script | Exemplo |
+## Roteamento por tipo de tarefa
+
+| Necessidade | Flag | Slug emitido |
 |---|---|---|
-| `throughput_min`, `min_throughput` | `--min-throughput` | `throughput_min=50` |
-| `input`, `input_types`, `modalidades` | `--input` | `input=text,image,file` |
-| `output`, `output_modalities` | `--output` | `output=text` |
-| `tool_calls` | `--tool-calls` / omitido | `tool_calls=true` |
-| `structured_outputs`, `saida_estruturada` | `--structured-outputs` / omitido | `structured_outputs=true` |
-| `min_context`, `context_min` | `--min-context` | `min_context=128000` |
-| `max_cost_per_1m` | `--max-cost-per-1m` | `max_cost_per_1m=3` |
-| `limit` | `--limit` | `limit=5` |
+| A tarefa exige Tool Calls | `--tool-calls` | `<modelo>:exacto` |
+| A tarefa é apenas geração textual | `--no-tool-calls` | `<modelo>:nitro` |
 
-Tambem aceite JSON:
+`--no-tool-calls` escolhe `:nitro`; não elimina modelos que também sejam capazes de chamar tools.
 
-```bash
-python scripts/openrouter_model_recommender.py \
-  --requirements-json '{"throughput_min":50,"input_types":["text","image"],"tool_calls":true,"structured_outputs":true}'
-```
+## Entrada
 
-## Procedimento obrigatorio
+Converta texto livre em flags. Aceite também `--requirements-json`.
 
-1. Rode o script desta skill. Nao tente ranquear modelo de memoria.
+| Parâmetro | Flag | Observação |
+|---|---|---|
+| `throughput_min` / `min_throughput` | `--min-throughput` | Piso fixo: 60; valores menores são rejeitados. |
+| `input`, `input_types` | `--input` | Ex.: `text,image` |
+| `output` | `--output` | Ex.: `text` |
+| `tool_calls=true` | `--tool-calls` | Exige `tools` no endpoint. |
+| `tool_calls=false` | `--no-tool-calls` | Rota `:nitro`. |
+| `structured_outputs=true` | `--structured-outputs` | Exige `structured_outputs`, não só `response_format`. |
+| `min_context` | `--min-context` | Janela mínima. |
+| `max_cost_per_1m` | `--max-cost-per-1m` | Teto ponderado. |
+| `limit` | `--limit` | Aceita 2–5; padrão 5. |
+
+## Procedimento
+
+1. Execute o seletor; não recomende modelos de memória.
 
    ```bash
-   # Se OPENROUTER_API_KEY nao estiver no ambiente, carregar do 1Password sem imprimir:
+   # Não exponha credenciais em saída/log.
    OPENROUTER_API_KEY="$(op item get 'OpenRouter API Key' --vault 'Automação' --fields credential --reveal)" \
    python scripts/openrouter_model_recommender.py \
      --limit 5 \
-     --min-throughput 50 \
+     --min-throughput 60 \
      --input text,image \
      --tool-calls \
      --structured-outputs \
      --min-context 128000
    ```
 
-2. Se o usuario pedir throughput minimo e o OpenRouter nao publicar `throughput_last_30m` suficiente:
-   - primeiro valide se ha `OPENROUTER_API_KEY`; sem chave o endpoint pode retornar dados incompletos;
-   - se `AA_API_KEY` ou `ARTIFICIAL_ANALYSIS_API_KEY` existir, rode com `--use-artificial-analysis`;
-   - se nao existir, explique que o filtro de throughput ficou bloqueado por falta de dado publico e ofereca `--allow-unknown-throughput` **com ressalva explicita**.
+2. Interprete o resultado apenas como lista de candidatos para a suíte de Eval local. Se houver 2–4 candidatos, liste todos. Se houver menos de 2, pare: não relaxe automaticamente os requisitos nem invente candidatos.
 
-3. Preserve a semantica de requisitos:
-   - Tool Calls = `tools` nos `supported_parameters` do endpoint;
-   - saida estruturada = `structured_outputs`, nao apenas `response_format`;
-   - input types = `architecture.input_modalities` precisa conter todas as modalidades exigidas;
-   - latest = filtro heuristico por familia + maior `created` do OpenRouter.
+3. No Model Engineering Eval do repositório, teste cada candidato no reasoning inicial:
+   - `supported_efforts`: comece em `xhigh`, ou no maior nível suportado;
+   - `supports_max_tokens`: aplique o mapa local de tokens para começar no equivalente a `xhigh`.
 
-4. Entregue tabela curta com:
-   - modelo (`model_id`), provider/endpoint;
-   - inputs;
-   - Tool Calls sim/nao;
-   - Structured Outputs sim/nao;
-   - contexto;
-   - throughput e fonte;
-   - custo input/output e custo ponderado por 1M;
-   - motivo do ranking.
+4. Uma configuração só passa com `pass_rate >= 95%`, salvo limiar explicitamente definido pela suíte local. Registre provider efetivo, payload de reasoning, custo real, latência e throughput.
 
-## Exemplos
+5. Para cada modelo que passar, reduza o esforço um nível por vez:
 
-### Texto + imagem, tools e structured outputs
+   ```text
+   xhigh → high → medium → low → minimal
+   ```
 
-```bash
-python scripts/openrouter_model_recommender.py \
-  --min-throughput 40 \
-  --input text,image \
-  --tool-calls \
-  --structured-outputs \
-  --min-context 128000
-```
+   Pule níveis não suportados. Ao primeiro nível que falhar, retenha o menor nível anterior aprovado para aquele modelo. Continue o fluxo mesmo que reste apenas um sobrevivente.
 
-### Aceitar throughput desconhecido, mas penalizar score
+6. Se pelo menos dois modelos distintos passarem, o **Eval** define:
 
-```bash
-python scripts/openrouter_model_recommender.py \
-  --min-throughput 40 \
-  --allow-unknown-throughput \
-  --input text \
-  --tool-calls \
-  --structured-outputs
-```
+   ```text
+   principal = menor custo total observado
+               → menor latência
+               → maior throughput
 
-### JSON como parametro da skill
+   fallback  = próximo modelo distinto aprovado
+   ```
 
-```bash
-python scripts/openrouter_model_recommender.py \
-  --requirements-json '{"throughput_min":80,"input_types":["text","file"],"tool_calls":true,"structured_outputs":true,"min_context":200000}'
-```
+   Aplique o resultado no runtime manualmente; esta skill não altera configuração de produção.
 
-## Regras de saida
+7. Revalide no prazo configurado (padrão: 30 dias) ou antes quando houver mudança de modelo, provider, preço, controle de reasoning ou suíte de Eval.
 
-- Seja direto: top 5 e ressalvas. Sem palestra.
-- Nao recomende modelo que falhou em requisito hard.
-- Se menos de 5 modelos passarem, diga quantos passaram e qual filtro provavelmente estreitou demais.
-- Se usar `--allow-unknown-throughput`, marque os modelos com throughput desconhecido. Dados ausentes nao viram performance por magia, infelizmente.
+## Saída
+
+Entregue **somente**:
+
+- até cinco modelos/variantes candidatos, com endpoint, configuração inicial de reasoning e throughput usado (`p75` ou fallback `p50`);
+- o guia de execução do Eval acima.
+
+Não anuncie vencedor, não exponha ranking como decisão final e não sugira throughput desconhecido como aceitável.
