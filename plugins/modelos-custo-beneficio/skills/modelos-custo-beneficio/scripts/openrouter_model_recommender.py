@@ -705,9 +705,10 @@ def render_markdown(records: list[dict[str, Any]], args: argparse.Namespace, cou
             "4. Tool Calls: teste o mesmo modelo com `:exacto`, validando escolha da tool, schema/argumentos, resultado e recuperação/abstenção diante de tool inválida ou indisponível.",
             "5. Antialucinação: inclua casos grounded e sem resposta; reprove fatos, citações, resultados de tools ou detalhes inventados. Sem evidência, o modelo deve declarar incerteza, pedir contexto ou recusar.",
             "6. Ganho vs. mercado: compare o mesmo corpus contra ≥3 baselines atuais de provedores distintos, pinando IDs, versões e providers; inclua o modelo de produção atual quando existir. Registre Δ pass_rate global e por gate (p.p.), custo, latência e throughput.",
-            "7. Cada gate e a taxa global precisam atingir pass_rate >= 95% (ou o limiar local). Gate ausente ou falho desqualifica o candidato.",
-            "8. Desça xhigh → high → medium → low → minimal; pule níveis não suportados e pare no primeiro nível que falhar por modelo.",
-            "9. Com pelo menos dois modelos distintos aprovados em todos os gates, escolha principal e fallback por custo total, latência e throughput; runtime continua manual.",
+            "7. Execução prioritariamente paralela: dispare combinações independentes de modelo + variante + reasoning em workers isolados, com o mesmo snapshot; limite concorrência por provider/rate limit/orçamento e só agregue após todos os jobs terminarem.",
+            "8. Cada gate e a taxa global precisam atingir pass_rate >= 95% (ou o limiar local). Gate ausente ou falho desqualifica o candidato.",
+            "9. Desça xhigh → high → medium → low → minimal; pule níveis não suportados e pare no primeiro nível que falhar por modelo.",
+            "10. Com pelo menos dois modelos distintos aprovados em todos os gates, escolha principal e fallback por custo total, latência e throughput; runtime continua manual.",
         ]
     )
     return "\n".join(lines)

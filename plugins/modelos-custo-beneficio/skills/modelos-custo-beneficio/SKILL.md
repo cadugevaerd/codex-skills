@@ -71,6 +71,8 @@ Não use throughput da Artificial Analysis para satisfazer o filtro hard. `--use
 
 4. Execute cada candidato no reasoning inicial (`xhigh` ou maior suportado; para `max_tokens`, use o mapa local equivalente). Uma combinação `modelo + variante + reasoning` só passa se **cada gate** e a taxa global atingirem `pass_rate >= 95%`, ou o limiar explicitamente configurado pela suíte. Gate ausente ou falho desqualifica o candidato.
 
+   **Prioridade de execução:** dispare em paralelo todas as combinações independentes de `modelo + variante + reasoning` (candidatos e baselines) para economizar tempo. Cada worker usa o mesmo snapshot de corpus/prompts/tools e grava resultado imutável separado. Limite a concorrência por provider conforme rate limits, orçamento e capacidade do runner; retries seguem a mesma política para todos. Só agregue métricas e decida principal/fallback após todos os jobs terminarem; não paralelize etapas dependentes nem compartilhe arquivos mutáveis.
+
 5. Reduza o reasoning por sobrevivente: `xhigh → high → medium → low → minimal`, ignorando níveis não suportados. Ao falhar, retenha o menor nível anterior aprovado.
 
 6. Somente com pelo menos dois modelos distintos aprovados nos quatro gates, o Eval escolhe `principal` e `fallback`: menor custo total observado → menor latência → maior throughput. Aplique runtime manualmente.
