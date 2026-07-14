@@ -153,15 +153,22 @@ def supports_structured(params: set[str]) -> bool:
 EFFORT_LEVELS = ("xhigh", "high", "medium", "low", "minimal")
 
 
+def normalized_effort(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    effort = value.strip().lower()
+    return effort if effort in EFFORT_LEVELS else None
+
+
 def reasoning_capability(model: dict[str, Any]) -> dict[str, Any] | None:
-    """Normalize OpenRouter reasoning metadata without guessing a parameter name."""
+    """Normalize OpenRouter reasoning metadata without accepting empty efforts."""
     raw = model.get("reasoning") or {}
     if not isinstance(raw, dict):
         return None
     supported = {
-        str(value).strip().lower()
+        effort
         for value in (raw.get("supported_efforts") or [])
-        if str(value).strip().lower() in EFFORT_LEVELS
+        if (effort := normalized_effort(value)) is not None
     }
     if supported:
         ordered = [level for level in EFFORT_LEVELS if level in supported]
@@ -834,6 +841,13 @@ def run_self_test() -> None:
     assert routed_model_id("openai/gpt-5.1:exacto", False) == ("openai/gpt-5.1:nitro", ":nitro")
     assert routed_model_id("openai/gpt-5.1", None) == ("openai/gpt-5.1:nitro", ":nitro")
     assert ranked[0]["reasoning"]["initial"] == "xhigh", ranked
+    assert normalized_effort(None) is None
+    assert normalized_effort("") is None
+    assert normalized_effort("   ") is None
+    assert normalized_effort("unsupported") is None
+    assert reasoning_capability({"reasoning": {"supported_efforts": [None, "", " "]}}) is None
+    normalized_high = reasoning_capability({"reasoning": {"supported_efforts": [None, "  high  "]}})
+    assert normalized_high is not None and normalized_high["initial"] == "high"
     assert metric_p75_or_p50({"p75": 61, "p50": 99}) == (61.0, "p75")
     assert metric_p75_or_p50({"p50": 61}) == (61.0, "p50 fallback")
     assert metric_p75_or_p50({"p75": "indisponivel", "p50": 61}) == (61.0, "p50 fallback")
