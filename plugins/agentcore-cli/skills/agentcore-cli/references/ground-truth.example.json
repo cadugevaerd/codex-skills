@@ -1,0 +1,27 @@
+[
+  {
+    "sessionId": "session-order-001",
+    "groundTruth": {
+      "inline": {
+        "assertions": [
+          {
+            "text": "O agente deve consultar o status do pedido antes de responder."
+          }
+        ],
+        "expectedTrajectory": {
+          "toolNames": [
+            "lookup_order"
+          ]
+        },
+        "turns": [
+          {
+            "input": "Qual o status do pedido ORD-1001?",
+            "expectedResponse": {
+              "text": "O pedido ORD-1001 foi entregue."
+            }
+          }
+        ]
+      }
+    }
+  }
+]
