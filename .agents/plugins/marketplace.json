@@ -111,6 +111,18 @@
         "authentication": "ON_INSTALL"
       },
       "category": "Productivity"
+    },
+    {
+      "name": "langsmith-evals",
+      "source": {
+        "source": "local",
+        "path": "./plugins/langsmith-evals"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Development"
     }
   ]
 }

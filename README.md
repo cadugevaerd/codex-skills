@@ -17,6 +17,7 @@ plugin individual.
 | `rag-kag-decision` | Decide quando usar RAG, KAG, GraphRAG ou abordagem hibrida conforme documentos, entidades, relacoes, regras, temporalidade, custo e risco. |
 | `modelos-custo-beneficio` | Consulta OpenRouter e lista até 5 candidatos para Model Engineering Eval, com reasoning controlável, throughput p75/p50 ≥60 t/s e variantes `:exacto`/`:nitro`; não decide runtime. |
 | `facilitador-reunioes` | Cria convites, objetivos claros, pré-briefing, roteiro de condução e próximos passos para reuniões objetivas. |
+| `langsmith-evals` | Projeta, executa e audita evals LangSmith-first para chatbots, RAG, agents, nodes e grafos. Inclui Engineer e Auditor independentes, fixados em `gpt-5.6-terra`. |
 
 ## Instalacao local
 
@@ -33,7 +34,18 @@ codex plugin add grillme-gestor@codex-skills
 codex plugin add rag-kag-decision@codex-skills
 codex plugin add modelos-custo-beneficio@codex-skills
 codex plugin add facilitador-reunioes@codex-skills
+codex plugin add langsmith-evals@codex-skills
 ```
+
+A skill `/langsmith-evals` fica disponível imediatamente. Para registrar também os
+dois custom agents do Codex, execute uma vez a partir do clone deste marketplace:
+
+```bash
+python3 plugins/langsmith-evals/scripts/install_codex_agents.py
+```
+
+O instalador é idempotente, mantém backup do `config.toml`, fixa
+`model = "gpt-5.6-terra"` nos dois agentes e oferece `--uninstall`.
 
 Para listar o catalogo:
 
@@ -95,6 +107,11 @@ plugins/
   facilitador-reunioes/
     .codex-plugin/plugin.json
     skills/facilitador-reunioes/
+  langsmith-evals/
+    .codex-plugin/plugin.json
+    agents/*.toml
+    scripts/install_codex_agents.py
+    skills/langsmith-evals/
 ```
 
 ## Notas da conversao
@@ -110,6 +127,7 @@ plugins/
 - A skill `rag-kag-decision` ajuda a escolher RAG, KAG, GraphRAG ou hibrido com base em documentos, entidades, relacoes, regras, temporalidade, custo e risco.
 - A skill `modelos-custo-beneficio` consulta OpenRouter em tempo real e entrega candidatos para o Model Engineering Eval local: reasoning controlável, throughput p75/p50 >=60 t/s e variantes `:exacto`/`:nitro`, sem alteração de runtime.
 - A skill `facilitador-reunioes` transforma pedidos vagos em convite com objetivo, pré-briefing, pauta, condução e próximos passos com dono/prazo.
+- O plugin `langsmith-evals` usa LangSmith como control plane para Dataset, Experiments, Traces e Feedback, preserva pytest/oráculos determinísticos e separa execução (`Engineer`) de aprovação independente (`Auditor`). Como plugins Codex não registram custom roles automaticamente, o instalador gerencia as seções em `~/.codex/config.toml`.
 
 ## Licenca
 
