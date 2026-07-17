@@ -18,6 +18,10 @@
 ## Evaluators
 
 - [ ] Criterios objetivos usam oraculos deterministicos.
+- [ ] Pytest deterministico prova falha inicial, usa expectativas/tolerancias declaradas e tem output real reproduzivel.
+- [ ] Testes mecanicos nao chamam LLM-as-judge nem misturam criterios semanticos na mesma nota.
+- [ ] Rede, clock, UUID, random, filesystem e gateways externos estao controlados por fixtures/fakes quando aplicavel.
+- [ ] Feedback LangSmith, quando habilitado, espelha a assercao Pytest e nao substitui o oraculo.
 - [ ] Cada judge tem uma rubrica atomica e structured output.
 - [ ] Judge foi calibrado contra labels humanos/fixtures representativos.
 - [ ] Prompt injection, position bias, verbosity bias e self-preference foram considerados.

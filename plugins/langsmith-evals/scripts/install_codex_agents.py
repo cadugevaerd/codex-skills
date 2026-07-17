@@ -18,11 +18,19 @@ import tempfile
 
 BEGIN = "# BEGIN langsmith-evals plugin agents"
 END = "# END langsmith-evals plugin agents"
-AGENT_NAMES = ("langsmith_evals_engineer", "langsmith_evals_auditor")
+AGENT_NAMES = (
+    "langsmith_evals_engineer",
+    "langsmith_pytest_engineer",
+    "langsmith_evals_auditor",
+)
 BLOCK = f"""{BEGIN}
 [agents.langsmith_evals_engineer]
 description = "Implementa datasets, evaluators, experiments, backtests e gates LangSmith-first."
 config_file = "agents/langsmith-evals-engineer.toml"
+
+[agents.langsmith_pytest_engineer]
+description = "Implementa e executa Pytest para contratos deterministicos, sem LLM-as-judge."
+config_file = "agents/langsmith-pytest-engineer.toml"
 
 [agents.langsmith_evals_auditor]
 description = "Audita evidencias LangSmith de forma independente e emite GO, NO-GO ou BLOCKED."
@@ -73,12 +81,17 @@ def install(plugin_root: Path, codex_home: Path) -> None:
     source_agents = plugin_root / "agents"
     source_skill = plugin_root / "skills" / "langsmith-evals"
 
-    required = [
+    agent_sources = [
         source_agents / "langsmith-evals-engineer.toml",
+        source_agents / "langsmith-pytest-engineer.toml",
         source_agents / "langsmith-evals-auditor.toml",
+    ]
+    required = [
+        *agent_sources,
         source_skill / "SKILL.md",
         source_skill / "references" / "patterns.md",
         source_skill / "references" / "audit-checklist.md",
+        source_skill / "references" / "pytest-deterministic.md",
     ]
     missing = [str(path) for path in required if not path.is_file()]
     if missing:
@@ -90,7 +103,7 @@ def install(plugin_root: Path, codex_home: Path) -> None:
 
     codex_home.mkdir(parents=True, exist_ok=True)
     agents_dir.mkdir(parents=True, exist_ok=True)
-    for source in required[:2]:
+    for source in agent_sources:
         shutil.copy2(source, agents_dir / source.name)
 
     if knowledge_dir.exists():
@@ -109,7 +122,10 @@ def install(plugin_root: Path, codex_home: Path) -> None:
     print(f"OK: agentes instalados em {agents_dir}")
     print(f"OK: conhecimento instalado em {knowledge_dir}")
     print(f"OK: papeis registrados em {config}")
-    print("MODELS: engineer=gpt-5.6-terra auditor=gpt-5.6-terra")
+    print(
+        "MODELS: engineer=gpt-5.6-terra "
+        "pytest=gpt-5.6-terra auditor=gpt-5.6-terra"
+    )
 
 
 def uninstall(codex_home: Path) -> None:
@@ -118,7 +134,11 @@ def uninstall(codex_home: Path) -> None:
     if config.exists():
         current = config.read_text(encoding="utf-8")
         atomic_write(config, remove_managed_block(current))
-    for name in ("langsmith-evals-engineer.toml", "langsmith-evals-auditor.toml"):
+    for name in (
+        "langsmith-evals-engineer.toml",
+        "langsmith-pytest-engineer.toml",
+        "langsmith-evals-auditor.toml",
+    ):
         path = agents_dir / name
         if path.exists():
             path.unlink()
