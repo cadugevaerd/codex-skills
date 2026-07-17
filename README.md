@@ -17,7 +17,7 @@ plugin individual.
 | `rag-kag-decision` | Decide quando usar RAG, KAG, GraphRAG ou abordagem hibrida conforme documentos, entidades, relacoes, regras, temporalidade, custo e risco. |
 | `modelos-custo-beneficio` | Consulta OpenRouter e lista até 5 candidatos para Model Engineering Eval, com reasoning controlável, throughput p75/p50 ≥60 t/s e variantes `:exacto`/`:nitro`; não decide runtime. |
 | `facilitador-reunioes` | Cria convites, objetivos claros, pré-briefing, roteiro de condução e próximos passos para reuniões objetivas. |
-| `langsmith-evals` | Projeta, executa e audita evals LangSmith-first para chatbots, RAG, agents, nodes e grafos. Inclui Engineer e Auditor independentes, fixados em `gpt-5.6-terra`. |
+| `langsmith-evals` | Projeta, executa e audita evals LangSmith-first para chatbots, RAG, agents, nodes e grafos. Inclui Engineer, Pytest Engineer deterministico e Auditor independente, fixados em `gpt-5.6-terra`. |
 
 ## Instalacao local
 
@@ -38,14 +38,14 @@ codex plugin add langsmith-evals@codex-skills
 ```
 
 A skill `/langsmith-evals` fica disponível imediatamente. Para registrar também os
-dois custom agents do Codex, execute uma vez a partir do clone deste marketplace:
+tres custom agents do Codex, execute uma vez a partir do clone deste marketplace:
 
 ```bash
 python3 plugins/langsmith-evals/scripts/install_codex_agents.py
 ```
 
 O instalador é idempotente, mantém backup do `config.toml`, fixa
-`model = "gpt-5.6-terra"` nos dois agentes e oferece `--uninstall`.
+`model = "gpt-5.6-terra"` nos tres agentes e oferece `--uninstall`.
 
 Para listar o catalogo:
 

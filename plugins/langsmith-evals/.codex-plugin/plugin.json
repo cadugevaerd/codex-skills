@@ -1,7 +1,7 @@
 {
   "name": "langsmith-evals",
-  "version": "1.0.0",
-  "description": "Engenharia e auditoria de evals agenticos LangSmith-first: datasets, evaluators, experiments, backtests e gates de promocao.",
+  "version": "1.1.0",
+  "description": "Engenharia, Pytest deterministico e auditoria de evals agenticos LangSmith-first: datasets, evaluators, experiments, backtests e gates.",
   "author": {
     "name": "Carlos Araujo",
     "email": "cadu.gevaerd@gmail.com",
@@ -17,24 +17,27 @@
     "experiments",
     "backtesting",
     "llm-as-judge",
-    "langgraph"
+    "langgraph",
+    "pytest"
   ],
   "skills": "./skills/",
   "interface": {
     "displayName": "LangSmith Evals",
     "shortDescription": "Projeta, executa e audita evals no LangSmith.",
-    "longDescription": "Usa LangSmith como control plane para datasets, experiments, feedback e backtests, preservando pytest e oraculos deterministicos. Inclui agentes Engineer e Auditor com papeis separados.",
+    "longDescription": "Usa LangSmith como control plane para datasets, experiments, feedback e backtests. Inclui Engineer, Pytest Engineer para oraculos deterministicos e Auditor independente.",
     "developerName": "Carlos Araujo",
     "category": "Development",
     "capabilities": [
       "LangSmith",
       "LLM Evals",
       "Agent Evaluation",
+      "Deterministic Pytest",
       "Backtesting",
       "Model Comparison"
     ],
     "defaultPrompt": [
       "/langsmith-evals desenhe e execute o eval deste agente",
+      "/langsmith-evals implemente os contratos deterministicos com pytest",
       "/langsmith-evals audite os experiments e emita GO/NO-GO"
     ]
   }

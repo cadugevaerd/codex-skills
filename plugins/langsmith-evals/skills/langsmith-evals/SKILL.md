@@ -1,7 +1,7 @@
 ---
 name: "langsmith-evals"
-description: "Especialista LangSmith-first para projetar, implementar, executar e auditar evals de chatbots, RAG, agentes, nodes e grafos; criar datasets/evaluators/experiments/backtests; comparar modelos e aplicar gates de promocao com evidencia. Use em qualquer mudanca de modelo, prompt, tool, retrieval, LangGraph ou comportamento agentico que precise de qualidade mensuravel."
-argument-hint: "<sistema ou mudanca a avaliar; opcional: engineer|audit>"
+description: "Especialista LangSmith-first para projetar, implementar, executar e auditar evals de chatbots, RAG, agentes, nodes e grafos; criar Pytest deterministico, datasets/evaluators/experiments/backtests; comparar modelos e aplicar gates com evidencia. Use em mudancas de modelo, prompt, tool, retrieval, contrato, LangGraph ou comportamento agentico que precisem de qualidade mensuravel."
+argument-hint: "<sistema ou mudanca a avaliar; opcional: engineer|pytest|audit>"
 ---
 
 # LangSmith Evals
@@ -13,8 +13,9 @@ Transformar requisitos de comportamento em evidencias reproduziveis. O LangSmith
 ## Roteamento
 
 - **Engineer**: desenhar ou alterar dataset/evaluators, instrumentar target, executar experiments, backtests e implementar gates.
+- **Pytest Engineer**: implementar por TDD somente oraculos deterministicos, contratos e isolamento de side effects; nao julga semantica nem aprova promocao.
 - **Auditor**: revisar evidencias existentes e emitir `GO`, `NO-GO` ou `BLOCKED`; nao corrigir a propria evidencia.
-- No Codex, prefira os custom agents `langsmith_evals_engineer` e `langsmith_evals_auditor` quando instalados.
+- No Codex, prefira os custom agents `langsmith_evals_engineer`, `langsmith_pytest_engineer` e `langsmith_evals_auditor` quando instalados.
 
 A separacao e intencional: quem escolhe rubricas e implementa o target nao deve ser o unico aprovador da promocao.
 
@@ -29,6 +30,17 @@ A separacao e intencional: quem escolhe rubricas e implementa o target nao deve 
 7. Nenhum resultado e inventado. Sem credencial/rede/evidencia: `BLOCKED`, nunca PASS ou SKIP silencioso.
 8. Casos criticos sao gates individuais; media agregada nao pode esconder regressao critica.
 9. Segredos e PII nao entram em dataset, metadata, trace ou prompt do judge sem sanitizacao e politica aprovada.
+
+## Fluxo obrigatorio do Pytest Engineer
+
+1. Classificar cada criterio como mecanicamente verificavel ou semantico; recusar usar judge para o primeiro e encaminhar o segundo ao Engineer.
+2. Definir input, output, invariantes, tolerancias, edge cases e isolamento antes de editar.
+3. Trabalhar por TDD: executar a falha inicial esperada, implementar a mudanca minima e rodar teste focal, modulo e suite relevante.
+4. Controlar rede, LLM, filesystem, clock, UUID, random e gateways com fixtures/fakes; nenhum side effect real e permitido.
+5. Usar `@pytest.mark.langsmith` apenas quando a publicacao de evidencia for parte do eval; a assercao Pytest continua sendo o oraculo.
+6. Entregar comandos e outputs reais, contagens, failures, arquivos alterados e limitacoes; nao emitir decisao de promocao.
+
+Leia `references/pytest-deterministic.md` para o catalogo de oraculos, exemplos e anti-padroes.
 
 ## Fluxo obrigatorio do Engineer
 
@@ -165,4 +177,4 @@ GO | NO-GO | BLOCKED
 
 ## Referencias do plugin
 
-Leia `references/patterns.md` para exemplos de implementacao e `references/audit-checklist.md` para criterios de promocao e links oficiais. Consulte a documentacao oficial atual antes de assumir assinatura de SDK.
+Leia `references/patterns.md` para exemplos de implementacao, `references/pytest-deterministic.md` para testes mecanicos e `references/audit-checklist.md` para criterios de promocao e links oficiais. Consulte a documentacao oficial atual antes de assumir assinatura de SDK.
