@@ -1,0 +1,41 @@
+{
+  "name": "agentcore-cli",
+  "version": "1.0.0",
+  "description": "Opera Amazon Bedrock AgentCore CLI com desenvolvimento local, deploy seguro, observabilidade e EVALs LLM-as-a-Judge, batch e online.",
+  "author": {
+    "name": "Carlos Araujo",
+    "email": "cadu.gevaerd@gmail.com",
+    "url": "https://github.com/cadugevaerd"
+  },
+  "homepage": "https://github.com/cadugevaerd/codex-skills",
+  "repository": "https://github.com/cadugevaerd/codex-skills",
+  "license": "MIT",
+  "keywords": [
+    "aws",
+    "bedrock",
+    "agentcore",
+    "agents",
+    "evaluation",
+    "llm-as-a-judge",
+    "observability"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "AgentCore CLI",
+    "shortDescription": "Cria, testa, observa e avalia agentes no Amazon Bedrock AgentCore.",
+    "longDescription": "Guia operacional para AgentCore CLI: projeto e dev local, validação e deploy seguro, observabilidade por traces e logs, e EVALs on-demand, batch, por dataset e online com LLM-as-a-Judge ou Lambda.",
+    "developerName": "Carlos Araujo",
+    "category": "Development",
+    "capabilities": [
+      "AWS Bedrock AgentCore",
+      "Agent Runtime",
+      "LLM Evaluations",
+      "CloudWatch Observability",
+      "CI Quality Gates"
+    ],
+    "defaultPrompt": [
+      "/agentcore-cli crie um agente LangGraph com AgentCore CLI e valide localmente",
+      "/agentcore-cli defina um EVAL batch com dataset e quality gate para este agente"
+    ]
+  }
+}
