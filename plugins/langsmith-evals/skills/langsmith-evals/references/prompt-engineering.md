@@ -96,7 +96,7 @@ Gates de formato e semantica:
 Custo/latencia budget:
 ```
 
-Compare baseline e candidato no mesmo Dataset, split, evaluators e configuracoes, exceto pela variavel explicitamente alterada. Use evaluator deterministico para schema, labels, comprimento, regex, argumentos de tool e outras propriedades mecanicas; reserve LLM-as-judge para semantica com rubric atomica e calibrada.
+Compare baseline e candidato no mesmo Dataset, split, evaluators e configuracoes, exceto pela variavel explicitamente alterada. Use evaluator deterministico para schema, labels, comprimento, regex, argumentos de tool e outras propriedades mecanicas; reserve LLM-as-judge para semantica com rubrica atomica e calibrada.
 
 ## Aplicacoes
 
