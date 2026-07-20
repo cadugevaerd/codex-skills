@@ -1,7 +1,7 @@
 {
   "name": "langsmith-evals",
-  "version": "1.0.0",
-  "description": "Engenharia e auditoria de evals agenticos LangSmith-first: datasets, evaluators, experiments, backtests e gates de promocao.",
+  "version": "1.1.0",
+  "description": "Prompt Engineering, engenharia e auditoria de evals agenticos LangSmith-first: prompts, datasets, evaluators, experiments, backtests e gates de promocao.",
   "author": {
     "name": "Carlos Araujo",
     "email": "cadu.gevaerd@gmail.com",
@@ -12,6 +12,7 @@
   "license": "MIT",
   "keywords": [
     "langsmith",
+    "prompt-engineering",
     "evals",
     "datasets",
     "experiments",
@@ -22,18 +23,20 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "LangSmith Evals",
-    "shortDescription": "Projeta, executa e audita evals no LangSmith.",
-    "longDescription": "Usa LangSmith como control plane para datasets, experiments, feedback e backtests, preservando pytest e oraculos deterministicos. Inclui agentes Engineer e Auditor com papeis separados.",
+    "shortDescription": "Otimiza prompts e executa evals no LangSmith.",
+    "longDescription": "Usa LangSmith como control plane para prompts, datasets, experiments, feedback e backtests, preservando pytest e oraculos deterministicos. Inclui Prompt Engineer, Evals Engineer e Auditor com papeis separados.",
     "developerName": "Carlos Araujo",
     "category": "Development",
     "capabilities": [
       "LangSmith",
+      "Prompt Engineering",
       "LLM Evals",
       "Agent Evaluation",
       "Backtesting",
       "Model Comparison"
     ],
     "defaultPrompt": [
+      "/langsmith-evals use o Prompt Engineer para otimizar este prompt com baseline e candidatos pareados",
       "/langsmith-evals desenhe e execute o eval deste agente",
       "/langsmith-evals audite os experiments e emita GO/NO-GO"
     ]

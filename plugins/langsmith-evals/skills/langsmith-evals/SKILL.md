@@ -1,7 +1,7 @@
 ---
 name: "langsmith-evals"
 description: "Especialista LangSmith-first para projetar, implementar, executar e auditar evals de chatbots, RAG, agentes, nodes e grafos; criar datasets/evaluators/experiments/backtests; comparar modelos e aplicar gates de promocao com evidencia. Use em qualquer mudanca de modelo, prompt, tool, retrieval, LangGraph ou comportamento agentico que precise de qualidade mensuravel."
-argument-hint: "<sistema ou mudanca a avaliar; opcional: engineer|audit>"
+argument-hint: "<sistema ou mudanca a avaliar; opcional: prompt|engineer|audit>"
 ---
 
 # LangSmith Evals
@@ -12,9 +12,10 @@ Transformar requisitos de comportamento em evidencias reproduziveis. O LangSmith
 
 ## Roteamento
 
+- **Prompt Engineer**: criar, versionar e comparar candidatos de prompt com baseline e Experiments pareados.
 - **Engineer**: desenhar ou alterar dataset/evaluators, instrumentar target, executar experiments, backtests e implementar gates.
 - **Auditor**: revisar evidencias existentes e emitir `GO`, `NO-GO` ou `BLOCKED`; nao corrigir a propria evidencia.
-- No Codex, prefira os custom agents `langsmith_evals_engineer` e `langsmith_evals_auditor` quando instalados.
+- No Codex, prefira os custom agents `langsmith_prompt_engineer`, `langsmith_evals_engineer` e `langsmith_evals_auditor` quando instalados.
 
 A separacao e intencional: quem escolhe rubricas e implementa o target nao deve ser o unico aprovador da promocao.
 
@@ -117,6 +118,17 @@ Para sistemas em producao, converta traces representativos sanitizados em Datase
 
 Rode testes locais, execute o Experiment e leia o resultado real. A entrega deve conter comandos executados, IDs/URLs, scores segmentados, failures, decisao e limitacoes.
 
+## Fluxo obrigatorio do Prompt Engineer
+
+1. Ler `references/prompt-engineering.md` e inspecionar prompts, datasets e evals existentes.
+2. Registrar prompt baseline, versao do modelo, settings, Dataset/split e gates antes de editar.
+3. Comecar com instrucao simples; adicionar contexto, formato ou few-shot somente para corrigir failure observado.
+4. Criar candidatos versionados, alterando uma variavel significativa por iteracao.
+5. Comparar `temperature` ou `top_p`, nunca ambos na mesma iteracao.
+6. Executar baseline e candidatos no mesmo Dataset, split, evaluators e condicoes.
+7. Entregar diff, hipotese, IDs/URLs dos Experiments, resultados por gate/segmento, failures, custo e latencia.
+8. Recomendar o candidato, sem aprovar a propria promocao; solicitar o Auditor para o gate final.
+
 ## Fluxo obrigatorio do Auditor
 
 1. Confirmar identidade e versionamento do Dataset/Experiment.
@@ -165,4 +177,4 @@ GO | NO-GO | BLOCKED
 
 ## Referencias do plugin
 
-Leia `references/patterns.md` para exemplos de implementacao e `references/audit-checklist.md` para criterios de promocao e links oficiais. Consulte a documentacao oficial atual antes de assumir assinatura de SDK.
+Leia `references/prompt-engineering.md` para design e iteracao de prompts, `references/patterns.md` para exemplos de implementacao e `references/audit-checklist.md` para criterios de promocao e links oficiais. Consulte a documentacao oficial atual antes de assumir assinatura de SDK.
