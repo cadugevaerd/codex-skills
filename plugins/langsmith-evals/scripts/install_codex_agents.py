@@ -18,8 +18,16 @@ import tempfile
 
 BEGIN = "# BEGIN langsmith-evals plugin agents"
 END = "# END langsmith-evals plugin agents"
-AGENT_NAMES = ("langsmith_evals_engineer", "langsmith_evals_auditor")
+AGENT_NAMES = (
+    "langsmith_prompt_engineer",
+    "langsmith_evals_engineer",
+    "langsmith_evals_auditor",
+)
 BLOCK = f"""{BEGIN}
+[agents.langsmith_prompt_engineer]
+description = "Cria, versiona e compara prompts com Experiments LangSmith pareados."
+config_file = "agents/langsmith-prompt-engineer.toml"
+
 [agents.langsmith_evals_engineer]
 description = "Implementa datasets, evaluators, experiments, backtests e gates LangSmith-first."
 config_file = "agents/langsmith-evals-engineer.toml"
@@ -74,11 +82,13 @@ def install(plugin_root: Path, codex_home: Path) -> None:
     source_skill = plugin_root / "skills" / "langsmith-evals"
 
     required = [
+        source_agents / "langsmith-prompt-engineer.toml",
         source_agents / "langsmith-evals-engineer.toml",
         source_agents / "langsmith-evals-auditor.toml",
         source_skill / "SKILL.md",
         source_skill / "references" / "patterns.md",
         source_skill / "references" / "audit-checklist.md",
+        source_skill / "references" / "prompt-engineering.md",
     ]
     missing = [str(path) for path in required if not path.is_file()]
     if missing:
@@ -90,7 +100,7 @@ def install(plugin_root: Path, codex_home: Path) -> None:
 
     codex_home.mkdir(parents=True, exist_ok=True)
     agents_dir.mkdir(parents=True, exist_ok=True)
-    for source in required[:2]:
+    for source in required[:3]:
         shutil.copy2(source, agents_dir / source.name)
 
     if knowledge_dir.exists():
@@ -109,7 +119,10 @@ def install(plugin_root: Path, codex_home: Path) -> None:
     print(f"OK: agentes instalados em {agents_dir}")
     print(f"OK: conhecimento instalado em {knowledge_dir}")
     print(f"OK: papeis registrados em {config}")
-    print("MODELS: engineer=gpt-5.6-terra auditor=gpt-5.6-terra")
+    print(
+        "MODELS: prompt-engineer=gpt-5.6-terra "
+        "engineer=gpt-5.6-terra auditor=gpt-5.6-terra"
+    )
 
 
 def uninstall(codex_home: Path) -> None:
@@ -118,7 +131,11 @@ def uninstall(codex_home: Path) -> None:
     if config.exists():
         current = config.read_text(encoding="utf-8")
         atomic_write(config, remove_managed_block(current))
-    for name in ("langsmith-evals-engineer.toml", "langsmith-evals-auditor.toml"):
+    for name in (
+        "langsmith-prompt-engineer.toml",
+        "langsmith-evals-engineer.toml",
+        "langsmith-evals-auditor.toml",
+    ):
         path = agents_dir / name
         if path.exists():
             path.unlink()

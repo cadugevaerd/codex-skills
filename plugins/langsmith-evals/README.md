@@ -1,7 +1,8 @@
 # LangSmith Evals para Codex
 
-Plugin LangSmith-first com uma skill compartilhada e dois custom agents:
+Plugin LangSmith-first com uma skill compartilhada e tres custom agents:
 
+- `langsmith_prompt_engineer`: cria, versiona e compara prompts com baseline e Experiments pareados.
 - `langsmith_evals_engineer`: implementa datasets, evaluators, experiments, backtests e gates.
 - `langsmith_evals_auditor`: revisa evidencias de forma independente e emite `GO`, `NO-GO` ou `BLOCKED`.
 
@@ -33,10 +34,10 @@ Remocao:
 python3 plugins/langsmith-evals/scripts/install_codex_agents.py --uninstall
 ```
 
-Os dois TOMLs fixam explicitamente:
+Os tres TOMLs fixam explicitamente:
 
 ```toml
 model = "gpt-5.6-terra"
 ```
 
-O Engineer usa sandbox `workspace-write`; o Auditor usa sandbox `read-only` e nao pode fabricar ou corrigir a propria evidencia.
+O Prompt Engineer e o Evals Engineer usam sandbox `workspace-write`; o Auditor usa sandbox `read-only` e nao pode fabricar ou corrigir a propria evidencia.
