@@ -1,7 +1,7 @@
 {
   "name": "grillme-langgraph",
-  "version": "1.0.0",
-  "description": "Entrevista tecnica para rascunhar fluxos LangGraph com diagrama, State CRUE, tabela de nodes e fronteiras deterministicas.",
+  "version": "1.1.0",
+  "description": "Entrevista técnica que primeiro decide se LangGraph é necessário e, quando for, desenha o fluxo com State CRUE e fronteiras determinísticas.",
   "author": {
     "name": "Carlos Araujo",
     "email": "cadu.gevaerd@gmail.com",
@@ -14,14 +14,14 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "Grillme LangGraph",
-    "shortDescription": "Design tecnico de fluxos LangGraph.",
-    "longDescription": "Interroga o usuario uma pergunta por vez e produz um rascunho de fluxo LangGraph com diagrama Mermaid, State CRUE, tabela de nodes e explicacao de cada node.",
+    "shortDescription": "Decide se LangGraph é necessário antes do design técnico.",
+    "longDescription": "Interroga o usuário uma pergunta por vez, decide se LangGraph é justificado e produz arquitetura direta sem LangGraph ou o rascunho do subfluxo LangGraph necessário.",
     "developerName": "Carlos Araujo",
     "category": "Development",
     "capabilities": ["Interactive", "Design"],
     "defaultPrompt": [
-      "/grillme-langgraph desenhar o fluxo do agente",
-      "/grillme-langgraph decidir agent-as-node vs nodes explicitos"
+      "/grillme-langgraph avaliar se LangGraph é necessário",
+      "/grillme-langgraph decidir agent-as-node vs nodes explícitos"
     ]
   }
 }

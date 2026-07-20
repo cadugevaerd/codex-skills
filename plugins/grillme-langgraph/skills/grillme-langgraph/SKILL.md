@@ -1,72 +1,121 @@
 ---
 name: grillme-langgraph
-description: Interroga o usuário (estilo grill-me) sobre um processo e produz o rascunho de um fluxo LangGraph — diagrama do grafo, schema do State (CRUE), tabela de nodes com explicação de cada um, e a marcação de quais trechos são determinísticos vs não-determinísticos dentro do fluxo maior determinístico. Use SEMPRE que o usuário quiser desenhar, projetar, rascunhar ou planejar um grafo/agente LangGraph, decompor um processo em nodes, decidir onde o fluxo é fixo vs onde o LLM decide, ou mencionar "grillme langgraph", "grill langgraph", "desenhar o fluxo", "projetar nodes", "agent-as-node vs nodes explícitos", "fluxo determinístico e não determinístico". Dispara mesmo que o usuário não diga "LangGraph" explicitamente, desde que esteja descrevendo um agente/workflow com passos, decisões e handoff humano.
+description: Entrevista técnica (estilo grill-me) para decidir primeiro se LangGraph é justificado e, somente quando for, desenhar o fluxo LangGraph com diagrama, State CRUE e tabela de nodes. Use quando o usuário quiser desenhar agentes/workflows, avaliar se LangGraph é excesso de engenharia, decidir agent-as-node vs nodes explícitos, ou separar um hot path determinístico de uma consulta/agente adaptativo.
+argument-hint: "descreva o processo, objetivo, entrada, saída e restrições de latência/estado"
 ---
 
 # grillme-langgraph
 
-Esta skill projeta o **rascunho de um fluxo LangGraph** a partir de um processo descrito pelo usuário. Ela trabalha em duas fases:
+Esta skill não presume que todo workflow merece LangGraph. Ela trabalha em três modos:
 
-1. **Grilling** — interroga o usuário, uma pergunta de cada vez, até resolver toda a árvore de decisão do fluxo.
-2. **Design** — produz o desenho do grafo, o schema do State e a tabela de nodes com explicação de cada um.
+1. **Gate de adequação** — determina se LangGraph é justificado.
+2. **Grilling sem LangGraph** — quando o fluxo é daemon, pipeline fixo, worker, fila ou transação, produz a arquitetura direta adequada.
+3. **Design LangGraph** — somente para o subfluxo que de fato requer estado de grafo, roteamento adaptativo ou loop LLM→tools→LLM.
 
-A saída é **design + diagrama, sem código de implementação**. O objetivo é o usuário sair com um rascunho claro o suficiente para implementar (ou pedir a implementação) depois.
+A entrega padrão é design + diagrama, sem código de implementação.
 
-O padrão de referência é o do próprio usuário, destilado em `references/padrao-langgraph.md`. **Leia esse arquivo antes de começar** — ele contém o modelo mental "Thinking in LangGraph", a Regra CRUE de State, a Regra de Ouro de escolha de aresta, a decisão agent-as-node vs nodes explícitos, o padrão State-Check (não `interrupt()`) e os 6 padrões de workflow. Tudo o que você produzir deve seguir esse padrão.
+## Fonte de referência
 
-## Conceito central: determinístico dentro de um fluxo maior determinístico
+Leia `references/padrao-langgraph.md` antes de começar. Ela contém o modelo “Thinking in LangGraph”, Regra CRUE, Regra de Ouro de arestas, State-Check, fronteira determinística/não-determinística e o gate “quando não usar LangGraph”.
 
-O grafo externo é **determinístico**: nodes explícitos, arestas fixas conhecidas em tempo de design, roteamento de paradas/handoff via **State-Check** (uma flag `status` no state, nunca `interrupt()`). Dentro dele existem **bolsões de não-determinismo** — pontos onde o destino só é conhecido em runtime porque um LLM decide. A skill existe para ajudar o usuário a separar com clareza os dois e escolher o mecanismo certo para cada um.
+## Fase 0 — Gate de adequação (obrigatório)
 
-Mapeie cada passo a uma destas três categorias — isso vira a coluna "Determinismo" da tabela de nodes:
+Antes de falar em nodes, faça uma pergunta por vez e investigue o que puder no projeto/documentação. Resolva:
 
-| Categoria | Como o destino é decidido | Mecanismo |
-|---|---|---|
-| **DET** (determinístico) | Fixo em tempo de design — sempre o mesmo próximo node | `add_edge` |
-| **NÃO-DET / roteado** | Runtime escolhe 1 de N destinos via lógica ou 1 chamada de LLM | `Command[Literal["a","b"]]` |
-| **NÃO-DET / agente** | Caminho imprevisível, precisa de loop de tool-calling | Agent-as-node (`create_agent`) encapsulado num único node |
+1. **Caminho crítico.** É daemon contínuo, captura/streaming de baixa latência, job por evento, consulta sob demanda ou processo humano longo?
+2. **Fluxo real.** Passos e destinos são conhecidos em design ou variam materialmente em runtime?
+3. **LLM.** Há ciclo imprevisível `LLM → tools → LLM`, ou apenas chamada pontual de LLM/classificação?
+4. **Estado.** Há estado que precisa pausar/retomar entre interações? Não é melhor representado por tabelas/eventos no banco?
+5. **Coordenação.** Há concorrência, idempotência, locks, serialização, rate limiting ou transações? Declare a fonte de verdade; não atribua essas garantias ao LangGraph.
+6. **Falhas.** Retry/checkpoint por etapa são conveniência ou razão estrutural? Filas/workers já resolvem isso?
+7. **Alternativa mínima.** Qual é a opção mais simples: função/serviço async, fila + workers, cron, banco transacional, ou um agente/tool loop?
 
-Regra de decisão para a fronteira do não-determinismo: se o caminho é imprevisível **e** precisa de um loop LLM→tools→LLM, encapsule num **agent-as-node**. Se é só "escolher 1 de N destinos com uma decisão pontual", mantenha **nodes explícitos + `Command[Literal]`**. Não transforme um fluxo fixo em agente — isso é over-engineering (ver `references/padrao-langgraph.md`).
+### Veredito fail-closed
 
-## Fase 1 — Grilling
+Só recomende LangGraph se houver razão estrutural explícita:
 
-Interrogue **uma pergunta de cada vez**, sempre com a sua resposta recomendada anexada (estilo da skill `grill-me` do usuário). Se uma pergunta puder ser respondida lendo o projeto/codebase ou a wiki, investigue em vez de perguntar. Desça cada galho da árvore antes de subir para o próximo. Não avance para o design enquanto restar ambiguidade que mude o desenho.
+```text
+✓ loop imprevisível LLM → tools → LLM;
+✓ workflow adaptativo com revisão/retorno em runtime;
+✓ estado durável, retomável e mais claro como grafo;
+✓ subfluxo conversacional que escolhe dados/ferramentas dinamicamente.
+```
 
-Cubra estes galhos, nesta ordem (adapte — pule o que já estiver respondido no contexto):
+Não use LangGraph como resposta automática a:
 
-1. **Objetivo e escopo.** Qual é o processo, em uma frase? Onde ele começa (entrada) e termina (saída/`END`)?
-2. **Passos discretos.** Quais são as ações distintas? (Ainda sem otimizar — primeiro mapear, depois refinar.) Liste-os.
-3. **Tipo de cada passo.** Para cada um: LLM step, Data step, Action step, User-input step, ou Router. (Ver tabela em `references/padrao-langgraph.md`.)
-4. **Determinismo de cada passo.** Para cada passo: o destino é fixo (DET → `add_edge`), runtime escolhe 1 de N (NÃO-DET roteado → `Command[Literal]`), ou é um caminho imprevisível com loop de tools (NÃO-DET agente → agent-as-node)? Esta é a pergunta-chave da skill — resolva-a para todo passo.
-5. **Fronteiras dos agentes.** Onde a imprevisibilidade realmente justifica um agent-as-node em vez de nodes explícitos? Cheque contra a tabela de tradeoffs. Resista a transformar fluxo fixo em agente.
-6. **Handoff humano (HITL).** Onde o fluxo para e espera um humano? Confirme o padrão **State-Check**: o node seta `state["status"] = "aguardando_humano"`, emite a mensagem e vai para `END`; a próxima invocação bate num node roteador que lê `status`. Nunca `interrupt()` para handoff.
-7. **State (Regra CRUE).** Quais **dados brutos** precisam persistir entre passos? (Nada de texto de prompt formatado no state — prompts são montados dentro do node.) Inclua a flag `status` e, se houver histórico de conversa, a estratégia de sumarização a cada N mensagens.
-8. **Tratamento de erro.** Há pontos que precisam de `RetryPolicy` (transiente), loop de auto-correção do LLM (recuperável), ou subir `raise` (inesperado)?
-9. **Padrão dominante.** Qual dos 6 padrões descreve o fluxo principal (Prompt Chaining, Parallelization, Routing, Orchestrator-Worker, Evaluator-Optimizer, Agent loop)? Pode haver um padrão externo com sub-padrões internos.
+```text
+✗ daemon contínuo ou captura sub-segundo;
+✗ pipeline fixo de ingestão/processamento;
+✗ retry, rate limit, scheduling ou observabilidade;
+✗ idempotência de side effect;
+✗ lock, serialização ou integridade transacional entre execuções;
+✗ branches determinísticas simples.
+```
 
-Quando a árvore estiver resolvida, faça um resumo de 3-5 linhas do que entendeu e confirme antes de desenhar.
+### Saída do gate
 
-## Fase 2 — Design (a saída)
+Declare um veredito antes de continuar:
 
-Produza a saída seguindo `assets/template-saida.md`. Ela tem 5 seções, nesta ordem:
+| Veredito | Próximo passo |
+|---|---|
+| **SEM LANGGRAPH** | Diga: “recomendo rodar o grill sem LangGraph”. Continue no modo Arquitetura Direta e use `assets/template-sem-langgraph.md`. Não invente State CRUE, nodes ou Mermaid de LangGraph. |
+| **USO PARCIAL** | Separe fluxos: hot path determinístico fora; rode o grilling LangGraph somente no subfluxo justificado. Produza ambos os desenhos e a fronteira explícita. |
+| **LANGGRAPH JUSTIFICADO** | Continue para Fase 1 e gere o design completo. |
 
-1. **Resumo do fluxo** — 2-3 frases: objetivo, entrada, saída, padrão dominante.
-2. **Diagrama (Mermaid)** — um `flowchart TD` do grafo, de `START` a `END`. Use a convenção visual:
-   - Nodes **DET** com caixa retangular `["nome"]`.
-   - Nodes **NÃO-DET roteado** com losango/decisão e arestas rotuladas com a condição.
-   - Nodes **agent-as-node** com subrotina `[["nome (agente)"]]`.
-   - Marque pontos de **State-Check / HITL** com uma aresta para `END` rotulada `status=aguardando_humano`.
-3. **Schema do State (CRUE)** — tabela: campo | tipo | descrição. Apenas dados brutos. Inclua `status` e a flag/estrutura de roteamento. Anote o que é derivado e **não** deve ser armazenado.
-4. **Tabela de nodes** — uma linha por node: `Node | Tipo | Determinismo (DET / NÃO-DET roteado / NÃO-DET agente) | Mecanismo de aresta (add_edge / Command[Literal] / Send) | Responsabilidade (1 frase)`.
-5. **Explicação de cada node** — um parágrafo curto por node: o que lê do state, o que faz, o que retorna, e — para os não-determinísticos — quais são os destinos possíveis e o que decide entre eles.
+Em qualquer veredito, explique evidências, alternativa mínima, o que LangGraph resolveria (se usado) e o que ele **não** resolveria.
 
-Feche com uma seção curta **"Decisões em aberto / riscos"** listando qualquer ambiguidade que sobrou ou trade-off que o usuário deveria revisitar.
+## Modo Arquitetura Direta — SEM LANGGRAPH
 
-Não escreva código de implementação. Se o usuário pedir o esqueleto Python depois, aí sim gere — mas a entrega-padrão desta skill é o design.
+Quando o gate retornar `SEM LANGGRAPH`, continue uma pergunta por vez até fechar:
 
-## Princípios (por quê)
+1. entrada, saída e SLA/latência;
+2. unidade idempotente e chave de deduplicação;
+3. daemon/fila/worker/cron;
+4. fonte de verdade, transação, lock e concorrência;
+5. retries por classe de falha e DLQ/reprocessamento;
+6. observabilidade, métricas e auditoria;
+7. gatilho futuro que poderia justificar um subfluxo LangGraph.
 
-- **Mapear antes de otimizar** (Passo 1): force a decomposição completa antes de discutir agente vs nodes. Decisões de granularidade tomadas cedo demais viram over-engineering.
-- **State-Check, não `interrupt()`**: é a convenção firme do usuário para handoff — roteável, inspecionável, e sobrevive a reinícios sem prender a execução. `interrupt()` fica reservado para coleta de input pontual dentro de um node, quando muito.
-- **Regra CRUE**: dados brutos no state, prompt montado no node. Mantém o schema estável quando os prompts mudam e deixa o debug claro.
-- **A fronteira det/não-det é a entrega**: o valor desta skill é o usuário ver, node a node, onde ele cedeu controle ao LLM e por quê. Torne essa fronteira explícita no diagrama e na tabela.
+Produza `assets/template-sem-langgraph.md`. Não chame a alternativa de “grafo simplificado”; nomeie a primitiva concreta: serviço async, worker, fila, banco, cron ou chamada de função.
+
+## Fase 1 — Grilling LangGraph
+
+Execute somente para o escopo aprovado no gate. Faça uma pergunta por vez, com recomendação anexada, e desça cada galho antes de avançar:
+
+1. objetivo, entrada, saída/`END` e fronteira fora do grafo;
+2. passos discretos; mapear antes de otimizar;
+3. tipo: LLM, Data, Action, User-input ou Router;
+4. determinismo: fixo (`add_edge`), roteado (`Command[Literal]`) ou loop de tools (agent-as-node);
+5. agent-as-node somente para `LLM → tools → LLM`; decisão pontual usa nodes explícitos;
+6. HITL via State-Check, nunca `interrupt()` como padrão;
+7. State CRUE: apenas dados brutos; prompts nos nodes;
+8. falhas: retry transiente, loop recuperável, State-Check humano ou `raise`;
+9. padrão dominante: Prompt Chaining, Parallelization, Routing, Orchestrator-Worker, Evaluator-Optimizer ou Agent loop.
+
+Antes do design, resuma em 3–5 linhas e confirme que o escopo do grafo permanece justificado.
+
+## Fase 2 — Saídas
+
+### Para LANGGRAPH JUSTIFICADO
+
+Use `assets/template-saida.md`, nesta ordem:
+
+1. Parecer de adequação e fronteira com componentes fora do grafo.
+2. Resumo do fluxo.
+3. Diagrama Mermaid.
+4. Schema do State (CRUE).
+5. Tabela de nodes.
+6. Explicação de cada node.
+7. Decisões em aberto/riscos.
+
+### Para USO PARCIAL
+
+Entregue primeiro o parecer e o desenho Arquitetura Direta do hot path. Depois gere o template LangGraph só para o subfluxo justificado. Declare a interface: evento/entrada, contrato de dados, idempotency key, dono da transação e SLA.
+
+## Princípios
+
+- **Decidir antes de modelar.** A primeira entrega é adequação, não diagrama.
+- **Menor primitiva suficiente.** Fluxo fixo continua função, worker ou fila mesmo com branches, retries e métricas.
+- **LangGraph não substitui infraestrutura.** Locks/serialização pertencem ao banco; retries/scheduling podem pertencer à fila; captura de baixa latência pertence ao daemon.
+- **CRUE só dentro do grafo.** Não force State LangGraph sobre estado operacional no banco.
+- **Fronteiras explícitas.** Se apenas consulta adaptativa precisa de LangGraph, não contamine o hot path.
