@@ -66,6 +66,7 @@ class IntelligenceBenchmarkTests(unittest.TestCase):
 
         self.assertEqual(index["google/gemini-3.5-flash-20260519"], 36.1)
         self.assertEqual(index[self.module.benchmark_fallback_index_key("google/gemini-3.5-flash")], 36.1)
+        self.assertEqual(self.module.intelligence_score_for_model("google/gemini-3.5-flash", index), 36.1)
         self.assertEqual([model["id"] for model in eligible], ["google/gemini-3.5-flash"])
         self.assertEqual(counts["benchmark_ambiguous"], 0)
         self.assertEqual(filter_counts["intelligence_eligible"], 1)
