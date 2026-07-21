@@ -1,7 +1,7 @@
 ---
 name: "modelos-custo-beneficio"
-description: "Seleciona até 5 candidatos OpenRouter para Model Engineering Eval com reasoning controlável, variantes :exacto/:nitro e throughput hard >=60 t/s. Aprovação exige gates de idioma nativo, Markdown, Tool Calls e antialucinação."
-argument-hint: "eval_language=<BCP-47> tool_calls=true|false input=<text,image,file> structured_outputs=true throughput_min=60 [limit=2..5]"
+description: "Seleciona até 5 candidatos OpenRouter para Model Engineering Eval com inteligência Artificial Analysis >35 via OpenRouter Benchmarks, reasoning controlável, variantes :exacto/:nitro e throughput hard >=60 t/s."
+argument-hint: "eval_language=<BCP-47> tool_calls=true|false input=<text,image,file> structured_outputs=true throughput_min=60 intelligence_min=35 [limit=2..5]"
 ---
 
 # Modelos custo-benefício — candidatos para Eval
@@ -18,8 +18,9 @@ Todo candidato deve cumprir simultaneamente:
 4. endpoint com `throughput_last_30m.p75 >= 60 t/s`; na ausência de `p75`, `p50`/`median`/`avg` é fallback. Dado ausente reprova;
 5. inputs, structured outputs, contexto e teto de custo solicitados;
 6. suporte a `tools`, pois o gate de Tool Calls é obrigatório inclusive para runtime textual.
+7. índice de inteligência estritamente maior que `35` por padrão, vindo de `GET /api/v1/benchmarks?source=artificial-analysis&task_type=intelligence`, associado exatamente por `model_permaslug == model.id`. Índices ausentes, inválidos, não finitos ou ambíguos reprovam.
 
-Não use throughput da Artificial Analysis para satisfazer o filtro hard. `--use-artificial-analysis` só enriquece ordenação preliminar.
+O benchmark de inteligência é um filtro hard aplicado **antes** de `--candidate-limit`; não há associação fuzzy por nome e não há fallback para uma fonte que não possa ser verificada.
 
 ## Roteamento
 
@@ -44,16 +45,16 @@ Não use throughput da Artificial Analysis para satisfazer o filtro hard. `--use
 | structured output | `--structured-outputs` | exige `structured_outputs` |
 | contexto | `--min-context` | janela mínima |
 | custo | `--max-cost-per-1m` | teto ponderado |
+| inteligência | `--min-intelligence` | índice OpenRouter/Artificial Analysis estritamente maior; padrão `35` |
 | candidatos | `--limit` | 2–5; padrão 5 |
 
 ## Procedimento obrigatório
 
-1. Execute o seletor sem expor segredos:
+1. Defina `OPENROUTER_API_KEY` no ambiente antes de executar. A skill não acessa vaults, 1Password nem imprime a credencial:
 
    ```bash
-   OPENROUTER_API_KEY="$(op item get 'OpenRouter API Key' --vault 'Automação' --fields credential --reveal)" \
    python scripts/openrouter_model_recommender.py \
-     --eval-language pt-BR --limit 5 --min-throughput 60 \
+     --eval-language pt-BR --limit 5 --min-throughput 60 --min-intelligence 35 \
      --input text,image --tool-calls --structured-outputs --min-context 128000
    ```
 
@@ -83,7 +84,8 @@ Não use throughput da Artificial Analysis para satisfazer o filtro hard. `--use
 
 Entregue apenas:
 
-- até cinco candidatos com endpoint, reasoning inicial e throughput;
+- até cinco candidatos com endpoint, reasoning inicial, throughput e índice de inteligência;
+- metadados da fonte do benchmark (`source`, `task_type`, `as_of`, `version`) e diagnósticos no JSON;
 - o guia de Eval acima.
 
 Não anuncie vencedor antes dos quatro gates aprovados e não altere runtime.

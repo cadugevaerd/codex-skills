@@ -1,0 +1,40 @@
+{
+  "data": [
+    {
+      "model_permaslug": "example/eligible",
+      "display_name": "Eligible",
+      "intelligence_index": 35.1
+    },
+    {
+      "model_permaslug": "example/threshold",
+      "display_name": "Threshold",
+      "intelligence_index": 35.0
+    },
+    {
+      "model_permaslug": "example/below",
+      "display_name": "Below",
+      "intelligence_index": 34.9
+    },
+    {
+      "model_permaslug": "example/invalid",
+      "display_name": "Invalid",
+      "intelligence_index": "N/A"
+    },
+    {
+      "model_permaslug": "example/duplicate",
+      "display_name": "Duplicate A",
+      "intelligence_index": 40.0
+    },
+    {
+      "model_permaslug": "example/duplicate",
+      "display_name": "Duplicate B",
+      "intelligence_index": 41.0
+    }
+  ],
+  "meta": {
+    "source": "artificial-analysis",
+    "task_type": "intelligence",
+    "as_of": "2026-07-21T00:01:02.674Z",
+    "version": "v1"
+  }
+}

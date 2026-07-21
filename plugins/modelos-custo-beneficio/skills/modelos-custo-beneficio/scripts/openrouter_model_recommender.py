@@ -14,11 +14,19 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 from urllib.error import HTTPError, URLError
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
 
 OPENROUTER_BASE_URL = os.getenv("OPENROUTER_API_URL", "https://openrouter.ai/api/v1").rstrip("/")
-USER_AGENT = "modelos-custo-beneficio-skill/0.1 (+https://github.com/cadugevaerd)"
+USER_AGENT = "modelos-custo-beneficio-skill/0.4 (+https://github.com/cadugevaerd)"
+
+
+class ConfigurationError(RuntimeError):
+    """A required local configuration value is absent or invalid."""
+
+
+class BenchmarkUnavailableError(RuntimeError):
+    """The hard intelligence-benchmark source could not be verified."""
 
 
 @dataclass
@@ -41,7 +49,7 @@ class ArgsView:
     exclude_provider: list[str]
     model_contains: list[str]
     exclude_model_contains: list[str]
-    use_artificial_analysis: bool
+    min_intelligence: float
     workers: int
     fmt: str
     debug: bool
@@ -100,6 +108,8 @@ def weighted_cost_per_1m(pricing: dict[str, Any], input_weight: float, output_we
 
 
 def finite_float(value: Any) -> float | None:
+    if isinstance(value, bool):
+        return None
     try:
         parsed = float(value)
     except (TypeError, ValueError):
@@ -191,10 +201,6 @@ def reasoning_capability(model: dict[str, Any]) -> dict[str, Any] | None:
 def routed_model_id(model_id: str, tool_calls: bool | None) -> tuple[str, str]:
     variant = ":exacto" if tool_calls is True else ":nitro"
     return f"{strip_router_variant(model_id)}{variant}", variant
-
-
-def normalize_text(text: str) -> str:
-    return re.sub(r"[^a-z0-9]+", "", text.lower())
 
 
 def strip_router_variant(model_id: str) -> str:
@@ -289,23 +295,85 @@ def is_free_model(model: dict[str, Any]) -> bool:
     return mid.endswith(":free") or (prompt == 0 and completion == 0)
 
 
-def fetch_json(url: str, *, openrouter: bool = True, api_key: str | None = None) -> dict[str, Any]:
+def fetch_json(url: str, *, api_key: str) -> dict[str, Any]:
     headers = {"User-Agent": USER_AGENT, "Accept": "application/json"}
-    if api_key:
-        headers["Authorization" if openrouter else "x-api-key"] = f"Bearer {api_key}" if openrouter else api_key
+    headers["Authorization"] = f"Bearer {api_key}"
     req = Request(url, headers=headers)
     with urlopen(req, timeout=35) as response:
         return json.loads(response.read().decode("utf-8"))
 
 
+def require_openrouter_api_key() -> str:
+    key = str(os.getenv("OPENROUTER_API_KEY") or "").strip()
+    if not key:
+        raise ConfigurationError("OPENROUTER_API_KEY é obrigatória no ambiente; a skill não lê credenciais de vaults.")
+    return key
+
+
 def list_openrouter_models() -> list[dict[str, Any]]:
-    api_key = os.getenv("OPENROUTER_API_KEY")
-    data = fetch_json(f"{OPENROUTER_BASE_URL}/models", api_key=api_key)
+    data = fetch_json(f"{OPENROUTER_BASE_URL}/models", api_key=require_openrouter_api_key())
     return list(data.get("data") or [])
 
 
+def index_openrouter_intelligence(payload: dict[str, Any]) -> tuple[dict[str, float | None], dict[str, Any], dict[str, int]]:
+    """Index the documented OpenRouter benchmark by canonical permaslug.
+
+    A duplicated permaslug is marked as ambiguous rather than selecting an arbitrary
+    value. Invalid and non-finite values never become an eligible intelligence score.
+    """
+    index: dict[str, float | None] = {}
+    counts = {"benchmark_rows": 0, "benchmark_invalid": 0, "benchmark_ambiguous": 0}
+    for item in payload.get("data") or []:
+        counts["benchmark_rows"] += 1
+        model_id = str(item.get("model_permaslug") or "")
+        score = finite_float(item.get("intelligence_index"))
+        if not model_id or score is None:
+            counts["benchmark_invalid"] += 1
+            continue
+        if model_id in index:
+            if index[model_id] is not None:
+                counts["benchmark_ambiguous"] += 1
+            index[model_id] = None
+            continue
+        index[model_id] = score
+    meta = payload.get("meta") or {}
+    return index, {key: meta.get(key) for key in ("source", "task_type", "as_of", "version", "source_url")}, counts
+
+
+def fetch_openrouter_intelligence() -> tuple[dict[str, float | None], dict[str, Any], dict[str, int]]:
+    query = urlencode({"source": "artificial-analysis", "task_type": "intelligence", "max_results": 500})
+    try:
+        payload = fetch_json(f"{OPENROUTER_BASE_URL}/benchmarks?{query}", api_key=require_openrouter_api_key())
+    except (HTTPError, URLError, TimeoutError, json.JSONDecodeError) as exc:
+        raise BenchmarkUnavailableError(f"Fonte OpenRouter Benchmarks indisponível: {exc}") from exc
+    return index_openrouter_intelligence(payload)
+
+
+def filter_models_by_intelligence(
+    models: list[dict[str, Any]], intelligence_index: dict[str, float | None], threshold: float
+) -> tuple[list[dict[str, Any]], dict[str, int]]:
+    counts = {
+        "intelligence_eligible": 0,
+        "intelligence_below_or_equal": 0,
+        "intelligence_missing": 0,
+    }
+    eligible: list[dict[str, Any]] = []
+    for model in models:
+        model_id = str(model.get("id") or "")
+        score = intelligence_index.get(model_id)
+        if score is None:
+            counts["intelligence_missing"] += 1
+            continue
+        if score <= threshold:
+            counts["intelligence_below_or_equal"] += 1
+            continue
+        eligible.append(model)
+        counts["intelligence_eligible"] += 1
+    return eligible, counts
+
+
 def fetch_openrouter_endpoints(model_id: str, model: dict[str, Any]) -> list[dict[str, Any]]:
-    api_key = os.getenv("OPENROUTER_API_KEY")
+    api_key = require_openrouter_api_key()
     encoded = quote(model_id, safe="/:~")
     url = f"{OPENROUTER_BASE_URL}/models/{encoded}/endpoints"
     try:
@@ -334,46 +402,6 @@ def fetch_openrouter_endpoints(model_id: str, model: dict[str, Any]) -> list[dic
             "status": None,
         }
     ]
-
-
-def fetch_artificial_analysis() -> dict[str, dict[str, Any]]:
-    key = os.getenv("AA_API_KEY") or os.getenv("ARTIFICIAL_ANALYSIS_API_KEY")
-    if not key:
-        return {}
-    url = "https://artificialanalysis.ai/api/v2/language/models"
-    try:
-        data = fetch_json(url, openrouter=False, api_key=key)
-    except (HTTPError, URLError, TimeoutError, json.JSONDecodeError):
-        return {}
-    index: dict[str, dict[str, Any]] = {}
-    for item in data.get("data") or []:
-        names = [str(item.get("name") or ""), str(item.get("slug") or "")]
-        creator = ((item.get("model_creator") or {}).get("name") or "")
-        if creator:
-            names.append(f"{creator} {item.get('name') or ''}")
-        for name in names:
-            key_norm = normalize_text(name)
-            if key_norm:
-                index[key_norm] = item
-    return index
-
-
-def match_aa(model: dict[str, Any], aa_index: dict[str, dict[str, Any]]) -> dict[str, Any] | None:
-    if not aa_index:
-        return None
-    candidates = [
-        normalize_text(str(model.get("name") or "")),
-        normalize_text(strip_router_variant(str(model.get("id") or "")).split("/", 1)[-1]),
-    ]
-    for cand in candidates:
-        if cand in aa_index:
-            return aa_index[cand]
-    # Fuzzy leve: evita puxar Selenium para isto. Ainda bem.
-    for key, value in aa_index.items():
-        for cand in candidates:
-            if cand and key and (cand in key or key in cand):
-                return value
-    return None
 
 
 def apply_latest_filter(models: list[dict[str, Any]], include_free: bool) -> list[dict[str, Any]]:
@@ -446,21 +474,13 @@ def model_prefilter(models: list[dict[str, Any]], args: argparse.Namespace) -> l
     return result
 
 
-def endpoint_records(model: dict[str, Any], endpoints: list[dict[str, Any]], args: argparse.Namespace, aa_item: dict[str, Any] | None) -> list[dict[str, Any]]:
+def endpoint_records(model: dict[str, Any], endpoints: list[dict[str, Any]], args: argparse.Namespace, intelligence_index: float) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
     model_params = params_set(model)
     reasoning = reasoning_capability(model)
     if reasoning is None:
         return records
     arch = model.get("architecture") or {}
-    aa_eval = (aa_item or {}).get("evaluations") or {}
-
-    quality = aa_eval.get("artificial_analysis_coding_index") or aa_eval.get("artificial_analysis_intelligence_index")
-    try:
-        quality = float(quality) if quality is not None else None
-    except (TypeError, ValueError):
-        quality = None
-
     for ep in endpoints:
         ep_params = params_set(ep) or model_params
         if args.tool_calls is True and not supports_tools(ep_params):
@@ -485,8 +505,8 @@ def endpoint_records(model: dict[str, Any], endpoints: list[dict[str, Any]], arg
 
         throughput, throughput_percentile = metric_p75_or_p50(ep.get("throughput_last_30m"))
         throughput_source = f"OpenRouter {throughput_percentile}" if throughput_percentile else None
-        # Throughput is a hard OpenRouter endpoint gate. Artificial Analysis can enrich
-        # ranking quality, but cannot substitute provider-specific routing evidence.
+        # Throughput remains a hard OpenRouter endpoint gate; intelligence is a
+        # model-level hard gate already verified before querying endpoints.
         if throughput is None or throughput < args.min_throughput:
             continue
 
@@ -506,9 +526,9 @@ def endpoint_records(model: dict[str, Any], endpoints: list[dict[str, Any]], arg
         throughput_for_score = throughput
         context_factor = 1.0 + min(math.log10(max(context, 1)) / 12.0, 0.5)
         uptime_factor = max(min(uptime_float, 100.0), 0.0) / 100.0
-        quality_factor = (quality / 50.0) if quality else 1.0
+        intelligence_factor = intelligence_index / 50.0
         effective_cost = max(cost, 0.001)
-        score = (throughput_for_score * uptime_factor * context_factor * quality_factor) / effective_cost
+        score = (throughput_for_score * uptime_factor * context_factor * intelligence_factor) / effective_cost
 
         records.append(
             {
@@ -536,7 +556,7 @@ def endpoint_records(model: dict[str, Any], endpoints: list[dict[str, Any]], arg
                 "prompt_usd_per_1m": prompt_cost,
                 "completion_usd_per_1m": completion_cost,
                 "weighted_usd_per_1m": cost,
-                "quality_index": quality,
+                "intelligence_index": intelligence_index,
                 "score": score,
             }
         )
@@ -584,12 +604,15 @@ def apply_requirements_json(args: argparse.Namespace) -> None:
         "context_min": "min_context",
         "limit": "limit",
         "max_cost_per_1m": "max_cost_per_1m",
+        "intelligence_min": "min_intelligence",
+        "min_intelligence": "min_intelligence",
     }
     numeric_types: dict[str, type[int] | type[float]] = {
         "min_throughput": float,
         "min_context": int,
         "limit": int,
         "max_cost_per_1m": float,
+        "min_intelligence": float,
     }
     for key, dest in aliases.items():
         if key not in data:
@@ -634,7 +657,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--exclude-provider", action="append", default=[], help="Excluir provider do model_id")
     parser.add_argument("--model-contains", action="append", default=[], help="Termo obrigatorio no id/nome do modelo")
     parser.add_argument("--exclude-model-contains", action="append", default=[], help="Termo proibido no id/nome do modelo")
-    parser.add_argument("--use-artificial-analysis", action="store_true", help="Mesclar índice de qualidade da Artificial Analysis se AA_API_KEY existir; throughput continua sendo exclusivamente OpenRouter")
+    parser.add_argument("--min-intelligence", type=float, default=35.0, help="Índice Artificial Analysis via OpenRouter estritamente maior que este limite")
     parser.add_argument("--workers", type=int, default=16, help="Concorrencia para consultar endpoints OpenRouter")
     parser.add_argument("--format", dest="fmt", choices=["markdown", "json"], default="markdown")
     parser.add_argument("--debug", action="store_true", help="Imprimir contadores de diagnostico em stderr")
@@ -677,7 +700,9 @@ def evaluation_guide(args: argparse.Namespace) -> list[str]:
         "Desça xhigh → high → medium → low → minimal; só escolha principal/fallback após dois modelos distintos aprovados em todos os gates.",
     ]
 
-def render_markdown(records: list[dict[str, Any]], args: argparse.Namespace, counts: dict[str, int], aa_used: bool) -> str:
+def render_markdown(
+    records: list[dict[str, Any]], args: argparse.Namespace, counts: dict[str, int], benchmark_meta: dict[str, Any]
+) -> str:
     filters = []
     if args.min_throughput is not None:
         filters.append(f"throughput >= {args.min_throughput} t/s")
@@ -690,14 +715,20 @@ def render_markdown(records: list[dict[str, Any]], args: argparse.Namespace, cou
         filters.append(f"structured_outputs={args.structured_outputs}")
     if args.min_context:
         filters.append(f"context >= {args.min_context}")
+    filters.append(f"intelligence > {args.min_intelligence}")
+
+    benchmark_source = benchmark_meta.get("source") or "?"
+    benchmark_as_of = benchmark_meta.get("as_of") or "?"
+    benchmark_version = benchmark_meta.get("version") or "?"
 
     lines = [
         f"# Candidatos para Model Engineering Eval ({len(records)} de {args.limit})",
         "",
         f"Filtros hard: `{'; '.join(filters)}`; reasoning controlável; não gratuito.",
+        f"Fonte de inteligência: OpenRouter Benchmarks / `{benchmark_source}`; as_of=`{benchmark_as_of}`; version=`{benchmark_version}`.",
         "",
-        "| # | Modelo para o Eval | Provider / endpoint | Reasoning inicial | Throughput |",
-        "|---:|---|---|---|---:|",
+        "| # | Modelo para o Eval | Provider / endpoint | Reasoning inicial | Throughput | Inteligência |",
+        "|---:|---|---|---|---:|---:|",
     ]
     for idx, rec in enumerate(records, 1):
         throughput = fmt_num(rec.get("throughput_tps"), " t/s")
@@ -712,13 +743,14 @@ def render_markdown(records: list[dict[str, Any]], args: argparse.Namespace, cou
         endpoint = pipe_safe(rec.get("endpoint"))
         route = f"{provider}<br>`{endpoint}`" if provider and endpoint else provider or f"`{endpoint}`"
         lines.append(
-            "| {idx} | `{model}` | {endpoint}<br>`{tag}` | {reasoning} | {throughput} |".format(
+            "| {idx} | `{model}` | {endpoint}<br>`{tag}` | {reasoning} | {throughput} | {intelligence} |".format(
                 idx=idx,
                 model=pipe_safe(rec.get("model_id")),
                 endpoint=route,
                 tag=pipe_safe(rec.get("tag")),
                 reasoning=reasoning_text,
                 throughput=throughput,
+                intelligence=fmt_num(rec.get("intelligence_index")),
             )
         )
     lines.extend(
@@ -731,7 +763,7 @@ def render_markdown(records: list[dict[str, Any]], args: argparse.Namespace, cou
     return "\n".join(lines)
 
 
-def run(args: argparse.Namespace) -> tuple[list[dict[str, Any]], dict[str, int], bool]:
+def run(args: argparse.Namespace) -> tuple[list[dict[str, Any]], dict[str, int], dict[str, Any]]:
     models = list_openrouter_models()
     counts = {"models": len(models)}
     if args.latest_only:
@@ -740,7 +772,13 @@ def run(args: argparse.Namespace) -> tuple[list[dict[str, Any]], dict[str, int],
     models = model_prefilter(models, args)
     counts["prefiltered"] = len(models)
 
-    # Consulta endpoints dos candidatos mais promissores primeiro: baratos, recentes e com contexto razoavel.
+    intelligence_index, benchmark_meta, benchmark_counts = fetch_openrouter_intelligence()
+    counts.update(benchmark_counts)
+    models, intelligence_counts = filter_models_by_intelligence(models, intelligence_index, args.min_intelligence)
+    counts.update(intelligence_counts)
+
+    # Consulta endpoints somente dos candidatos que já passaram todos os gates de
+    # modelo, inclusive inteligência. O corte nunca pode ocultar um candidato elegível.
     def rough_key(model: dict[str, Any]) -> tuple[float, int, int]:
         cost = weighted_cost_per_1m(model.get("pricing") or {}, args.input_weight, args.output_weight)
         if math.isinf(cost):
@@ -748,11 +786,6 @@ def run(args: argparse.Namespace) -> tuple[list[dict[str, Any]], dict[str, int],
         return (cost, -created_ts(model), -int(model.get("context_length") or 0))
 
     models = sorted(models, key=rough_key)[: max(args.candidate_limit, args.limit)]
-
-    aa_index: dict[str, dict[str, Any]] = {}
-    if args.use_artificial_analysis:
-        aa_index = fetch_artificial_analysis()
-    aa_used = bool(aa_index)
 
     records: list[dict[str, Any]] = []
     with futures.ThreadPoolExecutor(max_workers=max(1, args.workers)) as executor:
@@ -763,11 +796,12 @@ def run(args: argparse.Namespace) -> tuple[list[dict[str, Any]], dict[str, int],
                 endpoints = future.result()
             except Exception:  # noqa: BLE001 - relatorio deve sobreviver a endpoint quebrado
                 endpoints = []
-            aa_item = match_aa(model, aa_index)
-            records.extend(endpoint_records(model, endpoints, args, aa_item))
+            intelligence = intelligence_index.get(str(model.get("id") or ""))
+            if intelligence is not None:
+                records.extend(endpoint_records(model, endpoints, args, intelligence))
     counts["records"] = len(records)
     ranked = rank_records(records, args.limit)
-    return ranked, counts, aa_used
+    return ranked, counts, benchmark_meta
 
 
 def run_self_test() -> None:
@@ -783,10 +817,10 @@ def run_self_test() -> None:
     apply_requirements_json(args)
     json_args = parser.parse_args([
         "--requirements-json",
-        '{"eval_language":"pt-BR","throughput_min":"60","min_context":"4096","limit":"2","max_cost_per_1m":"3.5"}',
+        '{"eval_language":"pt-BR","throughput_min":"60","min_context":"4096","limit":"2","max_cost_per_1m":"3.5","min_intelligence":"36.2"}',
     ])
     apply_requirements_json(json_args)
-    assert (json_args.eval_language, json_args.min_throughput, json_args.min_context, json_args.limit, json_args.max_cost_per_1m) == ("pt-BR", 60.0, 4096, 2, 3.5)
+    assert (json_args.eval_language, json_args.min_throughput, json_args.min_context, json_args.limit, json_args.max_cost_per_1m, json_args.min_intelligence) == ("pt-BR", 60.0, 4096, 2, 3.5, 36.2)
     models = [
         {
             "id": "openai/gpt-5",
@@ -834,10 +868,11 @@ def run_self_test() -> None:
             "uptime_last_30m": 99.9,
         }
     ]
-    records = endpoint_records(filtered[0], endpoints, args, None)
+    records = endpoint_records(filtered[0], endpoints, args, 35.1)
     ranked = rank_records(records, 1)
     assert len(ranked) == 1 and ranked[0]["throughput_tps"] == 72.0, ranked
     assert ranked[0]["model_id"] == "openai/gpt-5.1:exacto", ranked
+    assert ranked[0]["intelligence_index"] == 35.1, ranked
     assert routed_model_id("openai/gpt-5.1:exacto", False) == ("openai/gpt-5.1:nitro", ":nitro")
     assert routed_model_id("openai/gpt-5.1", None) == ("openai/gpt-5.1:nitro", ":nitro")
     assert ranked[0]["reasoning"]["initial"] == "xhigh", ranked
@@ -855,6 +890,27 @@ def run_self_test() -> None:
     assert metric_p75_or_p50({"p75": float("inf"), "p50": float("-inf")}) == (None, None)
     max_tokens_reasoning = reasoning_capability({"reasoning": {"supports_max_tokens": True}})
     assert max_tokens_reasoning and max_tokens_reasoning["mode"] == "max_tokens"
+    intelligence_index, benchmark_meta, benchmark_counts = index_openrouter_intelligence(
+        {
+            "data": [
+                {"model_permaslug": "example/pass", "intelligence_index": "35.1"},
+                {"model_permaslug": "example/threshold", "intelligence_index": 35},
+                {"model_permaslug": "example/invalid", "intelligence_index": float("nan")},
+                {"model_permaslug": "example/duplicate", "intelligence_index": 40},
+                {"model_permaslug": "example/duplicate", "intelligence_index": 41},
+            ],
+            "meta": {"source": "artificial-analysis", "task_type": "intelligence", "version": "v1"},
+        }
+    )
+    eligible, intelligence_counts = filter_models_by_intelligence(
+        [{"id": "example/pass"}, {"id": "example/threshold"}, {"id": "example/invalid"}, {"id": "example/duplicate"}],
+        intelligence_index,
+        35.0,
+    )
+    assert [model["id"] for model in eligible] == ["example/pass"]
+    assert benchmark_meta["source"] == "artificial-analysis"
+    assert benchmark_counts == {"benchmark_rows": 5, "benchmark_invalid": 1, "benchmark_ambiguous": 1}
+    assert intelligence_counts == {"intelligence_eligible": 1, "intelligence_below_or_equal": 1, "intelligence_missing": 2}
     print("self-test ok")
 
 
@@ -872,6 +928,8 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("--limit deve estar entre 2 e 5")
     if args.min_throughput < 60:
         parser.error("--min-throughput nao pode ser menor que 60 t/s")
+    if not math.isfinite(args.min_intelligence) or args.min_intelligence < 0:
+        parser.error("--min-intelligence deve ser um número finito maior ou igual a zero")
     if args.input_weight < 0 or args.output_weight < 0 or (args.input_weight + args.output_weight) <= 0:
         parser.error("Pesos de input/output invalidos")
     total_weight = args.input_weight + args.output_weight
@@ -879,7 +937,13 @@ def main(argv: list[str] | None = None) -> int:
     args.output_weight = args.output_weight / total_weight
 
     try:
-        records, counts, aa_used = run(args)
+        records, counts, benchmark_meta = run(args)
+    except ConfigurationError as exc:
+        print(f"Erro de configuração: {exc}", file=sys.stderr)
+        return 1
+    except BenchmarkUnavailableError as exc:
+        print(f"Erro ao consultar benchmark de inteligência: {exc}", file=sys.stderr)
+        return 1
     except (HTTPError, URLError, TimeoutError, json.JSONDecodeError) as exc:
         print(f"Erro ao consultar fonte de modelos: {exc}", file=sys.stderr)
         return 1
@@ -890,16 +954,16 @@ def main(argv: list[str] | None = None) -> int:
     if len(records) < 2:
         msg = {
             "error": "Menos de dois candidatos atendem aos filtros hard.",
-            "hint": "São obrigatórios: reasoning controlável, modelo não gratuito e throughput OpenRouter p75 (ou p50 fallback) >= 60 t/s.",
+            "hint": f"São obrigatórios: inteligência OpenRouter > {args.min_intelligence}, reasoning controlável, modelo não gratuito e throughput OpenRouter p75 (ou p50 fallback) >= 60 t/s.",
         }
         print(json.dumps(msg, ensure_ascii=False, indent=2) if args.fmt == "json" else f"# Seleção insuficiente\n\n{msg['hint']}")
         return 2
 
     guide = evaluation_guide(args)
     if args.fmt == "json":
-        print(json.dumps({"candidates": records, "eval_guide": guide}, ensure_ascii=False, indent=2))
+        print(json.dumps({"benchmark": benchmark_meta, "diagnostics": counts, "candidates": records, "eval_guide": guide}, ensure_ascii=False, indent=2))
     else:
-        print(render_markdown(records, args, counts, aa_used))
+        print(render_markdown(records, args, counts, benchmark_meta))
     return 0
 
 
