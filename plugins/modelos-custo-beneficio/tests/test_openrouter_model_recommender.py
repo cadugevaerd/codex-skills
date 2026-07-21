@@ -141,6 +141,7 @@ class IntelligenceBenchmarkTests(unittest.TestCase):
             "pricing": {"prompt": "0.000002", "completion": "0.000002"},
             "supported_parameters": ["tools", "structured_outputs"],
             "throughput_last_30m": {"p75": 70},
+            "latency_last_30m": {"p50": 1.0, "p99": 1.5},
             "uptime_last_30m": 99,
         }
         benchmark = (
@@ -158,6 +159,34 @@ class IntelligenceBenchmarkTests(unittest.TestCase):
         self.assertEqual([record["base_model_id"] for record in records], ["example/eligible"])
         self.assertEqual(counts["intelligence_eligible"], 1)
         self.assertEqual(endpoints.call_args.args[0], "example/eligible")
+
+    def test_default_latency_slo_requires_p50_under_two_minutes_and_p99_under_three(self):
+        args = self.module.build_parser().parse_args(["--eval-language", "pt-BR"])
+        model = {
+            "id": "example/model", "context_length": 128000,
+            "architecture": {"input_modalities": ["text"], "output_modalities": ["text"]},
+            "pricing": {"prompt": "0.000001", "completion": "0.000001"},
+            "supported_parameters": ["tools", "structured_outputs"],
+            "reasoning": {"supported_efforts": ["high"]},
+        }
+        endpoint = {
+            "name": "Endpoint", "provider_name": "Example", "tag": "default", "context_length": 128000,
+            "pricing": model["pricing"], "supported_parameters": model["supported_parameters"],
+            "throughput_last_30m": {"p75": 70}, "uptime_last_30m": 99,
+        }
+        endpoints = [
+            endpoint | {"latency_last_30m": {"p50": 119_999, "p99": 179_999}},
+            endpoint | {"latency_last_30m": {"p50": 120_000, "p99": 179_999}},
+            endpoint | {"latency_last_30m": {"p50": 119_999, "p99": 180_000}},
+            endpoint | {"latency_last_30m": {"p50": 119_999}},
+            endpoint | {"latency_last_30m": {"median": 119_999, "p99": 179_999}},
+            endpoint | {"latency_last_30m": {"p50": "invalid", "p99": 179_999}},
+        ]
+
+        records = self.module.endpoint_records(model, endpoints, args, 36.0)
+
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0]["latency_ms"], 119_999.0)
 
     def test_json_and_markdown_expose_intelligence_diagnostics(self):
         args = self.module.build_parser().parse_args(["--eval-language", "pt-BR", "--format", "json"])
