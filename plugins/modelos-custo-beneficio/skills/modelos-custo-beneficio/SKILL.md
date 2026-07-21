@@ -1,6 +1,6 @@
 ---
 name: "modelos-custo-beneficio"
-description: "Seleciona até 5 candidatos OpenRouter para Model Engineering Eval com inteligência Artificial Analysis >35 via OpenRouter Benchmarks, reasoning controlável, variantes :exacto/:nitro e throughput hard >=60 t/s."
+description: "Seleciona até 5 candidatos OpenRouter para Model Engineering Eval com inteligência Artificial Analysis >35 via OpenRouter Benchmarks, reasoning controlável, throughput hard >=60 t/s e latência p50 <2min/p99 <3min."
 argument-hint: "eval_language=<BCP-47> tool_calls=true|false input=<text,image,file> structured_outputs=true throughput_min=60 intelligence_min=35 [limit=2..5]"
 ---
 
@@ -16,9 +16,10 @@ Todo candidato deve cumprir simultaneamente:
 2. não gratuito;
 3. reasoning controlável via `reasoning.supported_efforts` ou `reasoning.supports_max_tokens`;
 4. endpoint com `throughput_last_30m.p75 >= 60 t/s`; na ausência de `p75`, `p50`/`median`/`avg` é fallback. Dado ausente reprova;
-5. inputs, structured outputs, contexto e teto de custo solicitados;
-6. suporte a `tools`, pois o gate de Tool Calls é obrigatório inclusive para runtime textual.
-7. índice de inteligência estritamente maior que `35` por padrão, vindo de `GET /api/v1/benchmarks?source=artificial-analysis&task_type=intelligence`, associado exatamente por `model_permaslug == model.id`. Índices ausentes, inválidos, não finitos ou ambíguos reprovam.
+5. endpoint com `latency_last_30m.p50 < 120_000ms` (2 min) e `latency_last_30m.p99 < 180_000ms` (3 min). Ambos são gates hard obrigatórios; dado ausente, inválido ou no limite reprova;
+6. inputs, structured outputs, contexto e teto de custo solicitados;
+7. suporte a `tools`, pois o gate de Tool Calls é obrigatório inclusive para runtime textual.
+8. índice de inteligência estritamente maior que `35` por padrão, vindo de `GET /api/v1/benchmarks?source=artificial-analysis&task_type=intelligence`; usa match exato antes de fallback restrito a sufixo de data. Índices ausentes, inválidos, não finitos ou ambíguos reprovam.
 
 O benchmark de inteligência é um filtro hard aplicado **antes** de `--candidate-limit`; não há associação fuzzy por nome e não há fallback para uma fonte que não possa ser verificada.
 

@@ -19,6 +19,8 @@ from urllib.request import Request, urlopen
 
 OPENROUTER_BASE_URL = os.getenv("OPENROUTER_API_URL", "https://openrouter.ai/api/v1").rstrip("/")
 USER_AGENT = "modelos-custo-beneficio-skill/0.4 (+https://github.com/cadugevaerd)"
+MAX_P50_LATENCY_MS = 120_000.0
+MAX_P99_LATENCY_MS = 180_000.0
 
 
 class ConfigurationError(RuntimeError):
@@ -127,6 +129,12 @@ def metric_p50(value: Any) -> float | None:
             if key in value and value[key] is not None:
                 return finite_float(value[key])
     return None
+
+
+def metric_percentile(value: Any, percentile: str) -> float | None:
+    if not isinstance(value, dict):
+        return None
+    return finite_float(value.get(percentile))
 
 
 def metric_p75_or_p50(value: Any) -> tuple[float | None, str | None]:
@@ -542,7 +550,10 @@ def endpoint_records(model: dict[str, Any], endpoints: list[dict[str, Any]], arg
         except (TypeError, ValueError):
             uptime_float = 97.0
 
-        latency = metric_p50(ep.get("latency_last_30m"))
+        latency = metric_percentile(ep.get("latency_last_30m"), "p50")
+        latency_p99 = metric_percentile(ep.get("latency_last_30m"), "p99")
+        if latency is None or latency >= MAX_P50_LATENCY_MS or latency_p99 is None or latency_p99 >= MAX_P99_LATENCY_MS:
+            continue
         prompt_cost = price_token_to_1m(pricing.get("prompt"))
         completion_cost = price_token_to_1m(pricing.get("completion"))
         throughput_for_score = throughput
@@ -573,7 +584,8 @@ def endpoint_records(model: dict[str, Any], endpoints: list[dict[str, Any]], arg
                 "max_completion_tokens": ep.get("max_completion_tokens"),
                 "throughput_tps": throughput,
                 "throughput_source": throughput_source if throughput is not None else None,
-                "latency_s": latency,
+                "latency_ms": latency,
+                "latency_p99_ms": latency_p99,
                 "uptime_percent": uptime_float,
                 "prompt_usd_per_1m": prompt_cost,
                 "completion_usd_per_1m": completion_cost,
@@ -738,6 +750,7 @@ def render_markdown(
     if args.min_context:
         filters.append(f"context >= {args.min_context}")
     filters.append(f"intelligence > {args.min_intelligence}")
+    filters.append(f"latency p50 < {MAX_P50_LATENCY_MS / 60_000:.0f}m; p99 < {MAX_P99_LATENCY_MS / 60_000:.0f}m")
 
     benchmark_source = benchmark_meta.get("source") or "?"
     benchmark_as_of = benchmark_meta.get("as_of") or "?"
@@ -887,6 +900,7 @@ def run_self_test() -> None:
             "pricing": {"prompt": "0.000001", "completion": "0.000003"},
             "supported_parameters": ["tools", "tool_choice", "structured_outputs"],
             "throughput_last_30m": {"p75": 72.0},
+            "latency_last_30m": {"p50": 1.0, "p99": 1.5},
             "uptime_last_30m": 99.9,
         }
     ]
