@@ -208,6 +208,16 @@ def strip_router_variant(model_id: str) -> str:
     return model_id.split(":", 1)[0]
 
 
+def benchmark_key(model_id: str) -> str:
+    """Normalize only dated benchmark permaslugs; never collapse model families."""
+    base = strip_router_variant(str(model_id)).lstrip("~").lower()
+    return re.sub(r"[-_](20\d{2}[-_]?\d{2}[-_]?\d{2}|20\d{6})$", "", base)
+
+
+def benchmark_fallback_index_key(model_id: str) -> str:
+    return f"__benchmark_fallback__:{benchmark_key(model_id)}"
+
+
 def family_key(model_id: str) -> str:
     base = strip_router_variant(model_id).lstrip("~").lower()
     if "/" in base:
@@ -325,17 +335,27 @@ def index_openrouter_intelligence(payload: dict[str, Any]) -> tuple[dict[str, fl
     counts = {"benchmark_rows": 0, "benchmark_invalid": 0, "benchmark_ambiguous": 0}
     for item in payload.get("data") or []:
         counts["benchmark_rows"] += 1
-        model_id = str(item.get("model_permaslug") or "")
+        model_id = str(item.get("model_permaslug") or "").strip()
         score = finite_float(item.get("intelligence_index"))
         if not model_id or score is None:
             counts["benchmark_invalid"] += 1
             continue
+        ambiguous = False
         if model_id in index:
             if index[model_id] is not None:
                 counts["benchmark_ambiguous"] += 1
+                ambiguous = True
             index[model_id] = None
-            continue
-        index[model_id] = score
+        else:
+            index[model_id] = score
+
+        fallback_key = benchmark_fallback_index_key(model_id)
+        if fallback_key in index:
+            if index[fallback_key] is not None and not ambiguous:
+                counts["benchmark_ambiguous"] += 1
+            index[fallback_key] = None
+        else:
+            index[fallback_key] = score
     meta = payload.get("meta") or {}
     return index, {key: meta.get(key) for key in ("source", "task_type", "as_of", "version", "source_url")}, counts
 
@@ -359,8 +379,10 @@ def filter_models_by_intelligence(
     }
     eligible: list[dict[str, Any]] = []
     for model in models:
-        model_id = str(model.get("id") or "")
+        model_id = str(model.get("id") or "").strip()
         score = intelligence_index.get(model_id)
+        if score is None:
+            score = intelligence_index.get(benchmark_fallback_index_key(model_id))
         if score is None:
             counts["intelligence_missing"] += 1
             continue

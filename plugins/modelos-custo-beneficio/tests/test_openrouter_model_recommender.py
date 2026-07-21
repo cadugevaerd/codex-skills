@@ -55,6 +55,44 @@ class IntelligenceBenchmarkTests(unittest.TestCase):
         self.assertEqual(meta["source"], "artificial-analysis")
         self.assertEqual(meta["as_of"], "2026-07-21T00:01:02.674Z")
 
+    def test_dated_permaslug_matches_undated_openrouter_model_id(self):
+        index, _, counts = self.module.index_openrouter_intelligence(
+            {"data": [{"model_permaslug": "google/gemini-3.5-flash-20260519", "intelligence_index": 36.1}]}
+        )
+
+        eligible, filter_counts = self.module.filter_models_by_intelligence(
+            [{"id": "google/gemini-3.5-flash"}], index, 35.0
+        )
+
+        self.assertEqual(index["google/gemini-3.5-flash-20260519"], 36.1)
+        self.assertEqual(index[self.module.benchmark_fallback_index_key("google/gemini-3.5-flash")], 36.1)
+        self.assertEqual([model["id"] for model in eligible], ["google/gemini-3.5-flash"])
+        self.assertEqual(counts["benchmark_ambiguous"], 0)
+        self.assertEqual(filter_counts["intelligence_eligible"], 1)
+
+    def test_exact_match_wins_without_collapsing_gpt_families(self):
+        index, _, _ = self.module.index_openrouter_intelligence({"data": [
+            {"model_permaslug": "openai/gpt-4.1-2025-04-14", "intelligence_index": 50.0},
+            {"model_permaslug": "openai/gpt-4.1", "intelligence_index": 36.0},
+        ]})
+        eligible, counts = self.module.filter_models_by_intelligence(
+            [{"id": "openai/gpt-4.1"}, {"id": "openai/gpt-4o"}], index, 35.0
+        )
+        self.assertEqual(index["openai/gpt-4.1"], 36.0)
+        self.assertEqual([model["id"] for model in eligible], ["openai/gpt-4.1"])
+        self.assertEqual(counts["intelligence_missing"], 1)
+
+    def test_ambiguous_dated_scores_do_not_choose_a_fallback(self):
+        index, _, counts = self.module.index_openrouter_intelligence({"data": [
+            {"model_permaslug": "example/model-2025-04-14", "intelligence_index": 40.0},
+            {"model_permaslug": "example/model-2025-05-01", "intelligence_index": 41.0},
+        ]})
+        eligible, filter_counts = self.module.filter_models_by_intelligence([{"id": "example/model:free"}], index, 35.0)
+        self.assertIsNone(index[self.module.benchmark_fallback_index_key("example/model")])
+        self.assertEqual(counts["benchmark_ambiguous"], 1)
+        self.assertEqual(eligible, [])
+        self.assertEqual(filter_counts["intelligence_missing"], 1)
+
     def test_cli_default_and_requirements_json_override(self):
         parser = self.module.build_parser()
         defaults = parser.parse_args(["--eval-language", "pt-BR"])
