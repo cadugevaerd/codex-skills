@@ -1,7 +1,7 @@
 {
   "name": "modelos-custo-beneficio",
-  "version": "0.3.0",
-  "description": "Seleciona até 5 candidatos OpenRouter para Model Engineering Eval com gates obrigatórios de idioma nativo, Markdown, Tool Calls e antialucinação; exige reasoning controlável e throughput hard >=60 t/s. Não executa Eval nem altera runtime.",
+  "version": "0.4.0",
+  "description": "Seleciona até 5 candidatos OpenRouter para Model Engineering Eval com inteligência Artificial Analysis >35 via OpenRouter Benchmarks, reasoning controlável e throughput hard >=60 t/s. Não executa Eval nem altera runtime.",
   "author": {
     "name": "Carlos Araujo",
     "email": "cadu.gevaerd@gmail.com",
@@ -16,14 +16,15 @@
     "openrouter",
     "cost",
     "throughput",
+    "intelligence",
     "tool-calling",
     "structured-outputs"
   ],
   "skills": "./skills/",
   "interface": {
     "displayName": "Modelos Custo-Beneficio",
-    "shortDescription": "Lista candidatos para Eval por custo, reasoning e throughput hard.",
-    "longDescription": "Consulta OpenRouter em tempo real e devolve até cinco candidatos para Model Engineering Eval com reasoning controlável, throughput p75/p50 >=60 t/s e roteamento :exacto/:nitro; não altera runtime.",
+    "shortDescription": "Lista candidatos para Eval por inteligência, custo, reasoning e throughput hard.",
+    "longDescription": "Consulta OpenRouter em tempo real e devolve até cinco candidatos para Model Engineering Eval com índice Artificial Analysis >35 via OpenRouter Benchmarks, reasoning controlável, throughput p75/p50 >=60 t/s e roteamento :exacto/:nitro; não altera runtime.",
     "developerName": "Carlos Araujo",
     "category": "Development",
     "capabilities": [
@@ -34,8 +35,8 @@
       "Structured Outputs"
     ],
     "defaultPrompt": [
-      "/modelos-custo-beneficio eval_language=pt-BR throughput_min=60 input=text,image tool_calls=true structured_outputs=true",
-      "/modelos-custo-beneficio eval_language=pt-BR throughput_min=60 input=text tool_calls=true min_context=128000 max_cost_per_1m=3"
+      "/modelos-custo-beneficio eval_language=pt-BR throughput_min=60 intelligence_min=35 input=text,image tool_calls=true structured_outputs=true",
+      "/modelos-custo-beneficio eval_language=pt-BR throughput_min=60 intelligence_min=35 input=text tool_calls=true min_context=128000 max_cost_per_1m=3"
     ]
   }
 }

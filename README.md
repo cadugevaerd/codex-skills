@@ -15,7 +15,7 @@ plugin individual.
 | `grillme-langgraph` | Entrevista tecnica para desenhar um fluxo LangGraph com diagrama, State CRUE, tabela de nodes e fronteiras deterministicas. |
 | `grillme-gestor` | Versao sem jargao tecnico da `grillme-langgraph`, voltada a gestores, salvando o artefato tecnico em markdown. |
 | `rag-kag-decision` | Decide quando usar RAG, KAG, GraphRAG ou abordagem hibrida conforme documentos, entidades, relacoes, regras, temporalidade, custo e risco. |
-| `modelos-custo-beneficio` | Consulta OpenRouter e lista até 5 candidatos para Model Engineering Eval, com reasoning controlável, throughput p75/p50 ≥60 t/s e variantes `:exacto`/`:nitro`; não decide runtime. |
+| `modelos-custo-beneficio` | Consulta OpenRouter e lista até 5 candidatos para Model Engineering Eval, com inteligência Artificial Analysis >35 via OpenRouter Benchmarks, reasoning controlável, throughput p75/p50 ≥60 t/s e variantes `:exacto`/`:nitro`; não decide runtime. |
 | `facilitador-reunioes` | Cria convites, objetivos claros, pré-briefing, roteiro de condução e próximos passos para reuniões objetivas. |
 | `langsmith-evals` | Cria e compara prompts e projeta, executa e audita evals LangSmith-first. Inclui Prompt Engineer, Evals Engineer e Auditor, fixados em `gpt-5.6-terra`. |
 
@@ -125,7 +125,7 @@ plugins/
 - A skill `code-review-cadu` foi ajustada para falar em revisores/subagentes
   genericos do Codex, sem nomes de modelos Claude.
 - A skill `rag-kag-decision` ajuda a escolher RAG, KAG, GraphRAG ou hibrido com base em documentos, entidades, relacoes, regras, temporalidade, custo e risco.
-- A skill `modelos-custo-beneficio` consulta OpenRouter em tempo real e entrega candidatos para o Model Engineering Eval local: reasoning controlável, throughput p75/p50 >=60 t/s e variantes `:exacto`/`:nitro`, sem alteração de runtime.
+- A skill `modelos-custo-beneficio` consulta OpenRouter em tempo real e entrega candidatos para o Model Engineering Eval local: inteligência Artificial Analysis >35 via OpenRouter Benchmarks, reasoning controlável, throughput p75/p50 >=60 t/s e variantes `:exacto`/`:nitro`, sem alteração de runtime.
 - A skill `facilitador-reunioes` transforma pedidos vagos em convite com objetivo, pré-briefing, pauta, condução e próximos passos com dono/prazo.
 - O plugin `langsmith-evals` usa LangSmith como control plane para prompts, Dataset, Experiments, Traces e Feedback, preserva pytest/oráculos determinísticos e separa otimização (`Prompt Engineer`), execução (`Evals Engineer`) e aprovação independente (`Auditor`). Como plugins Codex não registram custom roles automaticamente, o instalador gerencia as seções em `~/.codex/config.toml`.
 
