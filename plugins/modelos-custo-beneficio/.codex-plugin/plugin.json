@@ -1,6 +1,6 @@
 {
   "name": "modelos-custo-beneficio",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Seleciona até 5 candidatos OpenRouter para Model Engineering Eval com inteligência Artificial Analysis >35 via OpenRouter Benchmarks, reasoning controlável e throughput hard >=60 t/s. Não executa Eval nem altera runtime.",
   "author": {
     "name": "Carlos Araujo",

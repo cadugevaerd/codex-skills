@@ -377,6 +377,14 @@ def fetch_openrouter_intelligence() -> tuple[dict[str, float | None], dict[str, 
     return index_openrouter_intelligence(payload)
 
 
+def intelligence_score_for_model(model_id: str, intelligence_index: dict[str, float | None]) -> float | None:
+    normalized_id = str(model_id or "").strip()
+    score = intelligence_index.get(normalized_id)
+    if score is None:
+        score = intelligence_index.get(benchmark_fallback_index_key(normalized_id))
+    return score
+
+
 def filter_models_by_intelligence(
     models: list[dict[str, Any]], intelligence_index: dict[str, float | None], threshold: float
 ) -> tuple[list[dict[str, Any]], dict[str, int]]:
@@ -388,9 +396,7 @@ def filter_models_by_intelligence(
     eligible: list[dict[str, Any]] = []
     for model in models:
         model_id = str(model.get("id") or "").strip()
-        score = intelligence_index.get(model_id)
-        if score is None:
-            score = intelligence_index.get(benchmark_fallback_index_key(model_id))
+        score = intelligence_score_for_model(model_id, intelligence_index)
         if score is None:
             counts["intelligence_missing"] += 1
             continue
@@ -831,7 +837,7 @@ def run(args: argparse.Namespace) -> tuple[list[dict[str, Any]], dict[str, int],
                 endpoints = future.result()
             except Exception:  # noqa: BLE001 - relatorio deve sobreviver a endpoint quebrado
                 endpoints = []
-            intelligence = intelligence_index.get(str(model.get("id") or ""))
+            intelligence = intelligence_score_for_model(str(model.get("id") or ""), intelligence_index)
             if intelligence is not None:
                 records.extend(endpoint_records(model, endpoints, args, intelligence))
     counts["records"] = len(records)
