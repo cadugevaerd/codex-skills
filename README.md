@@ -18,6 +18,7 @@ plugin individual.
 | `modelos-custo-beneficio` | Consulta OpenRouter e lista até 5 candidatos para Model Engineering Eval, com inteligência Artificial Analysis >35 via OpenRouter Benchmarks, reasoning controlável, throughput p75/p50 ≥60 t/s e variantes `:exacto`/`:nitro`; não decide runtime. |
 | `facilitador-reunioes` | Cria convites, objetivos claros, pré-briefing, roteiro de condução e próximos passos para reuniões objetivas. |
 | `langsmith-evals` | Cria e compara prompts e projeta, executa e audita evals LangSmith-first. Inclui Prompt Engineer, Evals Engineer e Auditor, fixados em `gpt-5.6-terra`. |
+| `prompt-only-agent` | Faz uma entrevista curta, uma pergunta por vez, e entrega um system prompt em Markdown pronto para copiar e colar para um agente sem ferramentas. |
 
 ## Instalacao local
 
@@ -35,6 +36,7 @@ codex plugin add rag-kag-decision@codex-skills
 codex plugin add modelos-custo-beneficio@codex-skills
 codex plugin add facilitador-reunioes@codex-skills
 codex plugin add langsmith-evals@codex-skills
+codex plugin add prompt-only-agent@codex-skills
 ```
 
 A skill `/langsmith-evals` fica disponível imediatamente. Para registrar também os
@@ -52,6 +54,14 @@ Para listar o catalogo:
 ```bash
 codex plugin list --marketplace codex-skills
 ```
+
+## Uso rápido
+
+```text
+/prompt-only-agent criar um agente que transforme notas de reunião em resumo executivo
+```
+
+O plugin coleta apenas as decisões essenciais, uma pergunta por vez, e retorna somente o system prompt final em Markdown, pronto para copiar.
 
 ## Uso do backlog global
 
@@ -112,6 +122,9 @@ plugins/
     agents/*.toml
     scripts/install_codex_agents.py
     skills/langsmith-evals/
+  prompt-only-agent/
+    .codex-plugin/plugin.json
+    skills/prompt-only-agent/SKILL.md
 ```
 
 ## Notas da conversao
