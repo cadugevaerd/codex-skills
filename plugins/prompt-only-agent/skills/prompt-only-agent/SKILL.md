@@ -13,6 +13,8 @@ Crie **um único system prompt em Markdown**, pronto para copiar e colar. O agen
 - Faça uma entrevista essencial e objetiva.
 - Faça **uma pergunta por vez**, sempre com uma recomendação curta.
 - A entrega é exclusivamente o system prompt autocontido, em Markdown.
+- O system prompt copiado deve ter **no máximo 8.000 caracteres**, incluindo headings, espaços, quebras de linha e exemplos; o fence externo de entrega não entra nessa contagem.
+- Trabalhe com meta de até **7.600 caracteres** para preservar margem e nunca entregue um prompt acima de 8.000 caracteres.
 - Na resposta final, entregue somente o bloco de código copiável definido abaixo.
 
 ## Fase 1 — Descoberta

@@ -1,6 +1,6 @@
 {
   "name": "prompt-only-agent",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Entrevista curta para projetar um agente prompt-only e entrega um system prompt pronto para copiar e colar.",
   "author": {"name": "Carlos Araujo", "email": "cadu.gevaerd@gmail.com", "url": "https://github.com/cadugevaerd"},
   "homepage": "https://github.com/cadugevaerd/codex-skills",
@@ -11,7 +11,7 @@
   "interface": {
     "displayName": "Prompt-Only Agent",
     "shortDescription": "Entrevista curta e gera um system prompt copiável.",
-    "longDescription": "Faz perguntas essenciais, uma por vez, sobre um agente sem ferramentas e entrega um system prompt completo em Markdown, pronto para copiar e colar.",
+    "longDescription": "Faz perguntas essenciais, uma por vez, sobre um agente sem ferramentas e entrega um system prompt completo em Markdown de até 8.000 caracteres, pronto para copiar e colar.",
     "developerName": "Carlos Araujo",
     "category": "Development",
     "capabilities": ["Interactive", "Design"],
