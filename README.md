@@ -61,7 +61,7 @@ codex plugin list --marketplace codex-skills
 /prompt-only-agent criar um agente que transforme notas de reunião em resumo executivo
 ```
 
-O plugin coleta apenas as decisões essenciais, uma pergunta por vez, e retorna somente o system prompt final em Markdown, pronto para copiar.
+O plugin coleta apenas as decisões essenciais, uma pergunta por vez, e retorna somente o system prompt final em Markdown, pronto para copiar, com no máximo **8.000 caracteres**.
 
 ## Uso do backlog global
 
