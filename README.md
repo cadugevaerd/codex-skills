@@ -19,6 +19,7 @@ plugin individual.
 | `facilitador-reunioes` | Cria convites, objetivos claros, pré-briefing, roteiro de condução e próximos passos para reuniões objetivas. |
 | `langsmith-evals` | Cria e compara prompts e projeta, executa e audita evals LangSmith-first. Inclui Prompt Engineer, Evals Engineer e Auditor, fixados em `gpt-5.6-terra`. |
 | `prompt-only-agent` | Faz uma entrevista curta, uma pergunta por vez, e entrega um system prompt em Markdown pronto para copiar e colar para um agente sem ferramentas. |
+| `qa-planner` | Analisa requisitos e diff da branch, define estratégia e cria `QA.md` rastreável para outra IA executar — sem rodar testes. |
 
 ## Instalacao local
 
@@ -37,6 +38,7 @@ codex plugin add modelos-custo-beneficio@codex-skills
 codex plugin add facilitador-reunioes@codex-skills
 codex plugin add langsmith-evals@codex-skills
 codex plugin add prompt-only-agent@codex-skills
+codex plugin add qa-planner@codex-skills
 ```
 
 A skill `/langsmith-evals` fica disponível imediatamente. Para registrar também os
@@ -62,6 +64,17 @@ codex plugin list --marketplace codex-skills
 ```
 
 O plugin coleta apenas as decisões essenciais, uma pergunta por vez, e retorna somente o system prompt final em Markdown, pronto para copiar, com no máximo **8.000 caracteres**.
+
+## Uso do qa-planner
+
+```text
+/qa-planner branch=feat/oauth base=main
+```
+
+O plugin realiza as três primeiras etapas de QA — análise de requisitos,
+planejamento e cenários — e grava um `QA.md` rastreável no local adequado do
+repositório-alvo. Ele encerra sem executar testes; outra IA usa o plano e registra
+evidências reais em `QA-RESULTS.md`.
 
 ## Uso do code-debug
 
@@ -133,6 +146,10 @@ plugins/
   prompt-only-agent/
     .codex-plugin/plugin.json
     skills/prompt-only-agent/SKILL.md
+  qa-planner/
+    .codex-plugin/plugin.json
+    skills/qa-planner/SKILL.md
+    tests/validate_contract.py
 ```
 
 ## Notas da conversao

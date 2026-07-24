@@ -1,0 +1,27 @@
+{
+  "name": "qa-planner",
+  "version": "1.0.0",
+  "description": "Planeja QA para uma branch: analisa requisitos, define estratégia e cria cenários rastreáveis em QA.md, sem executar testes.",
+  "author": {
+    "name": "Carlos Araujo",
+    "email": "cadu.gevaerd@gmail.com",
+    "url": "https://github.com/cadugevaerd"
+  },
+  "homepage": "https://github.com/cadugevaerd/codex-skills",
+  "repository": "https://github.com/cadugevaerd/codex-skills",
+  "license": "MIT",
+  "keywords": ["qa", "test-plan", "test-cases", "quality-assurance", "regression", "handoff"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "QA Planner",
+    "shortDescription": "Cria QA.md rastreável para outra IA executar.",
+    "longDescription": "Analisa requisitos e o diff da branch, define a estratégia e cria cenários de teste rastreáveis em QA.md. Encerra antes da execução: resultados pertencem a outro workflow.",
+    "developerName": "Carlos Araujo",
+    "category": "Development",
+    "capabilities": ["QA Planning", "Git Analysis", "Test Design", "Documentation"],
+    "defaultPrompt": [
+      "/qa-planner branch=feat/oauth base=main",
+      "/qa-planner branch=feat/idempotency base=main source=docs/specs/idempotency.md"
+    ]
+  }
+}
