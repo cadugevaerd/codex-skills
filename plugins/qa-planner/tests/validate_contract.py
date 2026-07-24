@@ -45,21 +45,24 @@ def validate_document(path: Path, fixture: bool = False) -> None:
     assert text.startswith("# QA Plan\n"), path
     assert text.count(MARKER_START) == 1, path
     assert text.count(MARKER_END) == 1, path
-    assert text.index(MARKER_START) < text.index(MARKER_END), path
+    start = text.index(MARKER_START) + len(MARKER_START)
+    end = text.index(MARKER_END)
+    assert start < end, path
+    managed = text[start:end]
     positions = []
     for heading in HEADINGS:
-        assert text.count(heading) == 1, f"heading must occur once: {heading!r} in {path}"
-        positions.append(text.index(heading))
+        assert managed.count(heading) == 1, f"heading must occur once: {heading!r} in {path}"
+        positions.append(managed.index(heading))
     assert positions == sorted(positions), path
-    assert text.count(TERMINAL_MARKER) == 1, path
-    assert text.index(TERMINAL_MARKER) < text.index(MARKER_END), path
+    assert managed.count(TERMINAL_MARKER) == 1, path
+    assert managed.rstrip().endswith(TERMINAL_MARKER), path
+    assert "**Status final:**" not in managed, path
+    assert "**Resultado da execução:**" not in managed, path
     if fixture:
-        assert "### QA-001" in text and "### QA-002" in text, path
-        assert "**Status inicial:** NOT_RUN" in text, path
-        assert "REQ-001" in text and "RISK-001" in text, path
-        assert "**Status final:**" not in text, path
-        assert "**Resultado da execução:**" not in text, path
-        assert "QA-RESULTS.md" in text, path
+        assert "### QA-001" in managed and "### QA-002" in managed, path
+        assert "**Status inicial:** NOT_RUN" in managed, path
+        assert "REQ-001" in managed and "RISK-001" in managed and "RISK-002" in managed, path
+        assert "QA-RESULTS.md" in managed, path
 
 
 def validate_manifest(path: Path) -> None:
@@ -94,17 +97,38 @@ claude_manifest = PLUGIN_ROOT / ".claude-plugin" / "plugin.json"
 codex_marketplace = REPO_ROOT / ".agents" / "plugins" / "marketplace.json"
 claude_marketplace = REPO_ROOT / ".claude-plugin" / "marketplace.json"
 
-if codex_marketplace.is_file():
-    validate_manifest(codex_manifest)
-    entry = next(item for item in load_json(codex_marketplace)["plugins"] if item["name"] == "qa-planner")
-    assert entry["source"]["path"] == "./plugins/qa-planner", entry
-elif claude_marketplace.is_file():
-    validate_manifest(claude_manifest)
-    entry = next(item for item in load_json(claude_marketplace)["plugins"] if item["name"] == "qa-planner")
-    assert entry["source"] == "./plugins/qa-planner", entry
+def validate_codex_marketplace(path: Path) -> None:
+    entry = next(item for item in load_json(path)["plugins"] if item["name"] == "qa-planner")
+    assert entry["name"] == "qa-planner", entry
+    assert entry["source"] == {"source": "local", "path": "./plugins/qa-planner"}, entry
+    assert entry["policy"] == {"installation": "AVAILABLE", "authentication": "ON_INSTALL"}, entry
+    assert entry["category"] == "Development", entry
+
+
+def validate_claude_marketplace(path: Path) -> None:
+    entry = next(item for item in load_json(path)["plugins"] if item["name"] == "qa-planner")
+    assert entry["name"] == "qa-planner", entry
     assert entry["version"] == "1.0.0", entry
-else:
-    raise AssertionError("unable to determine Codex or Claude plugin runtime")
+    assert entry["source"] == "./plugins/qa-planner", entry
+    assert entry["category"] == "development", entry
+    assert {"qa", "test-plan"}.issubset(set(entry["tags"])), entry
+
+
+found_runtime = False
+if codex_manifest.is_file():
+    validate_manifest(codex_manifest)
+    found_runtime = True
+if claude_manifest.is_file():
+    validate_manifest(claude_manifest)
+    found_runtime = True
+if codex_marketplace.is_file():
+    validate_codex_marketplace(codex_marketplace)
+    found_runtime = True
+if claude_marketplace.is_file():
+    validate_claude_marketplace(claude_marketplace)
+    found_runtime = True
+if not found_runtime:
+    raise AssertionError("unable to determine plugin runtime")
 
 readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
 assert "`qa-planner`" in readme, "README must document qa-planner"

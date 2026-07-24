@@ -35,7 +35,7 @@
 
 | Requisito / risco | Cenários | Prioridade |
 |---|---|---|
-| REQ-001 | QA-001 | P0 |
+| REQ-001; RISK-002 | QA-001 | P0 |
 | REQ-002; RISK-001 | QA-002 | P0 |
 
 ## 5. Escopo e fora de escopo
@@ -71,7 +71,7 @@
 
 ### QA-001 — Repetição com a mesma chave retorna a cobrança original
 
-- **Rastreabilidade:** REQ-001; RISK-001
+- **Rastreabilidade:** REQ-001; RISK-001; RISK-002
 - **Prioridade:** P0
 - **Nível/tipo:** API e integração
 - **Automação:** recomendada
