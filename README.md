@@ -10,7 +10,7 @@ plugin individual.
 | --- | --- |
 | `backlog` | Mantém o backlog **GLOBAL** `~/.backlog/backlog.json` como fonte única de trabalho diferido para todos os repositórios. Registra, tria, promove, resolve e descarta itens; `merge` propõe a absorção auditável de duplicatas abertas no mesmo repo, e `consolidado` gera `consolidado_backlog.md` por clusters de negócio e blocos visuais de criticidade, com resumo de prioridade, problema e resolução em linguagem não técnica. |
 | `code-review-cadu` | Revisa PRs com veredicto `GO`/`NO-GO` por finding e encaminha itens diferiveis ao backlog apos confirmacao. |
-| `code-debug` | Debug por causa raiz: reproduz comando, analisa logs, instrumenta quando necessario e entrega relatorio com causa comprovada e sugestao de fix. |
+| `code-debug` | Diagnóstico diagnose-only: reproduz comando, coleta evidências, testa hipóteses e entrega relatório sem executar correções. |
 | `relatorio-gerencial` | Gera relatorios executivos (uma pagina) de tarefas atuais e backlog multi-repositorio com linguagem gerencial e PDF. |
 | `grillme-langgraph` | Entrevista tecnica para desenhar um fluxo LangGraph com diagrama, State CRUE, tabela de nodes e fronteiras deterministicas. |
 | `grillme-gestor` | Versao sem jargao tecnico da `grillme-langgraph`, voltada a gestores, salvando o artefato tecnico em markdown. |
@@ -62,6 +62,14 @@ codex plugin list --marketplace codex-skills
 ```
 
 O plugin coleta apenas as decisões essenciais, uma pergunta por vez, e retorna somente o system prompt final em Markdown, pronto para copiar, com no máximo **8.000 caracteres**.
+
+## Uso do code-debug
+
+```text
+/code-debug pytest tests/test_config.py -q
+```
+
+O plugin reproduz a falha, coleta evidências e testa hipóteses até comprovar a causa raiz ou declarar a investigação inconclusiva. Depois emite o relatório e encerra sem executar correções; qualquer implementação exige uma nova solicitação ou outro workflow.
 
 ## Uso do backlog global
 

@@ -1,121 +1,130 @@
 ---
 name: "code-debug"
-description: "Debug disciplinado por causa raiz: reproduz o erro a partir de um comando, coleta logs/evidencias, instrumenta quando necessario, evita suposicoes e entrega relatorio com causa raiz comprovada e sugestao de fix. Use quando o usuario passar um comando de debug, erro, stack trace, falha de teste, build ou comportamento inesperado."
-argument-hint: "<comando de debug/reproducao e contexto opcional>"
+description: "Diagnóstico disciplinado e diagnose-only: reproduz falhas, coleta evidências, testa hipóteses e entrega relatório de causa raiz, sem executar correções."
+argument-hint: "<comando de debug/reprodução e contexto opcional>"
 ---
 
-# Code Debug — root-cause debugging sem chute
+# Code Debug — diagnóstico de causa raiz, sem correção
 
-Use esta skill quando receber um comando, stack trace, log, falha de teste/build ou descricao de bug e o objetivo for encontrar a causa raiz real.
+Use esta skill quando receber um comando, stack trace, log, falha de teste/build ou descrição de bug e o objetivo for descobrir a causa raiz real.
 
-## Contrato nao negociavel
+O contrato padrão é **diagnose-only**:
 
-- Nunca afirme a causa sem evidencia direta.
-- Nunca substitua investigacao por palpite plausivel.
-- Hipoteses sao permitidas apenas como itens a testar; elas nao sao conclusao.
-- Se a causa raiz nao puder ser comprovada com as evidencias disponiveis, diga explicitamente: `causa raiz nao comprovada ainda` e liste a proxima evidencia necessaria.
-- Prefira corrigir a causa raiz, nao sintomas.
-- Ao adicionar logs/instrumentacao, faca mudancas minimas, reversiveis e explique exatamente onde foram adicionadas.
+```text
+reproduzir → coletar evidências → testar hipóteses → concluir → relatório → STOP
+```
+
+## Contrato não negociável
+
+- Nunca afirme a causa sem evidência direta.
+- Nunca substitua investigação por palpite plausível.
+- Hipóteses são permitidas apenas como itens testáveis; elas não são conclusão.
+- Se a causa raiz não puder ser comprovada, declare `causa raiz não comprovada ainda` e registre a evidência que falta.
+- Quando a causa raiz estiver comprovada, encerre a investigação após restaurar apenas a instrumentação temporária criada por esta execução e emitir o relatório.
+- Não editar código, configuração, testes ou documentação como correção; não aplicar patch de produto; não validar fix; não criar commit, PR ou backlog; não investigar melhorias ou causas secundárias; não sugerir comandos de correção.
+- Se o usuário pedir “debugue e corrija” na mesma invocação, execute somente o diagnóstico. Correção exige nova solicitação ou outro workflow.
+- Não criar opção `--diagnose`: diagnóstico puro já é o comportamento padrão.
 
 ## Entrada esperada
 
-O usuario deve passar pelo menos um destes:
+O usuário deve passar pelo menos um destes:
 
 ```text
 /code-debug <comando que reproduz o erro>
 /code-debug <stack trace/log> + <comando esperado>
-/code-debug <descricao do bug> + <como simular>
+/code-debug <descrição do bug> + <como simular>
 ```
 
-Se faltar o comando de reproducao, tente inferir pelo projeto (README, package scripts, Makefile, pyproject, tests, compose, CI). Pergunte apenas quando nao houver caminho recuperavel.
+Se faltar o comando de reprodução, tente inferi-lo pelo projeto — README, scripts, Makefile, pyproject, testes, compose ou CI. Pergunte apenas quando não houver caminho recuperável.
 
-## Fluxo obrigatorio de investigacao
+## Fluxo obrigatório de investigação
 
-1. **Registrar o escopo**
-   - Anote comando recebido, diretorio, branch/commit, ambiente e comportamento esperado.
-   - Crie uma lista curta de TODOs antes de executar investigacoes longas.
+1. **Registrar escopo e baseline**
+   - Registre comando, diretório, branch/commit, ambiente e comportamento esperado.
+   - Capture o estado inicial dos arquivos relevantes e a sujeira preexistente. Nunca apague ou reverta alterações que já existiam.
 
 2. **Reproduzir o erro**
    - Rode exatamente o comando fornecido, quando seguro.
-   - Capture `stdout`, `stderr`, exit code e trechos relevantes de log.
-   - Se falhar por dependencia/ambiente ausente, registre isso como bloqueio comprovado e tente uma reproducao menor.
+   - Capture `stdout`, `stderr`, exit code e logs relevantes.
+   - Se a reprodução falhar por ambiente ausente, registre o bloqueio comprovado e tente uma reprodução menor.
 
-3. **Coletar evidencias antes de concluir**
-   - Leia arquivos diretamente relacionados ao erro: stack trace, chamadas imediatas, configs, manifests, testes, CI, variaveis e logs.
-   - Inspecione estado real quando relevante: processos, portas, filesystem, banco, servicos, container, rede ou permissoes.
-   - Se houver historico Git util, compare mudancas recentes nos arquivos suspeitos.
+3. **Coletar evidências antes de concluir**
+   - Leia stack trace, chamadas imediatas, configurações, manifests, testes e logs relacionados.
+   - Inspecione o estado real relevante: processos, portas, filesystem, banco, serviços, containers, rede ou permissões.
+   - Quando útil, compare mudanças recentes nos arquivos suspeitos.
 
-4. **Formar hipoteses testaveis**
-   - Para cada hipotese, defina uma prova objetiva: comando, log esperado, breakpoint/log temporario, teste minimo ou leitura de estado.
-   - Descarte hipoteses que nao resistirem aos dados.
-   - Nao declare causa enquanto houver explicacoes concorrentes plausiveis nao testadas.
+4. **Formar hipóteses testáveis**
+   - Para cada hipótese, declare previsão, teste objetivo e condição de falsificação.
+   - Teste uma variável significativa por vez.
+   - Registre hipóteses eliminadas e a evidência que as refutou.
+   - Não declare causa enquanto existirem explicações concorrentes plausíveis não testadas.
 
-5. **Instrumentar quando necessario**
-   - Adicione logs temporarios apenas nos pontos de decisao relevantes.
-   - Use mensagens com valores concretos: inputs, IDs, paths, flags, tipo, contagem, status, excecao original.
-   - Rode novamente a reproducao e use os novos logs para estreitar a cadeia causal.
-   - Remova logs temporarios ou marque claramente se devem virar observabilidade permanente.
+5. **Instrumentar somente quando necessário**
+   - Prefira probes, logs temporários ou reprodução isolada que não alterem o produto.
+   - Se uma edição temporária for indispensável, faça-a mínima e reversível e registre o delta criado.
+   - Antes do relatório, remova exclusivamente a instrumentação criada por esta execução e confirme que o delta diagnóstico voltou a zero, preservando a sujeira preexistente.
 
-6. **Comprovar a causa raiz**
-   - Mostre a cadeia causal completa: condicao inicial -> codigo/config -> falha observada.
-   - A causa raiz precisa explicar todos os sintomas principais e ser confirmada por pelo menos uma reproducao/prova.
-   - Quando possivel, valide tambem o contrafactual: ao alterar a condicao suspeita ou aplicar patch minimo, o erro desaparece.
+6. **Comprovar ou limitar a conclusão**
+   - Mostre a cadeia causal completa: condição inicial → código/configuração/estado → falha observada.
+   - A causa raiz deve explicar os sintomas principais e ser confirmada por reprodução, teste, log, simulação ou experimento objetivo.
+   - Um contrafactual pode ser executado em ambiente isolado para confirmar causalidade, mas não deve virar correção persistente.
+   - Se faltar evidência, classifique como inconclusivo ou bloqueado, sem promover hipótese a fato.
 
-7. **Sugerir fix**
-   - Proponha o menor fix seguro que ataque a causa raiz.
-   - Inclua riscos, efeitos colaterais e testes de regressao recomendados.
-   - Se aplicar o fix estiver no escopo, faca a alteracao e rode a verificacao original.
+7. **Emitir relatório e parar**
+   - Use o formato obrigatório abaixo.
+   - Após o marcador final, não execute nenhuma ação adicional nesta invocação.
 
-## Evidencia minima para afirmar causa raiz
+## Evidência mínima para afirmar causa raiz
 
-Uma conclusao so pode ser escrita como causa raiz quando houver:
+Uma conclusão só pode ser classificada como causa raiz quando houver:
 
-- erro reproduzido ou log/trace confiavel com origem clara;
-- local exato do codigo/config/estado que dispara a falha;
-- explicacao causal que conecte o local ao sintoma;
-- verificacao objetiva: teste, comando, log, simulacao ou experimento que confirme a causalidade.
+- erro reproduzido ou log/trace confiável com origem clara;
+- local exato do código, configuração ou estado que dispara a falha;
+- explicação causal ligando esse local ao sintoma;
+- verificação objetiva que confirme a causalidade;
+- alternativas plausíveis eliminadas ou explicitamente limitadas.
 
-Sem isso, use `Hipotese mais provavel`, nao `Causa raiz`.
+Sem isso, use `Hipótese mais provável` e mantenha o status como `causa raiz não comprovada ainda`.
 
-## Formato obrigatorio da saida
+## Formato obrigatório da saída
 
 ````markdown
-# Relatorio de debug
+# Relatório de debug
 
-## Resumo
-- Status: causa raiz comprovada | causa raiz nao comprovada ainda | bloqueado por ambiente
-- Comando/reproducao: `<comando>`
-- Sintoma observado: <erro/exit code/comportamento>
+## Status
+- causa raiz comprovada | causa raiz não comprovada ainda | bloqueado por ambiente
 
-## Evidencias coletadas
-| Evidencia | Fonte | O que comprova |
+## Sintoma reproduzido
+- Comando/cenário: `<comando>`
+- Resultado observado: <erro, exit code ou comportamento>
+
+## Evidências
+| Evidência | Fonte | O que comprova |
 |---|---|---|
-| <log/teste/leitura> | <arquivo/comando> | <conclusao objetiva> |
+| <log, teste ou leitura> | <arquivo ou comando> | <conclusão objetiva> |
 
-## Caminho de investigacao
-1. <acao executada> -> <resultado real>
-2. <acao executada> -> <resultado real>
+## Caminho de investigação/Hipóteses eliminadas
+1. <ação executada> → <resultado real>
 
 ## Causa raiz
-<Somente preencher como causa se estiver comprovada. Explicar a cadeia causal.>
+<Preencher como causa somente se estiver comprovada. Caso contrário, escrever `causa raiz não comprovada ainda`.>
 
-## Sugestao de fix
-- Mudanca recomendada: <fix>
-- Por que resolve a causa raiz: <explicacao>
-- Riscos/efeitos colaterais: <lista>
+## Cadeia causal
+<condição inicial → código/configuração/estado → falha observada>
 
-## Verificacao recomendada
-```bash
-<comandos para validar o fix>
-```
+## Arquivos envolvidos
+- `<arquivo>`: <papel na falha>
 
-## Pendencias / incertezas
-- <somente se ainda faltar evidencia>
+## Limitações/incertezas
+- <evidência ainda ausente ou `nenhuma para o sintoma reproduzido`>
+
+Diagnóstico encerrado. Nenhuma correção foi executada.
 ````
 
-## Regras de comunicacao
+## Regras de comunicação
 
-- Seja direto e cite comandos/arquivos/linhas quando possivel.
-- Diferencie claramente `fato`, `hipotese`, `experimento` e `conclusao`.
-- Nao use linguagem de certeza (`e`, `com certeza`, `causa raiz`) sem evidencia suficiente.
-- Nao invente saida de comandos, logs, arquivos ou APIs. Se nao rodou/leu, diga que nao rodou/leu.
+- Seja direto e cite comandos, arquivos e linhas quando possível.
+- Diferencie claramente fato, hipótese, experimento e conclusão.
+- Não use linguagem de certeza sem evidência suficiente.
+- Não invente saída de comandos, logs, arquivos ou APIs.
+- O marcador final exato é: `Diagnóstico encerrado. Nenhuma correção foi executada.`
