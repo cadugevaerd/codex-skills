@@ -1,7 +1,7 @@
 {
   "name": "code-debug",
-  "version": "1.0.0",
-  "description": "Debug disciplinado para achar causa raiz comprovada a partir de um comando de reproducao, logs e instrumentacao minima.",
+  "version": "1.1.0",
+  "description": "Diagnostico diagnose-only: reproduz falhas, coleta evidencias, testa hipoteses e entrega relatorio de causa raiz sem executar correcoes.",
   "author": {
     "name": "Carlos Araujo",
     "email": "cadu.gevaerd@gmail.com",
@@ -15,14 +15,14 @@
     "root-cause",
     "logs",
     "instrumentation",
-    "bugfix",
+    "diagnosis",
     "troubleshooting"
   ],
   "skills": "./skills/",
   "interface": {
     "displayName": "Code Debug",
-    "shortDescription": "Investiga erro ate causa raiz comprovada.",
-    "longDescription": "Executa debugging disciplinado: reproduz o comando, coleta evidencias, adiciona logs quando necessario, evita suposicoes e entrega relatorio de causa raiz com sugestao de fix.",
+    "shortDescription": "Diagnostica erros ate a causa raiz comprovada.",
+    "longDescription": "Executa diagnostico disciplinado: reproduz o comando, coleta evidencias, testa hipoteses e encerra com relatorio de causa raiz, sem executar correcoes.",
     "developerName": "Carlos Araujo",
     "category": "Development",
     "capabilities": [
