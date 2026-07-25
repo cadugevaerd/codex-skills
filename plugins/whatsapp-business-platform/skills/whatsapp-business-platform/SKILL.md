@@ -208,14 +208,42 @@ Reconfirme tudo antes de migração: limites de produto mudam.
 
 ## Webhooks e handoff humano
 
-Use HTTPS, validação do callback, assinatura conforme documentação e idempotência por evento/mensagem. Assine cada WABA e roteie por WABA ID + Phone Number ID.
+Use HTTPS, validação do callback e idempotência por evento/mensagem. Assine cada WABA e roteie por WABA ID + Phone Number ID.
+
+### Validação obrigatória da assinatura
+
+Antes de interpretar JSON, alterar estado ou enfileirar o evento:
+
+1. preserve os **bytes brutos** do corpo HTTP;
+2. leia `X-Hub-Signature-256` e exija o prefixo `sha256=`;
+3. calcule HMAC-SHA256 do corpo bruto usando o **App Secret** mantido no secret manager;
+4. compare a assinatura recebida e a calculada em **tempo constante**;
+5. rejeite assinatura ausente ou inválida sem processar o payload;
+6. só então desserialize, deduplique e confirme rapidamente o recebimento.
+
+Nunca calcule a assinatura sobre JSON reserializado. Não registre App Secret, assinatura completa nem corpo com PII.
 
 | Campo | Uso |
 |---|---|
 | `history` | histórico anterior autorizado |
 | `smb_app_state_sync` | contatos alterados no Business App |
 | `smb_message_echoes` | mensagens enviadas manualmente pelo App/dispositivo compatível |
-| `account_update` | lifecycle, offboarding e reconexão |
+| `account_update` | lifecycle, offboarding, reconexão, restrições e violações |
+
+### Estado de `account_update`
+
+Mantenha uma máquina de estados idempotente por WABA/tenant:
+
+| Evento/classe | Transição mínima |
+|---|---|
+| `PARTNER_REMOVED` | revogar vínculo local, suspender envio e iniciar offboarding seguro |
+| `ACCOUNT_OFFBOARDED` | marcar `offboarded`, suspender automações e invalidar acesso operacional |
+| `ACCOUNT_RECONNECTED` | marcar `revalidation_required`; revalidar WABA, número, permissões, token e webhook antes de reativar |
+| restrição, violação ou bloqueio | marcar `restricted`, impedir envio e abrir diagnóstico/auditoria |
+| alteração de permissões, tier ou configuração | atualizar capacidades somente após leitura confirmatória da API |
+| evento desconhecido | registrar tipo sanitizado e versão, manter idempotência e agir **fail-closed** para operações de envio |
+
+Não reative automaticamente apenas por nome de evento; confirme o estado atual por API oficial e preserve trilha de auditoria.
 
 Todos os clientes podem compartilhar o webhook padrão do App se o backend isola tenants deterministicamente. Use override por WABA/número apenas com requisito explícito.
 
@@ -241,7 +269,7 @@ Content-Type: application/json
 }
 ```
 
-Antes de envio real, confirme destinatário, opt-in, template, janela, finalidade e impacto externo. `POST /messages` tem efeito real.
+Antes de envio real, confirme destinatário, opt-in, template, janela, finalidade e impacto externo. `POST /messages` tem efeito real. **Nunca execute envio, template de teste, marcação como lida ou outra mutação sem confirmação explícita do usuário para aquele destinatário e ambiente.** Sem confirmação, produza somente plano, payload redigido ou chamada `GET` de diagnóstico.
 
 ## Limites e propriedade
 
