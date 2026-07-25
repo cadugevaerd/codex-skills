@@ -147,6 +147,18 @@
         "authentication": "ON_INSTALL"
       },
       "category": "Development"
+    },
+    {
+      "name": "whatsapp-business-platform",
+      "source": {
+        "source": "local",
+        "path": "./plugins/whatsapp-business-platform"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Development"
     }
   ]
 }
