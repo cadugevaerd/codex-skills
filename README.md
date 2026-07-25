@@ -20,6 +20,7 @@ plugin individual.
 | `langsmith-evals` | Cria e compara prompts e projeta, executa e audita evals LangSmith-first. Inclui Prompt Engineer, Evals Engineer e Auditor, fixados em `gpt-5.6-terra`. |
 | `prompt-only-agent` | Faz uma entrevista curta, uma pergunta por vez, e entrega um system prompt em Markdown pronto para copiar e colar para um agente sem ferramentas. |
 | `qa-planner` | Analisa requisitos e diff da branch, define estratégia e cria `QA.md` rastreável para outra IA executar — sem rodar testes. |
+| `whatsapp-business-platform` | Projeta e opera integrações oficiais Meta: Cloud API, Technology Provider, Embedded Signup v4, Coexistence App+API, múltiplas WABAs/números, webhooks e tokens. |
 
 ## Instalacao local
 
@@ -39,6 +40,7 @@ codex plugin add facilitador-reunioes@codex-skills
 codex plugin add langsmith-evals@codex-skills
 codex plugin add prompt-only-agent@codex-skills
 codex plugin add qa-planner@codex-skills
+codex plugin add whatsapp-business-platform@codex-skills
 ```
 
 A skill `/langsmith-evals` fica disponível imediatamente. Para registrar também os
@@ -61,6 +63,8 @@ codex plugin list --marketplace codex-skills
 
 ```text
 /prompt-only-agent criar um agente que transforme notas de reunião em resumo executivo
+/whatsapp-business-platform modo=provider planejar onboarding multiempresa
+/whatsapp-business-platform modo=coexistence verificar App manual + Cloud API
 ```
 
 O plugin coleta apenas as decisões essenciais, uma pergunta por vez, e retorna somente o system prompt final em Markdown, pronto para copiar, com no máximo **8.000 caracteres**.
@@ -149,6 +153,11 @@ plugins/
   qa-planner/
     .codex-plugin/plugin.json
     skills/qa-planner/SKILL.md
+    tests/validate_contract.py
+  whatsapp-business-platform/
+    .codex-plugin/plugin.json
+    skills/whatsapp-business-platform/SKILL.md
+    skills/whatsapp-business-platform/references/official-meta-sources.md
     tests/validate_contract.py
 ```
 

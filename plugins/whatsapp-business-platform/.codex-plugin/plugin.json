@@ -1,0 +1,27 @@
+{
+  "name": "whatsapp-business-platform",
+  "version": "1.0.0",
+  "description": "Projeta e opera integrações Meta WhatsApp Business Platform, incluindo Cloud API, Technology Provider, Embedded Signup v4 e Coexistence.",
+  "author": {
+    "name": "Carlos Araujo",
+    "email": "cadu.gevaerd@gmail.com",
+    "url": "https://github.com/cadugevaerd"
+  },
+  "homepage": "https://github.com/cadugevaerd/codex-skills",
+  "repository": "https://github.com/cadugevaerd/codex-skills",
+  "license": "MIT",
+  "keywords": ["whatsapp", "meta", "cloud-api", "technology-provider", "embedded-signup", "coexistence"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "WhatsApp Business Platform",
+    "shortDescription": "Cloud API, Provider, onboarding v4 e Coexistence.",
+    "longDescription": "Orienta arquitetura, onboarding multi-WABA, Technology Provider, segurança, webhooks e uso simultâneo do WhatsApp Business App com Cloud API.",
+    "developerName": "Carlos Araujo",
+    "category": "Development",
+    "capabilities": ["WhatsApp Cloud API", "Technology Provider", "Embedded Signup", "Coexistence", "Webhook Architecture"],
+    "defaultPrompt": [
+      "/whatsapp-business-platform modo=provider planejar onboarding multiempresa",
+      "/whatsapp-business-platform modo=coexistence verificar App manual + Cloud API"
+    ]
+  }
+}
