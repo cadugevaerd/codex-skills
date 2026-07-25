@@ -86,7 +86,7 @@ Essas permissões permitem enviar em nome de clientes e acessar WABAs que não p
 
 ## Embedded Signup v4
 
-Para trabalho novo, use v4. A v2 tem descontinuação anunciada para **15 de outubro de 2026**; confirme a data atual antes de repeti-la.
+Para trabalho novo, use v4. A Meta anunciou a descontinuação de **v2 e v3 em 15 de outubro de 2026**; confirme a data atual antes de repeti-la. A publicação oficial informa que integrações v2 com os feature types descontinuados `only_waba_sharing`, `marketing_messages_lite` ou `coex` não recebem upgrade automático; migre e teste manualmente esses fluxos antes do prazo. Para qualquer fluxo personalizado legado, confirme o caminho de migração atual nas páginas **Versions** e **v4**.
 
 ```text
 Painel de Apps
@@ -133,6 +133,7 @@ Use quando a empresa já utiliza **WhatsApp Business App** e quer manter atendim
 Requisitos documentados:
 
 - WhatsApp Business App `2.24.17` ou posterior;
+- número e país/região atualmente elegíveis para Coexistence segundo a documentação oficial da Meta; não mantenha lista estática de países;
 - onboarding por Solution Partner ou Technology Provider;
 - callback capaz de processar webhooks;
 - Embedded Signup com registro de sessão;
@@ -153,7 +154,9 @@ Requisitos documentados:
 
 O fluxo deve oferecer **conectar conta existente do WhatsApp Business**. A empresa recebe mensagem oficial do Facebook no App, confirma conexão e decide se compartilha contatos/histórico.
 
-Evento esperado no listener:
+Antes de aceitar qualquer evento do listener, exija `origin` em allowlist exata da Meta, correlacione `state`, tenant e a janela de onboarding iniciada pelo próprio fluxo, e rejeite a mensagem antes de associar `waba_id` quando qualquer correlação falhar.
+
+Evento esperado no listener após essas validações:
 
 ```javascript
 {
@@ -170,7 +173,7 @@ Após concluir:
 - troque o código por token empresarial;
 - integre WABA e webhooks;
 - **não registre o número novamente**;
-- inicie sincronização autorizada em até 24 horas;
+- conclua a sincronização autorizada de contatos e histórico em até 24 horas após a integração; se o prazo expirar, faça offboarding e repita o Embedded Signup;
 - mantenha o Business App aberto durante sincronização.
 
 ### Verificar status
@@ -273,8 +276,8 @@ Antes de envio real, confirme destinatário, opt-in, template, janela, finalidad
 
 ## Limites e propriedade
 
-- Embedded Signup começa com até 10 novos clientes em sete dias.
-- Após verificação empresarial, App Review e verificação de acesso, a Meta documenta 200 novos clientes em sete dias.
+- Embedded Signup começa com até 10 clientes recém-integrados em uma janela móvel de sete dias; somente novos onboardings contam.
+- Após verificação empresarial, App Review e verificação de acesso, a Meta documenta 200 clientes recém-integrados na mesma janela móvel de sete dias.
 - Clientes são proprietários das WABAs/números e mantêm acesso ao WhatsApp Manager.
 - WABAs originalmente criadas pelo App do desenvolvedor podem não ser selecionáveis diretamente no Embedded Signup.
 - Provider sem Solution Partner exige que o cliente adicione pagamento à própria WABA.
