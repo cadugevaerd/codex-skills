@@ -5,6 +5,12 @@
   },
   "plugins": [
     {
+      "name": "grill-with-docs",
+      "source": {"source": "local", "path": "./plugins/grill-with-docs"},
+      "policy": {"installation": "AVAILABLE", "authentication": "ON_INSTALL"},
+      "category": "Development"
+    },
+    {
       "name": "backlog",
       "source": {
         "source": "local",

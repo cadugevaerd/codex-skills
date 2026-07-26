@@ -12,7 +12,7 @@ plugin individual.
 | `code-review-cadu` | Revisa PRs com veredicto `GO`/`NO-GO` por finding e encaminha itens diferiveis ao backlog apos confirmacao. |
 | `code-debug` | Diagnóstico diagnose-only: reproduz comando, coleta evidências, testa hipóteses e entrega relatório sem executar correções. |
 | `relatorio-gerencial` | Gera relatorios executivos (uma pagina) de tarefas atuais e backlog multi-repositorio com linguagem gerencial e PDF. |
-| `grillme-langgraph` | Entrevista tecnica para desenhar um fluxo LangGraph com diagrama, State CRUE, tabela de nodes e fronteiras deterministicas. |
+| `grill-with-docs` | Conduz entrevistas arquiteturais com fontes, ADRs, backlog, roadmap e auditoria fail-closed; para por saturação comprovada. |
 | `grillme-gestor` | Versao sem jargao tecnico da `grillme-langgraph`, voltada a gestores, salvando o artefato tecnico em markdown. |
 | `rag-kag-decision` | Decide quando usar RAG, KAG, GraphRAG ou abordagem hibrida conforme documentos, entidades, relacoes, regras, temporalidade, custo e risco. |
 | `modelos-custo-beneficio` | Consulta OpenRouter e lista até 5 candidatos para Model Engineering Eval, com inteligência Artificial Analysis >35 via OpenRouter Benchmarks, reasoning controlável, throughput p75/p50 ≥60 t/s e variantes `:exacto`/`:nitro`; não decide runtime. |
@@ -28,6 +28,7 @@ Da raiz deste repo:
 
 ```bash
 codex plugin marketplace add .
+codex plugin add grill-with-docs@codex-skills
 codex plugin add backlog@codex-skills
 codex plugin add code-review-cadu@codex-skills
 codex plugin add code-debug@codex-skills
@@ -69,7 +70,15 @@ codex plugin list --marketplace codex-skills
 
 O `/prompt-only-agent` coleta apenas as decisões essenciais, uma pergunta por vez, e retorna somente o system prompt final em Markdown, pronto para copiar, com no máximo **8.000 caracteres**.
 
-## Uso do qa-planner
+## Uso do grill-with-docs
+
+```text
+/grill-with-docs iniciar greenfield fonte=https://docs.example.com
+/grill-with-docs auditar ./docs
+```
+
+O plugin registra uma pergunta atômica por rodada, custo de cada opção, fontes e estado de evidência. Atualiza ADRs gerenciados, glossário, backlog e ROADMAP quando necessário; novas evidências exigem impact scan. O auditor stdlib é fail-closed e ignora ADRs legados sem `managed-by: grill-with-docs/v1`.
+
 
 ```text
 /qa-planner branch=feat/oauth base=main
