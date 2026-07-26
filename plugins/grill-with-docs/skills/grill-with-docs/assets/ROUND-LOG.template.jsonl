@@ -1,0 +1,1 @@
+{"round_id":"R-0001","question_id":"DQ-0001","transition":"resolved","evidence":["source-or-adr"],"artifacts_changed":["docs/adr/ADR-0001.md","ROADMAP.md"],"progress_delta":{"decisions_resolved":1,"uncertainties_reduced":1},"scope_delta":"none","next_action":"recompute-frontier"}
