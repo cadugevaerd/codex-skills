@@ -1,0 +1,12 @@
+{
+  "name": "grill-with-docs",
+  "version": "1.0.0",
+  "description": "Entrevista decisões arquiteturais orientada por evidências e mantém contexto, ADRs, backlog e roadmap auditáveis.",
+  "author": {"name": "Carlos Araujo", "email": "cadu.gevaerd@gmail.com", "url": "https://github.com/cadugevaerd"},
+  "homepage": "https://github.com/cadugevaerd/codex-skills",
+  "repository": "https://github.com/cadugevaerd/codex-skills",
+  "license": "MIT",
+  "keywords": ["architecture", "adr", "decision-log", "evidence", "interview", "roadmap", "audit"],
+  "skills": "./skills/",
+  "interface": {"displayName": "Grill with Docs", "shortDescription": "Conduz decisões arquiteturais rastreáveis.", "longDescription": "Conduz uma pergunta atômica por vez, registra evidências e custos, atualiza ADRs/CONTEXT/backlog/roadmap e audita consistência antes de parar por saturação.", "developerName": "Carlos Araujo", "category": "Development", "capabilities": ["Architecture Interview", "Evidence Tracking", "ADR Management", "Decision Audit"], "defaultPrompt": ["/grill-with-docs iniciar greenfield fonte=https://docs.example.com", "/grill-with-docs auditar ./docs"]}
+}
