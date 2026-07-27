@@ -7,4 +7,4 @@ disable-model-invocation: false
 ---
 # Exportar
 
-Após doctor, execute `backlogctl [--json] export json|markdown|consolidated --db PATH [--code CODE]`. `--db` pertence ao comando export. Não alegue arquivo salvo sem verificar o destino. Consolidated deve conter `data.backlogs[]` com `items[]` aninhados e sem `data.items`.
+Após doctor, execute `backlogctl [--json] export json|markdown|consolidated --db PATH [--code CODE]`. JSON sempre inclui `description` em cada item, inclusive como string vazia. `--db` pertence ao comando export. Não alegue arquivo salvo sem verificar o destino. Consolidated deve conter `data.backlogs[]` com `items[]` aninhados e sem `data.items`.

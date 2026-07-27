@@ -1,6 +1,6 @@
 {
   "name": "backlog",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Backlog multi-repositório operado exclusivamente por backlogctl, com estados universais, criticidade dominante, contextos de prioridade expiráveis, propostas de formato e aplicação confirmada.",
   "author": {"name": "Carlos Araujo", "email": "cadu.gevaerd@gmail.com", "url": "https://github.com/cadugevaerd"},
   "homepage": "https://github.com/cadugevaerd/codex-skills",

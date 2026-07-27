@@ -17,7 +17,7 @@
         "path": "./plugins/backlog"
       },
       "description": "Backlog v2 via backlogctl with verified release bootstrap available for recovery; Codex uses the emitted/manual executable path.",
-      "version": "2.1.0",
+      "version": "2.2.0",
       "policy": {
         "installation": "AVAILABLE",
         "authentication": "ON_INSTALL"

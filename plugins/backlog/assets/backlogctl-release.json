@@ -2,16 +2,16 @@
   "schema_version": 1,
   "status": "released",
   "product": "backlogctl",
-  "release": "v2.0.0",
-  "version": "2.0.0",
-  "base_url": "https://github.com/cadugevaerd/backlogctl-releases/releases/download/v2.0.0/",
+  "release": "v2.0.1",
+  "version": "2.0.1",
+  "base_url": "https://github.com/cadugevaerd/backlogctl-releases/releases/download/v2.0.1/",
   "assets": {
-    "linux-x64": {"file": "backlogctl_linux_amd64", "sha256": "d76c8365fc525b6cc4fdf78fd95a205be0b50f67de984dfdea721d8f1e029399"},
-    "linux-arm64": {"file": "backlogctl_linux_arm64", "sha256": "b1351a4f94045a43a1a3e7b3e5686073f7d6015c47bb25e7925fba7afc60a52d"},
-    "darwin-x64": {"file": "backlogctl_darwin_amd64", "sha256": "c002c6cad4788030e4380b099b331bc6fed531fe4be33a4d08f676d518574353"},
-    "darwin-arm64": {"file": "backlogctl_darwin_arm64", "sha256": "fd07f2880df1c77dd7cfac7cc87e2d95f358b260adb77953bc3ecf8753c58689"},
-    "win32-x64": {"file": "backlogctl_windows_amd64.exe", "sha256": "e074be2684599b9bb15c02579556d7ebeca50fc0ce2b0640bf773dfbf9ed2d3f"},
-    "win32-arm64": {"file": "backlogctl_windows_arm64.exe", "sha256": "d54754b72f10735fa3fe2e226c91669590e35ff27744c940ebce185dfd8fcf1c"}
+    "linux-x64": {"file": "backlogctl_linux_amd64", "sha256": "e4892538b09c03784fa33030cde04fc0b227b3ac20d4a18190412190aa77a3bd"},
+    "linux-arm64": {"file": "backlogctl_linux_arm64", "sha256": "37607bc73a26e4419d6c8a03ccc333ad3aa4325e8bc307c2d3f6dfc33fc6aec9"},
+    "darwin-x64": {"file": "backlogctl_darwin_amd64", "sha256": "93628f1690947b080bd420acb7de5be466c24dd6ca7a69f19efe3143da562b5e"},
+    "darwin-arm64": {"file": "backlogctl_darwin_arm64", "sha256": "77404e8d430f12ea7ed2424991bfd277cd099b06999da9ae3ec0dd68c9cf05c2"},
+    "win32-x64": {"file": "backlogctl_windows_amd64.exe", "sha256": "a09d2b56252e1d0e437f1c2983725db0cd7433f45774aa32844df11e61e005fd"},
+    "win32-arm64": {"file": "backlogctl_windows_arm64.exe", "sha256": "d1948062d23490cba024cf0155b774add224f0ae7e019fccfd31131619b1b5b0"}
   },
   "install": {"enabled": true, "source": "github-release", "paths": "assets"}
 }

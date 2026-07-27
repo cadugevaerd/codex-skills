@@ -13,9 +13,9 @@ Esta skill é um workflow do agente, não um comando `backlogctl import`/`migrat
 
 Dado o caminho completo do JSON v1:
 
-1. Leia o arquivo inteiro e valide que é JSON válido, objeto esperado e que todos os registros são percorríveis. Preserve o caminho original.
+1. Leia o arquivo inteiro e valide que é JSON válido, objeto esperado e que todos os registros são percorríveis. Preserve cada descrição legada completa, sem truncar, resumir ou confundir com `title`.
 2. Antes de qualquer operação V2, execute `<BACKLOGCTL> --json doctor --db PATH`; se doctor falhar, pare e reporte stderr/exit code.
-3. Produza uma proposta estruturada, sem executar mutações, contendo: backlogs, bindings, todos os itens, `legacy_id`, título, repo, status, prioridade, position, datas, mapeamentos pretendidos e lista explícita de ambiguidades.
+3. Produza uma proposta humana estruturada, sem executar mutações, contendo: backlogs, bindings, todos os itens, `legacy_id`, título, descrição completa, repo, status, prioridade, position, datas, mapeamentos pretendidos e lista explícita de ambiguidades. A descrição deve aparecer no texto da proposta, inclusive quando vazia.
 4. Mapeie prioridades `critica|alta|media|baixa` para `critical|high|medium|low`. Mapeie estados diretamente somente `aberto→open`, `em-andamento→in_progress`, `resolvido→done`, `descartado→cancelled`, `mesclado→merged`. `promovido` nunca é mapeado silenciosamente.
 5. Marque como ambiguidades bloqueantes: enum/status desconhecido; prioridade desconhecida; duplicata `(repo,id)`; data inválida; rank/position inválido; repo ou título ausente; e qualquer `promovido`. Também reporte registros incompletos ou campos não suportados.
 
@@ -29,7 +29,7 @@ Após confirmação humana inequívoca, revalide a proposta/arquivo e execute, s
 2. `doctor` novamente;
 3. `backlog create` para cada backlog;
 4. `backlog bind` para cada binding;
-5. `item add` para cada item validado;
+5. `item add --description TEXT` para cada item validado, passando a descrição completa (inclusive `""` quando a descrição confirmada estiver vazia);
 6. `item transition` e/ou `item move` quando necessários para estado/posição.
 
 Capture cada envelope de sucesso e o ID retornado. Gere ao final um relatório de migração com `legacy_id → v2_id`, backlog/binding, comandos executados, itens criados, ambiguidades confirmadas e falha/retomada. Nunca use `import`, `migrate`, SQL, edição de banco ou escrita no JSON legado.
