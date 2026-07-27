@@ -14,6 +14,7 @@ Prioridades: `critica|alta|media|baixa` → `critical|high|medium|low`. Estados 
 
 ## Execução confirmada
 
-Somente após confirmação, revalide e use `<BACKLOGCTL> --json ... --db PATH` para `store init`, `doctor`, `backlog create`, `backlog bind`, `item add --description TEXT` (sempre passando a descrição completa, incluindo `""` quando confirmada vazia) e, quando necessário, `item transition`/`item move`. Capture IDs e envelopes e emita o mapa `legacy_id → v2_id`.
+Somente após confirmação, revalide em DB descartável e use `<BACKLOGCTL> --json ... --db PATH` para `store init`, `doctor`, `backlog create`, `backlog bind` e `item add --status EXPECTED --description TEXT` (sempre passando a descrição completa, incluindo `""` quando confirmada vazia). Capture o envelope retornado imediatamente para cada item e verifique status, description, category e criticality; pare na primeira divergência. Não use `item reconcile-status` para contornar erro de migração. A CLI anterior a v2.0.2 é unsupported para esta migração corrigida.
 
 Como a CLI tem comandos separados, a migração cross-item não é globalmente atômica: execute o plano pré-validado em ordem, pare na falha, reporte stderr/exit code e IDs já criados e permita retomada a partir do relatório. Não prometa transação/rollback. Não use SQL, arquivos legados como destino, nem comandos CLI inexistentes.
+No postflight, compare cada registro legado individualmente (IDs, campos, descrição, categoria, criticalidade, status e associações), não apenas totais por status. Qualquer mismatch interrompe o workflow e exige revisão humana.

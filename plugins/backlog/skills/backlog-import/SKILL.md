@@ -29,9 +29,10 @@ Após confirmação humana inequívoca, revalide a proposta/arquivo e execute, s
 2. `doctor` novamente;
 3. `backlog create` para cada backlog;
 4. `backlog bind` para cada binding;
-5. `item add --description TEXT` para cada item validado, passando a descrição completa (inclusive `""` quando a descrição confirmada estiver vazia);
-6. `item transition` e/ou `item move` quando necessários para estado/posição.
+5. `item add --status EXPECTED --description TEXT` para cada item validado, passando o status inicial esperado e a descrição completa (inclusive `""` quando a descrição confirmada estiver vazia);
+6. `item move` quando necessário para posição.
 
 Capture cada envelope de sucesso e o ID retornado. Gere ao final um relatório de migração com `legacy_id → v2_id`, backlog/binding, comandos executados, itens criados, ambiguidades confirmadas e falha/retomada. Nunca use `import`, `migrate`, SQL, edição de banco ou escrita no JSON legado.
 
 A CLI pública tem comandos separados: a migração cross-item não é globalmente atômica. Execute o plano pré-validado em ordem, pare na primeira falha, reporte stderr/exit code e IDs já criados; permita retomar usando o relatório (sem duplicar o que já foi confirmado). Não prometa transação ou rollback automático. Erros nunca devem ser convertidos em sucesso fabricado.
+Após cada `item add`, valide imediatamente o envelope JSON retornado: `status`, `description`, `category` e `criticality` devem corresponder ao plano. Pare no primeiro mismatch. Faça o postflight comparando cada registro legado, não apenas totais. O workflow é incompatível com CLI anterior a v2.0.2. Nunca descubra a FSM sondando o DB alvo ou itens reais; use DB descartável.

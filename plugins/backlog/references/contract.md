@@ -4,7 +4,7 @@
 
 `backlogctl` é a única fonte de verdade; skills não leem/escrevem SQLite ou JSON de estado. A forma global correta é `backlogctl [--json] <família> <comando> ...`; `--json` vem antes da família. `--db PATH` é uma flag de cada comando (não uma flag global).
 
-Operações implementadas: `store init`, `doctor`; `backlog create|list|show|edit|archive|bind`; `item add|list|show|edit|transition|move`; `context add|list|show|supersede|revoke|expire`; `format list|show|propose|apply`; `export json|markdown|consolidated`.
+Operações implementadas: `store init`, `doctor`; `backlog create|list|show|edit|archive|bind`; `item add|list|show|edit|transition|move|reconcile-status|archive`; `context add|list|show|supersede|revoke|expire`; `format list|show|propose|apply`; `export json|markdown|consolidated`.
 
 - sucesso com `--json`: stdout contém exatamente um envelope com `{result:"ok",operation,contract_version:"2",changed,data,warnings,next_action}`;
 - erro de domínio/not-found/validação: diagnóstico humano em stderr, exit 1; não tratar como envelope JSON de sucesso;
@@ -12,6 +12,10 @@ Operações implementadas: `store init`, `doctor`; `backlog create|list|show|edi
 - doctor é diagnóstico seguro e não muta. Falha de doctor encerra a operação.
 
 Não invente flags, subcomandos ou capabilities. Após um erro, reporte stderr e exit code; nunca fabrique sucesso nem faça fallback para arquivos legados.
+
+Flags são command-scoped: uma flag válida em outra subcommand, ou apenas listada globalmente, continua inválida aqui e deve produzir exit 2. `item add --status STATE` define o snapshot inicial (omitido = `open`) e aceita os cinco status canônicos, inclusive `merged`; não é transição. `item transition` usa obrigatoriamente `--status`, nunca `--to`, e mantém a FSM normal; `merged` permanece terminal.
+
+`item reconcile-status --id ID --status STATE --reason TEXT --confirm` é recuperação administrativa auditada: exige confirmação humana, razão não vazia e pode bypassar deliberadamente o grafo somente para reparo verificado. Não é fluxo de migração normal. `item archive --id ID --reason TEXT --confirm` é soft archive auditável para item sem fonte/teste/obsoleto; nunca apague nem acesse SQLite. List/export omitem arquivados por padrão; `show` e `list --all` os preservam para auditoria.
 
 ## Perfis, categories e entidades
 

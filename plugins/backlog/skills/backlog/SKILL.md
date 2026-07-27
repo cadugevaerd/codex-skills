@@ -20,3 +20,6 @@ Para `format propose`, mostre o diff estruturado e aguarde confirmação humana 
 `merge`, `import` e `update` não são comandos CLI implementados; `import` designa somente o workflow da skill acima. Não os trate como operações disponíveis.
 
 Sucesso JSON é o envelope v2 documentado em `references/contract.md`. Erros de domínio são stderr/exit 1; uso inválido é stderr/exit 2.
+
+## Contract v2.0.2
+The inventory includes `item reconcile-status` and `item archive` as audited administrative operations. Both require `--reason` and `--confirm`; reconcile bypasses the graph only for verified human-approved repair, and archive is soft archival. They are not normal migration or transition flows.
