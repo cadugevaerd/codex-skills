@@ -33,6 +33,6 @@ A família `context` é implementada: `add|list|show|supersede|revoke|expire`. T
 
 ## Compatibilidade e capabilities pendentes
 
-O runtime compatível é o `backlogctl` fornecido, descoberto no PATH e validado com `backlogctl --version` quando disponível e `backlogctl --json doctor`. Não baixe nem execute binário não verificado; manifesto placeholder não habilita instalação.
+O runtime compatível é o `backlogctl` do release v2.0.0, instalado/reutilizado pelo bootstrap e validado com SHA-256. Use o caminho exato emitido pelo hook ou pelo verificador manual; nunca presuma que está no PATH. Execute `backlogctl --version` e `backlogctl --json doctor` por esse caminho.
 
-`merge`, `import` e `update` continuam não implementados (ou disponíveis apenas como diagnóstico do doctor, quando expostos). Não os execute como operações de mutação nem prometa suporte.
+`merge`, `import` e `update` continuam não implementados como comandos CLI (ou disponíveis apenas como diagnóstico do doctor, quando expostos). A skill `backlog-import` é um workflow agent-led separado: proposta sem mutação e execução confirmada pelos comandos públicos; não o trate como capability nativa nem prometa atomicidade.
