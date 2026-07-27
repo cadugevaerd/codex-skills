@@ -7,4 +7,4 @@ disable-model-invocation: false
 ---
 # Listar
 
-Execute `backlogctl [--json] backlog list --db PATH` ou `item list --db PATH --code CODE` conforme a intenção e flags efetivamente aceitas. Não faça bootstrap. Preserve estados, IDs e a ordem criticality então position.
+Preserve estados, IDs e a ordem criticality então position. O bootstrap é automático no Claude Code; no Codex, use o verificador manual quando necessário.

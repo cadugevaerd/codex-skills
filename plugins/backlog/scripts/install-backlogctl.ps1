@@ -1,3 +1,3 @@
 $ErrorActionPreference = 'Stop'
-[Console]::Error.WriteLine('backlogctl release is a placeholder; installation disabled safely.')
-exit 78
+& node (Join-Path $PSScriptRoot 'ensure-backlogctl.js') @args
+exit $LASTEXITCODE

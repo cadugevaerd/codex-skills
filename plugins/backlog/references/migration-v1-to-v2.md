@@ -1,7 +1,19 @@
-# Migração v1 → v2
+# Migração agent-led V1 JSON → V2
 
-A migração documental v2 usa exclusivamente `backlogctl`; não edite JSON legado nem SQLite diretamente. Antes de qualquer operação, execute `backlogctl [--json] doctor --db PATH`.
+## Limites e segurança
 
-Para dados já v2, use as operações implementadas e os exports `json`, `markdown` e `consolidated` conforme `references/contract.md`. Contextos estão disponíveis por `backlogctl --json context add|list|show|supersede|revoke|expire --db PATH`; mutações de contexto exigem confirmação explícita do usuário. A família `format` também está disponível: use `format list|show|propose|apply`; mostre a proposta/diff e só execute `format apply` após confirmação explícita, com `--confirm`.
+Este é um workflow da skill `backlog-import`, não um comando `backlogctl import`/`migrate`. O agente lê o JSON v1 completo, mas nunca o modifica, move ou apaga. Nunca manipula SQLite. O `backlogctl` v2 atual não tem comando nativo de import/migrate nem campo de legacy-ID; o resultado deve conter um relatório `legacy_id → v2_id`, sem alegar que esse identificador foi persistido no banco.
 
-`merge`, `import` e `update` continuam não implementados (podem ser apenas diagnosticados pelo doctor). Não os trate como operações disponíveis nem faça mutação alternativa.
+Use o caminho exato emitido pelo bootstrap (`--hook` no Claude Code; recuperação manual no Codex), nunca dependa de PATH. Antes de qualquer operação V2, rode `<BACKLOGCTL> --json doctor --db PATH` e pare se falhar.
+
+## Proposta obrigatória
+
+Leia e valide o arquivo inteiro e produza, sem mutação, uma proposta estruturada com backlogs, bindings, todos os itens, IDs legados, repo, título, status, prioridade, posição, datas, mapeamentos e ambiguidades. A proposta deve bloquear escrita até confirmação humana explícita e resolução/confirmação de cada ambiguidade. Liste explicitamente: enum/status desconhecido, prioridade desconhecida, duplicata `(repo,id)`, datas inválidas, rank/position inválido, repo/título ausente e qualquer V1 `promovido`. `promovido` não pode ser mapeado silenciosamente.
+
+Prioridades: `critica|alta|media|baixa` → `critical|high|medium|low`. Estados diretos válidos: `aberto→open`, `em-andamento→in_progress`, `resolvido→done`, `descartado→cancelled`, `mesclado→merged`.
+
+## Execução confirmada
+
+Somente após confirmação, revalide e use `<BACKLOGCTL> --json ... --db PATH` para `store init`, `doctor`, `backlog create`, `backlog bind`, `item add` e, quando necessário, `item transition`/`item move`. Capture IDs e envelopes e emita o mapa `legacy_id → v2_id`.
+
+Como a CLI tem comandos separados, a migração cross-item não é globalmente atômica: execute o plano pré-validado em ordem, pare na falha, reporte stderr/exit code e IDs já criados e permita retomada a partir do relatório. Não prometa transação/rollback. Não use SQL, arquivos legados como destino, nem comandos CLI inexistentes.
