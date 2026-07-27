@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "status": "placeholder",
+  "product": "backlogctl",
+  "release": null,
+  "version": null,
+  "artifacts": [],
+  "checksums": {"algorithm": "sha256", "values": {}},
+  "signatures": [],
+  "install": {"enabled": false, "source": null}
+}

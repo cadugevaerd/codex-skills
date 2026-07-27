@@ -1,6 +1,6 @@
 ---
 name: "code-review-cadu"
-description: "Code review de pull request com veredicto GO/NO-GO por finding sobre o merge — NO-GO = merge bloqueado, corrigir nesta PR; GO = merge pode seguir, finding diferível registrado no backlog global (~/.backlog/backlog.json, carimbando o repo-alvo, via skill /backlog). Use quando for revisar uma PR do GitHub e quiser a triagem automática dos findings entre 'bloqueia merge' e 'diferir para o backlog'. Fork personalizado (Cadu) do plugin oficial code-review da Anthropic."
+description: "Code review de pull request com veredicto GO/NO-GO por finding sobre o merge — findings GO confirmadas podem ser registradas via backlogctl após seleção explícita do backlog associado. Use quando for revisar uma PR do GitHub e quiser a triagem automática dos findings entre 'bloqueia merge' e 'diferir para o backlog'. Fork personalizado (Cadu) do plugin oficial code-review da Anthropic."
 argument-hint: "<número ou URL da PR>"
 ---
 
@@ -9,9 +9,7 @@ argument-hint: "<número ou URL da PR>"
 Fork of the official Anthropic `code-review` plugin (Apache-2.0 — see the
 plugin's LICENSE file), extended with: a **GO/NO-GO verdict per finding** —
 the verdict is about the MERGE (**NO-GO** = merge blocked, fix in this PR;
-**GO** = merge may proceed, finding is deferrable) — and **backlog
-integration** for deferred items (GO → the global `~/.backlog/backlog.json` via the
-`/backlog` skill).
+a **GO** issue may be registered only after explicit confirmation, binding selection via `backlogctl --json backlog list`, and `backlogctl --json item add`; never write `~/.backlog/backlog.json` or SQLite directly.
 
 Provide a code review for the given pull request.
 
@@ -69,7 +67,7 @@ To do this, follow these steps precisely:
    b. Avoid emojis
    c. Link and cite relevant code, files, and URLs
    d. Prefix every issue with its verdict: `**[NO-GO]**` (merge blocked, fix in this PR) or `**[GO → backlog]**` (merge may proceed, deferred)
-10. Backlog flow for the GO issues (NEVER register automatically):
+10. Backlog flow for confirmed GO issues (never register speculation):
     a. After posting the PR comment, present the user (in the conversation) a summary table of every finding that passed the filter, rendered in the box-drawing style below — header rule `━`, row separators `─`; columns `# · finding · verdict · justification`; order all `NO-GO` rows first, then `GO`; wrap long cells across lines keeping the columns aligned. The `justification` cites the rule/spec/criterion driving the verdict (eg. `US2/FR-004/SC-003`, an `AGENTS.md`/`CLAUDE.md` rule, a constitution clause). This table is **conversation-only** — do NOT put it in the PR comment (box-drawing does not render on GitHub; the PR comment keeps the markdown list format from step 9).
 
        ```
@@ -86,8 +84,8 @@ To do this, follow these steps precisely:
        ```
 
     b. Ask the user to confirm which GO issues should go to the backlog.
-    c. After the user's OK, register the confirmed GO issues in batch in the global backlog (`~/.backlog/backlog.json`, stamping the target `repo`) via the `/backlog` skill, and report the generated `BL-NNNN` id next to each finding.
-    d. If the global `~/.backlog/backlog.json` does not exist yet, the `/backlog` skill bootstraps it before registering.
+   c. Only for each confirmed, non-speculative finding, discover the associated backlog with `backlogctl --json backlog list --db PATH` and select the entry whose `bound_path` matches the reviewed repository. If there is no binding, report structured `added: false`, explain that no item was added, and ask the user to select a backlog explicitly; never guess.
+   d. After explicit confirmation and a selected binding, register with `backlogctl --json item add --code CODE --title ... --criticality ... --category ... --db PATH`. Capture and show the CLI envelope (`result`, `operation`, `changed`, `data`, `warnings`, `next_action`) for every attempted addition. Never register speculation or generate code as a substitute.
 
 Examples of false positives, for steps 4 and 5:
 

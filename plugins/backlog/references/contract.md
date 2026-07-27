@@ -1,0 +1,38 @@
+# Backlog v2 — contrato documental canônico
+
+## Matrix CLI, transporte e exit codes
+
+`backlogctl` é a única fonte de verdade; skills não leem/escrevem SQLite ou JSON de estado. A forma global correta é `backlogctl [--json] <família> <comando> ...`; `--json` vem antes da família. `--db PATH` é uma flag de cada comando (não uma flag global).
+
+Operações implementadas: `store init`, `doctor`; `backlog create|list|show|edit|archive|bind`; `item add|list|show|edit|transition|move`; `context add|list|show|supersede|revoke|expire`; `format list|show|propose|apply`; `export json|markdown|consolidated`.
+
+- sucesso com `--json`: stdout contém exatamente um envelope com `{result:"ok",operation,contract_version:"2",changed,data,warnings,next_action}`;
+- erro de domínio/not-found/validação: diagnóstico humano em stderr, exit 1; não tratar como envelope JSON de sucesso;
+- uso inválido, comando desconhecido ou gramática inválida: usage em stderr, exit 2;
+- doctor é diagnóstico seguro e não muta. Falha de doctor encerra a operação.
+
+Não invente flags, subcomandos ou capabilities. Após um erro, reporte stderr e exit code; nunca fabrique sucesso nem faça fallback para arquivos legados.
+
+## Perfis, categories e entidades
+
+Backlogs têm `code`, `name`, `profile`, `archived` e opcional `bound_path`. O item tem ID estável, `backlog_code`, título, category, status, criticality e position. Status canônicos: `open`, `in_progress`, `done`, `cancelled`, `merged`; `blocked` é condição, não status. Criticality: `critical`, `high`, `medium`, `low`.
+
+## Ordem, posição, IDs, arquivo e bind
+
+A ordem canônica é criticality descendente (`critical`, `high`, `medium`, `low`) e, dentro dela, position. Não existe limite artificial de 100 itens/position. `item move` altera posição; não renumere IDs. IDs são estáveis e não reutilizados. `backlog bind --code CODE --path PATH` associa o arquivo/caminho ao backlog; o bind pertence ao backlog e é preservado nos exports.
+
+## Formatos
+
+`export json` e `export markdown` são derivados e não mutam a fonte. O `export consolidated` canônico é `data={backlogs:[{code,name,profile,archived,bound_path,items:[...]}]}`; cada item fica dentro do backlog pai e não existe `data.items` no nível superior. Markdown deve preservar a associação backlog/item e os códigos/status/criticality canônicos.
+
+`format propose` cria uma proposta de alteração; mostre o diff estruturado e aguarde confirmação humana explícita. `format apply` só pode ser executado após essa confirmação, com `--confirm`; não há confirmação oculta. Propostas obsoletas ou expiradas exigem nova proposta.
+
+## Contextos
+
+A família `context` é implementada: `add|list|show|supersede|revoke|expire`. Toda mutação de contexto exige confirmação explícita do usuário e deve usar `backlogctl --json context ... --db PATH`. Nunca acesse SQLite diretamente.
+
+## Compatibilidade e capabilities pendentes
+
+O runtime compatível é o `backlogctl` fornecido, descoberto no PATH e validado com `backlogctl --version` quando disponível e `backlogctl --json doctor`. Não baixe nem execute binário não verificado; manifesto placeholder não habilita instalação.
+
+`merge`, `import` e `update` continuam não implementados (ou disponíveis apenas como diagnóstico do doctor, quando expostos). Não os execute como operações de mutação nem prometa suporte.
