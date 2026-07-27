@@ -15,7 +15,9 @@ Não invente flags, subcomandos ou capabilities. Após um erro, reporte stderr e
 
 ## Perfis, categories e entidades
 
-Backlogs têm `code`, `name`, `profile`, `archived` e opcional `bound_path`. O item tem ID estável, `backlog_code`, título, category, status, criticality e position. Status canônicos: `open`, `in_progress`, `done`, `cancelled`, `merged`; `blocked` é condição, não status. Criticality: `critical`, `high`, `medium`, `low`.
+Backlogs têm `code`, `name`, `profile`, `archived` e opcional `bound_path`. O item tem ID estável, `backlog_code`, `title` como resumo, `description` como descrição executável completa, category, status, criticality e position. Status canônicos: `open`, `in_progress`, `done`, `cancelled`, `merged`; `blocked` é condição, não status. Criticality: `critical`, `high`, `medium`, `low`.
+
+`item add --description TEXT` grava a descrição completa. Em `item edit`, `--description TEXT` substitui, a flag omitida preserva e `--description ""` limpa explicitamente. JSON de `item show`, `item list` e `export json`/formatos JSON sempre inclui `description`, inclusive como string vazia.
 
 ## Ordem, posição, IDs, arquivo e bind
 
@@ -23,7 +25,7 @@ A ordem canônica é criticality descendente (`critical`, `high`, `medium`, `low
 
 ## Formatos
 
-`export json` e `export markdown` são derivados e não mutam a fonte. O `export consolidated` canônico é `data={backlogs:[{code,name,profile,archived,bound_path,items:[...]}]}`; cada item fica dentro do backlog pai e não existe `data.items` no nível superior. Markdown deve preservar a associação backlog/item e os códigos/status/criticality canônicos.
+`export json` e `export markdown` são derivados e não mutam a fonte. O `export consolidated` canônico é `data={backlogs:[{code,name,profile,archived,bound_path,items:[...]}]}`; cada item fica dentro do backlog pai e não existe `data.items` no nível superior. JSON sempre expõe `description`; Markdown deve preservar a associação backlog/item e os códigos/status/criticality canônicos.
 
 `format propose` cria uma proposta de alteração; mostre o diff estruturado e aguarde confirmação humana explícita. `format apply` só pode ser executado após essa confirmação, com `--confirm`; não há confirmação oculta. Propostas obsoletas ou expiradas exigem nova proposta.
 
@@ -33,6 +35,6 @@ A família `context` é implementada: `add|list|show|supersede|revoke|expire`. T
 
 ## Compatibilidade e capabilities pendentes
 
-O runtime compatível é o `backlogctl` do release v2.0.0, instalado/reutilizado pelo bootstrap e validado com SHA-256. Use o caminho exato emitido pelo hook ou pelo verificador manual; nunca presuma que está no PATH. Execute `backlogctl --version` e `backlogctl --json doctor` por esse caminho.
+Use o `backlogctl` fornecido pelo bootstrap, validado com SHA-256. Use o caminho exato emitido pelo hook ou pelo verificador manual; nunca presuma que está no PATH. Execute `backlogctl --version` e `backlogctl --json doctor` por esse caminho.
 
-`merge`, `import` e `update` continuam não implementados como comandos CLI (ou disponíveis apenas como diagnóstico do doctor, quando expostos). A skill `backlog-import` é um workflow agent-led separado: proposta sem mutação e execução confirmada pelos comandos públicos; não o trate como capability nativa nem prometa atomicidade.
+`merge`, `import` e `update` continuam não implementados como comandos CLI (ou disponíveis apenas como diagnóstico do doctor, quando expostos). A skill `backlog-import` é um workflow agent-led separado: proposta sem mutação, descrições legadas completas e execução confirmada pelos comandos públicos; não o trate como capability nativa nem prometa atomicidade.
