@@ -7,7 +7,7 @@ disable-model-invocation: true
 ---
 # Migração agent-led V1 JSON → V2
 
-Esta skill é um workflow do agente, não um comando `backlogctl import`/`migrate`. Ela nunca edita, move ou apaga o JSON legado e nunca acessa SQLite diretamente. Use somente o executável `backlogctl` exato emitido pelo bootstrap (não dependa de PATH; no Codex não há hook SessionStart).
+Esta skill é um workflow do agente, não um comando `backlogctl import`/`migrate`. Ela nunca edita, move ou apaga o JSON legado e nunca acessa SQLite diretamente. Use somente o executável `<BACKLOGCTL>` exato emitido pelo bootstrap/recovery, não dependa de PATH.
 
 ## Fase 1 — proposta sem mutação
 
@@ -21,18 +21,12 @@ Dado o caminho completo do JSON v1:
 
 A proposta deve declarar que o v2 não possui campo nativo de legacy-ID e que será emitido um relatório de mapa `legacy_id → v2_id`, não uma alegação de persistência desse campo. Não escreva nada até o humano confirmar explicitamente a proposta e resolver ou confirmar cada ambiguidade.
 
-## Fase 2 — plano confirmado e execução
+## Fase 2 — validação descartável e execução no alvo
 
-Após confirmação humana inequívoca, revalide a proposta/arquivo e execute, sempre com `--json` antes da família e `--db PATH`, somente estas chamadas públicas, usando o mesmo `<BACKLOGCTL>`:
+Após confirmação humana inequívoca, defina `VALIDATION_DB` como uma nova DB descartável. Execute nela primeiro o plano confirmado completo, sempre com `<BACKLOGCTL> --json`: `store init`, `doctor`, criação e binding de cada backlog, e cada `item add` com `code`, `title`, `description`, `status`, `criticality`, `category` e `due-at` completos, seguido dos `item move` necessários. Valide todos os envelopes e movimentos; descarte `VALIDATION_DB` depois. Ela serve apenas para validar o plano e nunca é estado-alvo.
 
-1. `store init` (se necessário);
-2. `doctor` novamente;
-3. `backlog create` para cada backlog;
-4. `backlog bind` para cada binding;
-5. `item add --status EXPECTED --description TEXT` para cada item validado, passando o status inicial esperado e a descrição completa (inclusive `""` quando a descrição confirmada estiver vazia);
-6. `item move` quando necessário para posição.
+Somente se a validação passar, revalide o fingerprint do JSON legado e defina `TARGET_DB` como a DB real. Execute exatamente o mesmo plano confirmado em `TARGET_DB`, usando `<BACKLOGCTL> --json` e os mesmos campos completos. Para cada `item add` no alvo, valide estritamente antes de prosseguir: envelope `ok` verdadeiro, `operation` igual a `item add`, `contract_version` igual a `2`, `changed` verdadeiro, `warnings` vazio, `next_action` vazio e `data` exato para o mapeamento de ID e `status`, `description`, `category`, `criticality` e `due_at` (incluindo `title` e código do backlog quando expostos). Pare no primeiro mismatch.
 
-Capture cada envelope de sucesso e o ID retornado. Gere ao final um relatório de migração com `legacy_id → v2_id`, backlog/binding, comandos executados, itens criados, ambiguidades confirmadas e falha/retomada. Nunca use `import`, `migrate`, SQL, edição de banco ou escrita no JSON legado.
+Registre e checkpoint o mapa incremental `legacy_id → v2_id` imediatamente após cada mutação bem-sucedida no `TARGET_DB`. Em qualquer falha, atualize e checkpoint o relatório com comando, stderr, exit code e IDs já criados antes de parar. A migração cross-item não é atômica e não há rollback ou atomicidade entre itens; permita retomada pelo relatório sem duplicar mutações confirmadas.
 
-A CLI pública tem comandos separados: a migração cross-item não é globalmente atômica. Execute o plano pré-validado em ordem, pare na primeira falha, reporte stderr/exit code e IDs já criados; permita retomar usando o relatório (sem duplicar o que já foi confirmado). Não prometa transação ou rollback automático. Erros nunca devem ser convertidos em sucesso fabricado.
-Após cada `item add`, valide imediatamente o envelope JSON retornado: `status`, `description`, `category` e `criticality` devem corresponder ao plano. Pare no primeiro mismatch. Faça o postflight comparando cada registro legado, não apenas totais. O workflow é incompatível com CLI anterior a v2.0.2. Nunca descubra a FSM sondando o DB alvo ou itens reais; use DB descartável.
+No postflight, resolva cada registro legado por meio do mapa `legacy_id → v2_id` antes de comparar campos V2; nunca compare IDs V1 e V2 brutos como se fossem iguais. Compare cada registro individualmente, não apenas totais. Nunca use `item reconcile-status` para contornar erro de migração, nem SQL, importação nativa, mutação do arquivo legado ou acesso direto ao SQLite.
