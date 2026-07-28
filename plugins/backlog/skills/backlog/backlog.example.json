@@ -9,7 +9,7 @@
       "archived": false,
       "bound_path": "/repo",
       "items": [
-        {"id": "ABC-0001", "backlog_code": "ABC", "title": "Exemplo", "category": "bug", "status": "open", "criticality": "high", "position": 1}
+        {"id": "ABC-1", "backlog_code": "ABC", "title": "Exemplo", "category": "bug", "status": "open", "criticality": "high", "position": 1}
       ]
     }
   ]
