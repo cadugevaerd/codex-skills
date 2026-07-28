@@ -243,7 +243,10 @@ async function install({
         fs.renameSync(rollback, target);
       }
     }
-    fail(error.message);
+    if (error instanceof Error && error.message.startsWith('backlogctl bootstrap failed:')) {
+      throw error;
+    }
+    fail(error instanceof Error ? error.message : String(error));
   }
 }
 

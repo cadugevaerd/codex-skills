@@ -74,7 +74,11 @@ test('install verifies temporary executable, preserves prior binary and cleans f
 
     await assert.rejects(() => bootstrap.install({ manifest: manifest(good), installDir: dir,
       os: 'linux', arch: 'x64', downloader: async () => good,
-      verifier: () => { throw new Error('wrong version'); } }));
+      verifier: () => { throw new Error('backlogctl bootstrap failed: wrong version'); } }),
+    error => {
+      assert.equal(error.message, 'backlogctl bootstrap failed: wrong version');
+      return true;
+    });
     assert.deepEqual(fs.readFileSync(target), old);
 
     let cleanVerifies = 0;

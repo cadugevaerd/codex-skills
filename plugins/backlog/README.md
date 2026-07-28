@@ -10,7 +10,7 @@ A operação é fail-closed: confirme caminho, versão, `doctor`, schema/capabil
 
 ## Superfície
 
-`backlog`, `item`, `context`, `decision`, `format`, `export`, `merge`, `import`, `todo`, `update` e `doctor`.
+`store init`, `backlog`, `item`, `context`, `decision`, `format`, `export`, `merge`, `import`, `todo`, `update` e `doctor`.
 
 - Import nativo: JSON v3, `preview` e `apply --confirm --expected-sha256 SHA`.
 - Merge: proposta `MRG-N` com snapshots/revisions e apply confirmado.
