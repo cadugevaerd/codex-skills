@@ -59,9 +59,11 @@ test('argument parser rejects unknown, duplicate and malformed flags', () => {
   } finally { fs.rmSync(base, { recursive: true, force: true }); }
 });
 
-test('install verifies temporary executable and preserves prior binary on failure', async () => {
+test('install verifies temporary executable, preserves prior binary and cleans failed fresh install', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'backlog-install-'));
+  const cleanDir = fs.mkdtempSync(path.join(os.tmpdir(), 'backlog-install-clean-'));
   const target = path.join(dir, 'backlogctl');
+  const cleanTarget = path.join(cleanDir, 'backlogctl');
   const old = Buffer.from('old');
   const good = Buffer.from('new-good');
   fs.writeFileSync(target, old, { mode: 0o700 });
@@ -75,6 +77,15 @@ test('install verifies temporary executable and preserves prior binary on failur
       verifier: () => { throw new Error('wrong version'); } }));
     assert.deepEqual(fs.readFileSync(target), old);
 
+    let cleanVerifies = 0;
+    await assert.rejects(() => bootstrap.install({ manifest: manifest(good), installDir: cleanDir,
+      os: 'linux', arch: 'x64', downloader: async () => good,
+      verifier: () => {
+        cleanVerifies += 1;
+        if (cleanVerifies === 2) throw new Error('post-install verification failed');
+      } }));
+    assert.equal(fs.existsSync(cleanTarget), false);
+
     let verifies = 0;
     const result = await bootstrap.install({ manifest: manifest(good), installDir: dir,
       os: 'linux', arch: 'x64', downloader: async () => good,
@@ -82,7 +93,10 @@ test('install verifies temporary executable and preserves prior binary on failur
     assert.equal(result, target);
     assert.deepEqual(fs.readFileSync(target), good);
     assert.ok(verifies >= 2);
-  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+    fs.rmSync(cleanDir, { recursive: true, force: true });
+  }
 });
 
 test('safe install directory and hook payload are deterministic', () => {

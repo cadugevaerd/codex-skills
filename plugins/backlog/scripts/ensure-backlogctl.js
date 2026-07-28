@@ -20,6 +20,7 @@ const SEMVER = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 const HEX64 = /^[a-f0-9]{64}$/i;
 const PLATFORMS = new Set(['linux', 'darwin', 'win32']);
 const ARCHES = new Set(['x64', 'arm64']);
+const REQUEST_TIMEOUT_MS = 30000;
 
 function fail(message) {
   throw new Error(`backlogctl bootstrap failed: ${message}`);
@@ -120,11 +121,13 @@ function download(url, redirects = 0, maxRedirects = 5) {
     }
 
     const request = https.get(parsed, {
+      timeout: REQUEST_TIMEOUT_MS,
       headers: {
         'User-Agent': `backlogctl-bootstrap/${validateManifest(readManifest()).version}`,
         Accept: 'application/octet-stream',
       },
     }, (response) => {
+      response.on('error', reject);
       if ([301, 302, 303, 307, 308].includes(response.statusCode)) {
         response.resume();
         if (redirects >= maxRedirects) {
@@ -148,6 +151,7 @@ function download(url, redirects = 0, maxRedirects = 5) {
       response.on('data', (chunk) => chunks.push(chunk));
       response.on('end', () => resolve(Buffer.concat(chunks)));
     });
+    request.on('timeout', () => request.destroy(new Error('download timed out')));
     request.on('error', reject);
   });
 }
@@ -197,6 +201,7 @@ async function install({
   const temporary = path.join(outputDir, `.backlogctl-${nonce}.tmp`);
   const rollback = path.join(outputDir, `.backlogctl-${nonce}.rollback`);
   let targetMoved = false;
+  let targetInstalled = false;
 
   try {
     const fd = fs.openSync(temporary, 'wx', 0o700);
@@ -219,6 +224,7 @@ async function install({
       targetMoved = true;
     }
     fs.renameSync(temporary, target);
+    targetInstalled = true;
     if (sha(fs.readFileSync(target)) !== asset.sha256.toLowerCase()) {
       fail('installed checksum mismatch');
     }
@@ -229,8 +235,10 @@ async function install({
     return target;
   } catch (error) {
     fs.rmSync(temporary, { force: true });
-    if (targetMoved) {
+    if (targetInstalled) {
       fs.rmSync(target, { force: true });
+    }
+    if (targetMoved) {
       if (fs.existsSync(rollback)) {
         fs.renameSync(rollback, target);
       }

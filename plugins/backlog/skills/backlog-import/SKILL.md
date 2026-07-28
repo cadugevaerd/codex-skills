@@ -1,7 +1,7 @@
 ---
 name: backlog-import
 description: Importa JSON v3 estrito com preview, confirmação e SHA-256; separa migração v1.
-argument-hint: "preview|apply --file JSON_V3_PATH --expected-sha256 SHA --db PATH"
+argument-hint: "preview --file JSON_V3_PATH --db PATH | apply --file JSON_V3_PATH --db PATH --expected-sha256 SHA --confirm"
 user-invocable: true
 disable-model-invocation: true
 ---

@@ -8,8 +8,18 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).parent
-source = json.loads((ROOT / "backlog.example.json").read_text())
-rendered = (ROOT / "consolidado_backlog.example.md").read_text()
+source = json.loads((ROOT / "backlog.example.json").read_text(encoding="utf-8"))
+rendered = (ROOT / "consolidado_backlog.example.md").read_text(encoding="utf-8")
+
+
+def section_for_heading(text: str, heading: str, max_level: int) -> str:
+    """Return one Markdown section, stopping at the next equal/higher heading."""
+    match = re.search(rf"^{re.escape(heading)}\s*$", text, re.MULTILINE)
+    assert match, f"missing heading: {heading}"
+    tail = text[match.end() :]
+    boundary = re.search(rf"^#{{1,{max_level}}}\s", tail, re.MULTILINE)
+    return tail[: boundary.start()] if boundary else tail
+
 
 assert source["contract_version"] == "2"
 backlogs = source["backlogs"]
@@ -22,16 +32,19 @@ rendered_ids = re.findall(r"^### ([A-Z][A-Z0-9_-]*-\d+) — ", rendered, re.MULT
 assert rendered_ids == expected_ids, (rendered_ids, expected_ids)
 
 for backlog in backlogs:
-    assert f"## {backlog['code']} — {backlog['name']}" in rendered
-    assert f"- Profile: `{backlog['profile']}`" in rendered
+    heading = f"## {backlog['code']} — {backlog['name']}"
+    backlog_block = section_for_heading(rendered, heading, 2)
+    metadata = backlog_block.split("\n### ", 1)[0]
+    assert f"- Profile: `{backlog['profile']}`" in metadata
     if backlog.get("bound_path"):
-        assert f"- Bound path: `{backlog['bound_path']}`" in rendered
+        assert f"- Bound path: `{backlog['bound_path']}`" in metadata
 
 for item in eligible:
-    assert f"### {item['id']} — {item['title']}" in rendered
-    assert f"- Category: `{item['category']}`" in rendered
-    assert f"- Status: `{item['status']}`" in rendered
-    assert f"- Criticality: `{item['criticality']}`" in rendered
-    assert f"- Position: `{item['position']}`" in rendered
+    heading = f"### {item['id']} — {item['title']}"
+    item_block = section_for_heading(rendered, heading, 3)
+    assert f"- Category: `{item['category']}`" in item_block
+    assert f"- Status: `{item['status']}`" in item_block
+    assert f"- Criticality: `{item['criticality']}`" in item_block
+    assert f"- Position: `{item['position']}`" in item_block
 
 print(f"OK consolidated v2 fixture: {len(backlogs)} backlog(s), {len(eligible)} item(s)")
