@@ -20,7 +20,7 @@ Em integrações de agente, `--json` deve vir antes da família de comandos.
 Para gerar uma proposta sem alterar itens:
 
 ```sh
-backlogctl --json format propose --db PATH --code ABC --format-code descriptive-code --expires-at YYYY-MM-DD --context-id CTX-N [repeat] --change ABC-0001:high:1 [repeat]
+backlogctl --json format propose --db PATH --code ABC --format-code descriptive-code --expires-at YYYY-MM-DD --context-id CTX-N [repeat] --change ABC-1:high:1 [repeat]
 ```
 
 Mostre ao usuário o diff estruturado da proposta e aguarde confirmação humana explícita. `propose` não altera itens nem aplica a proposta. Não há confirmação oculta ou implícita.

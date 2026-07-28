@@ -2,7 +2,7 @@
 
 ## Limites e segurança
 
-Este é um workflow da skill `backlog-import`, não um comando `backlogctl import`/`migrate`. O agente lê o JSON v1 completo, mas nunca o modifica, move ou apaga. Nunca manipula SQLite. O `backlogctl` não tem comando nativo de import/migrate nem campo de legacy-ID; o resultado deve conter um relatório `legacy_id → v2_id`, sem alegar que esse identificador foi persistido no banco.
+Este é o workflow agent-led específico para **JSON v1**, que o import nativo v3 não aceita. O agente lê o legado completo, mas nunca o modifica, move ou apaga e nunca manipula SQLite. O resultado deve conter um relatório `legacy_id → v2_id`, sem alegar que o legacy-ID foi persistido no banco.
 
 Use o caminho exato `<BACKLOGCTL>` emitido pelo bootstrap/recovery, nunca dependa de PATH. Antes de qualquer operação V2, rode `<BACKLOGCTL> --json doctor --db PATH` e pare se falhar.
 
@@ -20,4 +20,4 @@ Somente após a validação passar, revalide o fingerprint do JSON legado, defin
 
 Escreva/checkpoint o mapa incremental `legacy_id → v2_id` imediatamente após cada mutação bem-sucedida no alvo. Em falha, atualize/checkpoint o relatório com comando, stderr, exit code e IDs já criados antes de parar. A migração cross-item não é globalmente atômica: não prometa rollback nem atomicidade entre itens; permita retomada pelo relatório.
 
-No postflight, resolva cada registro legado por meio do mapa antes de comparar campos V2; nunca compare IDs V1 e V2 brutos como se fossem iguais. Compare cada registro individualmente, não apenas totais. Não use `item reconcile-status` para contornar erro de migração. Retenha as restrições: sem SQL, sem importação nativa, sem mutação do arquivo legado e sem acesso direto ao SQLite.
+No postflight, resolva cada registro legado por meio do mapa antes de comparar campos V2; nunca compare IDs V1 e V2 brutos como se fossem iguais. Compare cada registro individualmente, não apenas totais. Não use `item reconcile-status` para contornar erro de migração. Retenha as restrições: sem SQL, sem enviar JSON v1 ao import nativo, sem mutação do arquivo legado e sem acesso direto ao SQLite.

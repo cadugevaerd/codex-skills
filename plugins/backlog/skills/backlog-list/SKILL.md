@@ -9,5 +9,5 @@ disable-model-invocation: false
 
 Preserve estados, IDs e ordene por `criticality` e depois por `position`. JSON sempre inclui `description` em cada item, inclusive como string vazia. O bootstrap é automático no Claude Code; no Codex, use o verificador manual quando necessário.
 
-## Contract v2.0.2
+## Contract CLI v2.1.0
 Flags are command-scoped. Archived items are omitted by default; use `list --all` for audit. Do not assume a globally documented flag applies to this subcommand.

@@ -7,7 +7,7 @@ Exportado por `backlogctl [--json] export consolidated --db PATH`.
 - Profile: `software`
 - Bound path: `/repo`
 
-### ABC-0001 — Exemplo
+### ABC-1 — Exemplo
 
 - Category: `bug`
 - Status: `open`
