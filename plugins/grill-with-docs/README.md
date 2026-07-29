@@ -16,7 +16,7 @@ Versão Codex 1.2.0 do workflow documental auditável.
 - `DECISION-FRONTIER.md`, `ROUND-LOG.jsonl`, `state.json` e `AUDIT.md` são auxiliares auditáveis, não entradas adicionais.
 - `/grill-with-docs auditar` é **read-only**: apenas valida o workflow e os documentos existentes.
 - Os hooks `SessionStart` e `SubagentStart` apenas injetam contexto. Eles exigem trust explícito via `/hooks`; não executam o workflow nem fazem merge.
-- A skill termina em `PLAN_ONLY_STOP`: não chama `specify`, não implementa código e não cria branch, commit ou merge. O executor posterior entrega somente o handoff selecionado ao `specify`.
+- A skill termina em `PLAN_ONLY_STOP` antes de `specify`: não chama `specify`, não implementa código e não cria branch, commit ou merge. O executor posterior entrega somente o handoff selecionado ao `specify`.
 - Não há alias de comando nem merge automático.
 
 Instalação, a partir da raiz do marketplace:
