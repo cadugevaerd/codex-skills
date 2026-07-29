@@ -12,7 +12,7 @@ sources:
     section: <!-- seção -->
     consulted: <!-- YYYY-MM-DD -->
 ---
-<!-- Salve este ADR em docs/adr/NNNN-slug.md. -->
+<!-- Salve este ADR em docs/adr/ADR-0001.md; o ID do arquivo é canônico. -->
 # ADR-0001 — <!-- título -->
 
 ## Contexto

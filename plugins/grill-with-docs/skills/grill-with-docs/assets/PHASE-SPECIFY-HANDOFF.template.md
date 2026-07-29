@@ -1,22 +1,16 @@
 # FASE-001 — <!-- nome -->
 
+- phase: FASE-001
+- state: planned
 - roadmap: ROADMAP.md#FASE-001
-- state: ready-for-specify
 - context-refs: <!-- termos canônicos -->
-- ADRs: ADR-0001
-- BLs: BL-0001
+- ADRs: none
+- BLs: none
 
-## Problema e valor
-<!-- WHAT/WHY -->
+## WHAT
+<!-- resultado, atores, cenários, escopo e critérios; não incluir HOW -->
 
-## Atores e cenários
-<!-- usuários e cenários -->
+## WHY
+<!-- valor, evidência e restrições; não incluir HOW -->
 
-## Escopo
-- incluído: <!-- scope-in -->
-- excluído: <!-- scope-out -->
-
-## Restrições verificadas
-<!-- fontes externas e critérios mensuráveis -->
-
-> Não inclua stack, banco, framework, classes ou desenho interno. Este handoff cobre somente esta fase.
+> Não inclua headings/campos de stack, banco, framework, classes, componentes, implementação ou API interna. Este handoff cobre somente uma fase.
