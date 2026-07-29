@@ -537,7 +537,16 @@ def main(argv: list[str] | None = None) -> int:
         print("- diretório inexistente")
         return 2
     root = args.root.resolve()
-    findings, blockers, selected_phase, selected_handoff = audit(root)
+    try:
+        findings, blockers, selected_phase, selected_handoff = audit(root)
+    except UnicodeError:
+        print("NO-GO")
+        print("- invalid UTF-8 input")
+        return 1
+    except OSError as error:
+        print("NO-GO")
+        print(f"- filesystem input error: {type(error).__name__}")
+        return 1
     if findings:
         print("NO-GO")
         print("\n".join(f"- {finding}" for finding in findings))

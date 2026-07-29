@@ -34,16 +34,16 @@ Não chame outros artefatos de entrada. Os auxiliares de sessão são separados 
 Resolva o Git root antes de qualquer leitura relativa. Em `iniciar` ou `retomar`, materialize o workflow com:
 
 ```text
-python3 "${CLAUDE_PLUGIN_ROOT}/skills/grill-with-docs/scripts/ensure_workflow.py" --ensure ROOT
+python3 "${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/skills/grill-with-docs/scripts/ensure_workflow.py" --ensure ROOT
 ```
 
-Quando `CLAUDE_PLUGIN_ROOT` não estiver disponível, use o path equivalente da skill. Exija JSON válido com resultado `CREATED` ou `REUSED`; qualquer outro resultado, erro ou ausência de `WORKFLOW.md` é `BLOCKED`. Depois, releia `WORKFLOW.md` e grave no `state.json`, antes da primeira pergunta, o path canônico e o hash do workflow.
+`PLUGIN_ROOT` é canônico no Codex e o fallback `CLAUDE_PLUGIN_ROOT` cobre Claude Code. Se nenhum estiver disponível, use o path equivalente da skill. Exija JSON válido com resultado `CREATED` ou `REUSED`; qualquer outro resultado, erro ou ausência de `WORKFLOW.md` é `BLOCKED`. Depois, releia `WORKFLOW.md` e grave no `state.json`, antes da primeira pergunta, o path canônico e o hash do workflow.
 
 `auditar` é estritamente read-only: nunca chama `ensure_workflow.py`. Se `WORKFLOW.md` faltar, o resultado é `NO-GO`. Hooks de runtime (`SessionStart` e `SubagentStart`) apenas injetam contexto read-only; a confiança no hook segue o Codex `/hooks`, não este protocolo.
 
 O preflight Spec Kit exige: Spec Kit initialized; `.specify/templates/constitution-template.md` local existente; workflow lido; paths canônicos sem traversal; e os artefatos obrigatórios materializáveis. Nunca use bundle de constitution nem invente princípios. Criação ou emenda da constitution só ocorre após aprovação explícita, com SemVer, datas e governance válidos. Enfraquecimento de princípio `NON-NEGOTIABLE` exige ADR.
 
-A materialização é incremental, idempotente e preserva os oito artefatos. Nunca sobrescreva conteúdo humano ou crie caminhos fora do Git root. Falha de preflight, schema, path, materialização ou hash é `BLOCKED` em `iniciar|retomar` e `NO-GO` em `auditar`.
+`ensure_workflow.py` materializa exclusivamente `WORKFLOW.md`; não fabrica constitution nem conteúdo decisório. A própria skill materializa incrementalmente os outros sete artefatos, usando os templates após aprovação da constitution e conforme a entrevista produz evidência. Essa materialização é idempotente e preserva os oito artefatos. Nunca sobrescreva conteúdo humano ou crie caminhos fora do Git root. Falha de preflight, schema, path, materialização ou hash é `BLOCKED` em `iniciar|retomar` e `NO-GO` em `auditar`.
 
 ## Entrevista incremental
 

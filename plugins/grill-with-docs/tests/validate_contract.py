@@ -418,6 +418,13 @@ class AuditorContract(unittest.TestCase):
         adr.write_text("status: accepted\nevidence-status: unverified\n")
         self.assert_no_go("sources ausente")
 
+    def test_invalid_utf8_is_deterministic_no_go_without_traceback(self) -> None:
+        (self.root / "CONTEXT.md").write_bytes(b"\xff\xfe")
+        result = run_audit(self.root)
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(result.stdout, "NO-GO\n- invalid UTF-8 input\n")
+        self.assertNotIn("Traceback", result.stderr)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

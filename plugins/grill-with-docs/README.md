@@ -13,6 +13,7 @@ Versão Codex 1.2.0 do workflow documental auditável.
   6. `DECISION-BACKLOG.md`;
   7. `PLAN-CONTEXT.md`;
   8. `handoffs/FASE-NNN-SPECIFY-HANDOFF.md`.
+- O bootstrap automatizado cria somente `WORKFLOW.md`; a skill materializa os outros sete artefatos a partir dos templates, após as aprovações aplicáveis e conforme a entrevista produz evidência. Ele nunca fabrica uma constitution ou decisão.
 - `DECISION-FRONTIER.md`, `ROUND-LOG.jsonl`, `state.json` e `AUDIT.md` são auxiliares auditáveis, não entradas adicionais.
 - `/grill-with-docs auditar` é **read-only**: apenas valida o workflow e os documentos existentes.
 - Os hooks `SessionStart` e `SubagentStart` apenas injetam contexto. Eles exigem trust explícito via `/hooks`; não executam o workflow nem fazem merge.

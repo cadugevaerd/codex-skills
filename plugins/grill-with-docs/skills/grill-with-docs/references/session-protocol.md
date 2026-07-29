@@ -7,7 +7,7 @@ Este documento torna executáveis os gates de `iniciar|retomar|auditar` e a para
 ### `iniciar|retomar`
 
 - [ ] Resolver e fixar o Git root.
-- [ ] Executar `python3 "${CLAUDE_PLUGIN_ROOT}/skills/grill-with-docs/scripts/ensure_workflow.py" --ensure ROOT` (ou path equivalente da skill).
+- [ ] Executar `python3 "${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/skills/grill-with-docs/scripts/ensure_workflow.py" --ensure ROOT` (ou path equivalente da skill).
 - [ ] Exigir JSON com resultado exatamente `CREATED` ou `REUSED`.
 - [ ] Reler `WORKFLOW.md` e gravar seu path canônico e hash no `state.json` antes da primeira pergunta.
 - [ ] Confirmar Spec Kit initialized e `.specify/templates/constitution-template.md` local.
@@ -17,6 +17,8 @@ Este documento torna executáveis os gates de `iniciar|retomar|auditar` e a para
 - [ ] Preservar artefatos existentes; não inventar princípios nem usar bundle de constitution.
 
 Qualquer falha acima é `BLOCKED`. A constitution somente pode ser criada/emendada após aprovação, com SemVer, datas e governance; enfraquecimento `NON-NEGOTIABLE` exige ADR.
+
+O bootstrap automatizado cria somente `WORKFLOW.md`. A skill cria ou atualiza os outros sete artefatos de modo incremental a partir dos templates, depois das aprovações aplicáveis e sem fabricar conteúdo decisório.
 
 ### `auditar`
 

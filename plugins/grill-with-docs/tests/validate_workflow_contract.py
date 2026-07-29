@@ -23,6 +23,7 @@ class Contract(unittest.TestCase):
   p=self.root/'WORKFLOW.md'; p.write_text(MARK.replace('v1','v2')); self.assertEqual(run('--ensure',str(self.root)).returncode,2)
   p.write_text(TEMPLATE.read_text().replace('<!-- grill-with-docs-workflow:v1 -->','<!-- human-maintained equivalent -->')); b=p.read_bytes(); self.assertEqual(json.loads(run('--ensure',str(self.root)).stdout)['status'],'REUSED'); self.assertEqual(b,p.read_bytes())
   p.write_text('human'); self.assertEqual(run('--ensure',str(self.root)).returncode,2)
+  p.write_bytes(b'\xff\xfe'); r=run('--ensure',str(self.root)); self.assertEqual(r.returncode,2); self.assertNotIn('Traceback',r.stderr)
  def test_roots_symlink_and_concurrency(self):
   self.assertEqual(run('--ensure',str(self.root/'x')).returncode,2); self.assertEqual(run('--ensure',str(self.root/'sub')).returncode,2)
   r=run('--ensure','.',cwd=self.root); self.assertEqual(r.returncode,0,r.stdout+r.stderr); (self.root/'WORKFLOW.md').unlink()
@@ -37,5 +38,10 @@ class Contract(unittest.TestCase):
   (self.root/'WORKFLOW.md').unlink(); r=run('--hook',cwd=self.root,input='{"hook_event_name":"SessionStart","cwd":"%s"}'%self.root); self.assertEqual(r.returncode,0); self.assertIn('ausente',r.stdout); self.assertFalse((PLUGIN/'PLUGIN_DATA').exists())
   self.assertEqual(run('--hook',cwd=self.root,input='{').returncode,0); self.assertEqual(run('--hook',cwd=self.root,input=json.dumps({'hook_event_name':'Other','cwd':str(self.root)})).returncode,0)
  def test_hooks_schema(self):
-  x=json.loads(HOOKS.read_text()); self.assertEqual(set(x['hooks']),{'SessionStart','SubagentStart'}); cmd=x['hooks']['SessionStart'][0]['hooks'][0]['command']; self.assertIsInstance(cmd,str); self.assertNotIn('args',cmd); self.assertIn('"${CLAUDE_PLUGIN_ROOT}/skills/grill-with-docs/scripts/ensure_workflow.py"',cmd)
+  x=json.loads(HOOKS.read_text()); self.assertEqual(set(x['hooks']),{'SessionStart','SubagentStart'}); cmd=x['hooks']['SessionStart'][0]['hooks'][0]['command']; self.assertEqual(cmd,x['hooks']['SubagentStart'][0]['hooks'][0]['command']); self.assertIsInstance(cmd,str); self.assertNotIn('args',cmd); self.assertIn('${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}',cmd)
+  run('--ensure',str(self.root)); payload=json.dumps({'hook_event_name':'SessionStart','cwd':str(self.root)})
+  for variable in ('PLUGIN_ROOT','CLAUDE_PLUGIN_ROOT'):
+   env=os.environ.copy(); env.pop('PLUGIN_ROOT',None); env.pop('CLAUDE_PLUGIN_ROOT',None); env[variable]=str(PLUGIN)
+   result=subprocess.run(cmd,shell=True,cwd=self.root,input=payload,text=True,capture_output=True,env=env)
+   self.assertEqual(result.returncode,0,result.stdout+result.stderr); self.assertIn('agent-assign',result.stdout)
 if __name__=='__main__': unittest.main()
