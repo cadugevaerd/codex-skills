@@ -1,0 +1,23 @@
+{
+  "active_phase": "FASE-001",
+  "audit_verdict": "pending",
+  "constitution": {
+    "path": ".specify/memory/constitution.md",
+    "sha256": "7c7ecf017fb2da507f5c5679a0ac6c278de0aabea8b676aba31da53f1fab1f14"
+  },
+  "limits": {
+    "max_no_progress_rounds": 2,
+    "max_question_repeats": 2,
+    "max_questions_per_run": 25
+  },
+  "second_pass": {
+    "new_material_dqs": 0
+  },
+  "status": "ready",
+  "version": "1.0.0",
+  "workflow": {
+    "path": "WORKFLOW.md",
+    "sha256": "c489d73ee4a305ec40f5b60f998078a63174b12f142606b25a7672544739efb3",
+    "version": "v1"
+  }
+}

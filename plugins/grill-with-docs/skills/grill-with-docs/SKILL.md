@@ -5,28 +5,47 @@ argument-hint: "iniciar|retomar|pausar|auditar <diretório>"
 ---
 # Grill with Docs
 
-Use este protocolo para transformar uma conversa de arquitetura em decisões rastreáveis. Trabalhe no repositório real, grave artefatos no momento da decisão e nunca chame uma afirmação de verificada sem fonte.
+Este é um protocolo de entrevista e preparação **plan-only**. Ele transforma decisões de arquitetura em artefatos rastreáveis e para antes da execução externa.
 
-## Artefatos canônicos
+## Contrato de entradas
 
-- `CONTEXT.md`: somente glossário e linguagem ubíqua;
-- `docs/adr/ADR-NNNN.md`: decisões arquiteturais;
-- `DECISION-BACKLOG.md`: decisões adiadas (`BL-NNNN`);
-- `ROADMAP.md`: fases entregáveis e dependências;
-- `DECISION-FRONTIER.md`: decisões materiais do loop (`DQ-NNNN`);
-- `ROUND-LOG.jsonl`: histórico append-only de cada rodada;
-- `state.json`: checkpoint retomável;
-- `handoffs/FASE-NNN-SPECIFY-HANDOFF.md`: entrada WHAT/WHY isolada de cada fase;
-- `PLAN-CONTEXT.md`: decisões HOW consumíveis no planejamento técnico.
+A sessão tem exatamente estas oito entradas, nesta lista normativa:
 
-## Inicialização
+1. `.specify/memory/constitution.md`
+2. `WORKFLOW.md`
+3. `CONTEXT.md`
+4. `docs/adr/`
+5. `ROADMAP.md`
+6. `DECISION-BACKLOG.md`
+7. `PLAN-CONTEXT.md`
+8. `handoffs/FASE-NNN-SPECIFY-HANDOFF.md` selecionado
 
-1. Classifique o cenário como **brownfield**, **greenfield com autoridade externa** ou **greenfield com EVIDENCE GAP**. Em greenfield, registre título, URL, versão/data, seção e consulta da fonte oficial. Blog ou memória não substituem fonte oficial.
-2. Classifique cada afirmação como `official-doc`, `code`, `test`, `existing-adr`, `user-decision` ou `inference`; use estado `verified`, `partial` ou `unverified`.
-3. Crie ou retome `DECISION-FRONTIER.md`, `ROUND-LOG.jsonl` e `state.json`. Carregue a fronteira inteira antes de fazer a próxima pergunta.
-4. Uma decisão é material se pode alterar escopo, custo, prazo, arquitetura, segurança, conformidade, dependência externa, aceite ou o veredito da fase.
+Não chame outros artefatos de entrada. Os auxiliares de sessão são separados e não contam como entradas: `DECISION-FRONTIER.md`, `ROUND-LOG.jsonl`, `state.json` e `AUDIT.md`.
 
-## Loop de decisão
+- `CONTEXT.md` contém apenas glossário e linguagem ubíqua.
+- `docs/adr/` contém decisões difíceis de reverter, surpreendentes sem contexto e com trade-offs reais.
+- `ROADMAP.md` contém fases, ordem explícita de execução, dependências, estados e handoff.
+- `DECISION-BACKLOG.md` contém decisões adiadas, com owner, evidência necessária e gatilho.
+- `PLAN-CONTEXT.md` contém o HOW técnico cumulativo para `plan`.
+- O handoff selecionado contém somente WHAT/WHY de uma fase.
+
+## Modos e preflight
+
+Resolva o Git root antes de qualquer leitura relativa. Em `iniciar` ou `retomar`, materialize o workflow com:
+
+```text
+python3 "${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/skills/grill-with-docs/scripts/ensure_workflow.py" --ensure ROOT
+```
+
+`PLUGIN_ROOT` é canônico no Codex e o fallback `CLAUDE_PLUGIN_ROOT` cobre Claude Code. Se nenhum estiver disponível, use o path equivalente da skill. Exija JSON válido com resultado `CREATED` ou `REUSED`; qualquer outro resultado, erro ou ausência de `WORKFLOW.md` é `BLOCKED`. Depois, releia `WORKFLOW.md` e grave no `state.json`, antes da primeira pergunta, o path canônico e o hash do workflow.
+
+`auditar` é estritamente read-only: nunca chama `ensure_workflow.py`. Se `WORKFLOW.md` faltar, o resultado é `NO-GO`. Hooks de runtime (`SessionStart` e `SubagentStart`) apenas injetam contexto read-only; a confiança no hook segue o Codex `/hooks`, não este protocolo.
+
+O preflight Spec Kit exige: Spec Kit initialized; `.specify/templates/constitution-template.md` local existente; workflow lido; paths canônicos sem traversal; e os artefatos obrigatórios materializáveis. Nunca use bundle de constitution nem invente princípios. Criação ou emenda da constitution só ocorre após aprovação explícita, com SemVer, datas e governance válidos. Enfraquecimento de princípio `NON-NEGOTIABLE` exige ADR.
+
+`ensure_workflow.py` materializa exclusivamente `WORKFLOW.md`; não fabrica constitution nem conteúdo decisório. A própria skill materializa incrementalmente os outros sete artefatos, usando os templates após aprovação da constitution e conforme a entrevista produz evidência. Essa materialização é idempotente e preserva os oito artefatos. Nunca sobrescreva conteúdo humano ou crie caminhos fora do Git root. Falha de preflight, schema, path, materialização ou hash é `BLOCKED` em `iniciar|retomar` e `NO-GO` em `auditar`.
+
+## Entrevista incremental
 
 ```text
 INIT → MAP_FRONTIER → ASK_ONE → RECORD → RECOMPUTE_FRONTIER
@@ -36,77 +55,27 @@ INIT → MAP_FRONTIER → ASK_ONE → RECORD → RECOMPUTE_FRONTIER
                  COMPLETE | BLOCKED | SAFETY_STOP | PAUSED_USER
 ```
 
-1. Selecione a decisão `open` de maior impacto cujas dependências estejam satisfeitas.
-2. Faça **exatamente uma pergunta atômica**. Apresente Evidência, Recomendação, Opções, custo de implementação/operação/reversão e a pergunta.
-3. Após a resposta, grave uma transição auditável: `resolved`, `deferred`, `split`, `blocked` ou `out-of-scope`.
-4. Atualize CONTEXT, ADR, BL, ROADMAP e dependências afetadas; nova evidência exige impact scan: termos → ADRs → BLs → ROADMAP → dependências.
-5. Acrescente uma linha JSON válida em `ROUND-LOG.jsonl` com `round_id`, `question_id`, evidências, artefatos alterados, transição, `progress_delta`, escopo e próxima ação.
-6. Recalcule a fronteira inteira. Reformular a mesma pergunta sem evidência nova **não** é progresso.
+1. Classifique `brownfield`, `greenfield com autoridade externa` ou `greenfield com EVIDENCE GAP`; registre fonte oficial, versão/data, seção e consulta.
+2. Classifique afirmações como `official-doc`, `code`, `test`, `existing-adr`, `user-decision` ou `inference`, com estado `verified`, `partial` ou `unverified`.
+3. Crie/retome os auxiliares e carregue a fronteira inteira.
+4. Selecione uma DQ `open` de maior impacto com dependências satisfeitas e faça exatamente uma pergunta atômica: Evidência, Recomendação, Opções, custo de implementação/operação/reversão e pergunta.
+5. Registre uma transição `resolved`, `deferred`, `split`, `blocked` ou `out-of-scope`; faça impact scan e atualize somente os artefatos afetados.
+6. Acrescente uma linha JSON válida e append-only ao `ROUND-LOG.jsonl`; recalcule a fronteira inteira antes da próxima pergunta.
 
-### Fronteira `DQ-NNNN`
+Mesmo fingerprint admite no máximo duas perguntas sem evidência nova. Depois, decisão não crítica vira `deferred`, crítica vira `blocked` ou a sessão entra em `SAFETY_STOP`. Uma clarificação por DQ é permitida. Duas rodadas sem progresso, três expansões consecutivas ou 25 perguntas materiais exigem checkpoint e `SAFETY_STOP`. `pausar`/`stop` grava `PAUSED_USER`. Contradições nunca são sobrescritas.
 
-Cada DQ registra fase, pergunta canônica, fingerprint normalizado, impacto `high|medium|low`, estado, artefatos/termos afetados, dependências e referência final para CONTEXT, ADR ou BL. Não duplique DQs para a mesma pergunta/fingerprint aberta.
+## ROADMAP e handoff
 
-### Proteções de convergência
+A ordem de execução vem do campo explícito `execution-order`, independentemente dos IDs `FASE-NNN`. O auditor exige DAG, predecessores completos e `active_phase` coerente no state. Um item `open` do backlog ligado à fase bloqueia a fase; somente uma fase pode estar `ready-for-specify`.
 
-- Mesmo fingerprint: no máximo duas perguntas sem evidência nova; na terceira ocorrência, decisão não crítica vira `deferred`, crítica vira `blocked`, ou a sessão entra em `SAFETY_STOP`.
-- Ambiguidade: no máximo uma clarificação por DQ; persistindo, `BLOCKED` ou `SAFETY_STOP`, sem inventar decisão.
-- Sem progresso: duas rodadas sem transição ou evidência/artefato novo resultam em `SAFETY_STOP`.
-- Escopo: toda decisão fora de `scope-in` exige gate explícito; sem aprovação, vira `out-of-scope`/BL em fase futura. Três rodadas consecutivas de crescimento da fronteira exigem pausa para replanejamento.
-- Budget: após 25 perguntas materiais na execução, grave checkpoint e retorne `SAFETY_STOP`; retome somente com `retomar`.
-- `stop` ou `pausar` grava `PAUSED_USER`; nunca interprete pausa como saturação.
-- Nunca sobrescreva ADR/BL/evidência conflitante. Abra uma DQ de resolução e impeça `GO` até ela ser resolvida ou adiada formalmente.
-- Os limites vêm de `state.json`/configuração no início da sessão e não podem ser ampliados implicitamente pelo modelo.
+Para `GO`, a fase selecionada deve ser a primeira incompleta na ordem, estar pronta, ter dependências completas, nenhum BL aberto e handoff exclusivo consistente. O handoff entrega WHAT/WHY. `PLAN-CONTEXT.md`, ADRs e `CONTEXT.md` são consumidos por `plan` para HOW; não coloque HOW no handoff.
 
-## ROADMAP por fases
+## Terminal `PLAN_ONLY_STOP`
 
-Em projeto com ROADMAP legado, migre cada etapa para `FASE-NNN` antes de buscar `GO`; o auditor rejeita headings não fase. Crie `ROADMAP.md` ao haver sequenciamento, dependência, bloqueio ou mais de uma entrega. Use somente fases `FASE-NNN`:
+Quando o pacote estiver validado, a auditoria for `GO` e o handoff selecionado for entregue, emita `PLAN_ONLY_STOP` e pare. Não chame `specify` ou `plan`, não edite código, não crie branch, commit ou merge. Agentes externos executarão o workflow depois. `specify`, quando executado externamente, recebe somente o handoff selecionado; `plan` recebe `PLAN-CONTEXT.md`, ADRs e `CONTEXT.md`.
 
-```markdown
-## FASE-001 — Nome
-- state: ready-for-specify
-- objetivo: resultado da fase
-- scope-in: incluído
-- scope-out: excluído
-- context-refs: Termo Canônico
-- ADRs: ADR-0001
-- BLs: BL-0001
-- depends-on: none
-- entrada: critério
-- saída: critério
-- specify-handoff: handoffs/FASE-001-SPECIFY-HANDOFF.md
-```
+## Auditoria e ciclo futuro
 
-Regras:
+O auditor retorna exatamente: código `0 GO`, `1 NO-GO`, `2 BLOCKED`. `GO` imprime a fase selecionada e o path do handoff. `NO-GO` cobre inconsistência estrutural, workflow ausente em auditoria ou múltiplas fases ready. `BLOCKED` cobre preflight/externo não resolvido em sessão mutável.
 
-- `context-refs` contém termos existentes em `CONTEXT.md`;
-- `ADRs` lista somente decisões tocadas; se `none`, declare `ADRs-justificativa`;
-- `scope-in`/`scope-out` impedem expansão silenciosa;
-- dependências referenciam IDs `FASE-NNN` e formam DAG;
-- cada fase tem handoff exclusivo;
-- apenas `state: ready-for-specify` + auditoria `GO` pode alimentar `speckit.specify`;
-- entregue ao `specify` somente o handoff da fase selecionada, nunca o ROADMAP inteiro.
-
-## Registro de decisão
-
-- Se ADR foi solicitado, registre cada decisão substantiva ao fechar. Caso contrário, crie ADR somente quando for difícil de reverter, surpreendente sem contexto e houver trade-off real.
-- ADR gerenciado vive em `docs/adr/`, usa `managed-by: grill-with-docs/v1`, status `proposed|conditional|accepted|superseded|deprecated`, evidência e fontes. `accepted` não depende silenciosamente de `unverified`; use `conditional` e `BL-NNNN`.
-- Adiamento exige motivo, impacto, evidência necessária, responsável, gatilho de retomada e ponto de parada.
-- Emenda, exceção e substituição são uma ação única: atualize ADR antigo/novo, backlinks, CONTEXT, backlog, ROADMAP, fronteira e auditoria. Substituição deixa o antigo `superseded` e nunca dois `accepted` conflitantes.
-
-## Auditoria, término e handoff
-
-Audite a cada cinco ADRs novos/alterados, após pivô/emenda/exceção/substituição, antes de selecionar uma fase e no encerramento:
-
-```text
-python3 scripts/audit_decisions.py DIRETÓRIO
-```
-
-O auditor é fail-closed para artefatos gerenciados e ignora ADRs legados sem `managed-by: grill-with-docs/v1`.
-
-- `COMPLETE + GO`: não há DQ material `open|blocked`; decisões estão resolvidas/deferidas/split/out-of-scope com referências válidas; auditoria `GO`; segunda passada não cria DQ média/alta; somente este caso libera handoff.
-- `COMPLETE + NO-GO`: conclusão negativa explícita e auditada; não libera handoff.
-- `BLOCKED`: decisão crítica depende de evidência/aprovação externa; registre owner, próxima ação, escalonamento e impacto no ROADMAP.
-- `SAFETY_STOP` e `PAUSED_USER`: checkpoint retomável; nunca são `GO` ou handoff pronto.
-
-Relate escopo, contagens, fronteira, estados `resolved/deferred/blocked`, achados e veredito `GO`, `NO-GO` ou `BLOCKED`.
+Após ship, em ciclo futuro, marque a fase como `complete`; torne a próxima `ready` somente se dependências e BL permitirem; registre decisões, ADRs e termos no glossário. Nunca avance automaticamente nesta sessão.

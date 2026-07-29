@@ -1,17 +1,25 @@
 {
+  "version": "1.0.0",
   "status": "in-progress",
-  "audit_verdict": null,
   "active_phase": "FASE-001",
-  "questions_in_run": 0,
-  "question_repeats": 0,
-  "no_progress_rounds": 0,
-  "scope_growth_streak": 0,
+  "audit_verdict": "pending",
+  "constitution": {
+    "path": ".specify/memory/constitution.md",
+    "sha256": "<sha256>"
+  },
+  "workflow": {
+    "path": "WORKFLOW.md",
+    "sha256": "<sha256>",
+    "version": "v1"
+  },
   "limits": {
     "max_questions_per_run": 25,
     "max_question_repeats": 2,
     "max_clarifications_per_question": 1,
     "max_no_progress_rounds": 2,
-    "max_scope_growth_streak": 3,
-    "require_evidence_for_go": true
+    "max_scope_growth_streak": 3
+  },
+  "second_pass": {
+    "new_material_dqs": 0
   }
 }
