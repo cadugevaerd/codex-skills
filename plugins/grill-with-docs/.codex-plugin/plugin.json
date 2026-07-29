@@ -1,7 +1,7 @@
 {
   "name": "grill-with-docs",
   "version": "1.2.0",
-  "description": "Workflow documental auditável: /grill-with-docs iniciar|retomar cria e valida WORKFLOW.md e gera oito entradas Spec Kit; auditar é somente leitura. SessionStart/SubagentStart apenas injetam contexto e exigem trust via /hooks; specify recebe somente o handoff e respeita PLAN_ONLY_STOP.",
+  "description": "Workflow documental auditável: iniciar|retomar valida as oito entradas Spec Kit; auditar é somente leitura. SessionStart/SubagentStart apenas injetam contexto; PLAN_ONLY_STOP encerra antes de specify ou implementação.",
   "author": {"name": "Carlos Araujo", "email": "cadu.gevaerd@gmail.com", "url": "https://github.com/cadugevaerd"},
   "homepage": "https://github.com/cadugevaerd/codex-skills",
   "repository": "https://github.com/cadugevaerd/codex-skills",
@@ -12,7 +12,7 @@
   "interface": {
     "displayName": "Grill with Docs",
     "shortDescription": "Cria e audita workflows documentais rastreáveis.",
-    "longDescription": "Os comandos iniciar e retomar criam/validam WORKFLOW.md e geram oito entradas Spec Kit. auditar é read-only; SessionStart/SubagentStart apenas injetam contexto e exigem trust via /hooks. specify recebe somente o handoff e para em PLAN_ONLY_STOP; não há alias nem merge automático.",
+    "longDescription": "Os comandos iniciar e retomar criam/validam WORKFLOW.md e materializam incrementalmente oito entradas Spec Kit. auditar é read-only; SessionStart/SubagentStart apenas injetam contexto e exigem trust via /hooks. PLAN_ONLY_STOP encerra a skill antes de specify, código, branch, commit ou merge; o executor posterior recebe somente o handoff selecionado.",
     "developerName": "Carlos Araujo",
     "category": "Development",
     "capabilities": ["Architecture Interview", "Decision Frontier", "Phase Roadmap", "Evidence Tracking", "ADR Management", "Decision Audit"],

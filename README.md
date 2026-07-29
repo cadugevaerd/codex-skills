@@ -12,7 +12,7 @@ plugin individual.
 | `code-review-cadu` | Revisa PRs com veredicto `GO`/`NO-GO` por finding e encaminha itens diferiveis ao backlog apos confirmacao. |
 | `code-debug` | Diagnóstico diagnose-only: reproduz comando, coleta evidências, testa hipóteses e entrega relatório sem executar correções. |
 | `relatorio-gerencial` | Gera relatorios executivos (uma pagina) de tarefas atuais e backlog multi-repositorio com linguagem gerencial e PDF. |
-| `grill-with-docs` | Workflow documental auditável: `iniciar`/`retomar` criam e validam `WORKFLOW.md` e geram oito entradas Spec Kit; `auditar` é read-only, e `specify` recebe somente o handoff até `PLAN_ONLY_STOP`. |
+| `grill-with-docs` | Workflow documental auditável: `iniciar`/`retomar` validam oito entradas Spec Kit; `auditar` é read-only e `PLAN_ONLY_STOP` encerra antes de `specify` ou implementação. |
 | `grillme-gestor` | Versao sem jargao tecnico da `grillme-langgraph`, voltada a gestores, salvando o artefato tecnico em markdown. |
 | `rag-kag-decision` | Decide quando usar RAG, KAG, GraphRAG ou abordagem hibrida conforme documentos, entidades, relacoes, regras, temporalidade, custo e risco. |
 | `modelos-custo-beneficio` | Consulta OpenRouter e lista até 5 candidatos para Model Engineering Eval, com inteligência Artificial Analysis >35 via OpenRouter Benchmarks, reasoning controlável, throughput p75/p50 ≥60 t/s e variantes `:exacto`/`:nitro`; não decide runtime. |
@@ -80,7 +80,7 @@ O `/prompt-only-agent` coleta apenas as decisões essenciais, uma pergunta por v
 
 O plugin mantém uma pergunta atômica por rodada e registra fontes, evidências, custos e a fronteira `DQ-NNNN`. Cada rodada atualiza ADRs, glossário, backlog, `ROADMAP` por fases e `ROUND-LOG.jsonl`; novas evidências exigem impact scan. O loop só libera uma fase após auditoria `GO`; repetição, falta de progresso, escopo crescente ou budget acionam `SAFETY_STOP` retomável. Cada `FASE-NNN` referencia termos de `CONTEXT.md`, ADRs/BLs tocados e um handoff isolado para `specify`. O auditor stdlib é fail-closed e ignora ADRs legados sem `managed-by: grill-with-docs/v1`.
 
-No Codex 1.2.0, `iniciar` e `retomar` criam ou validam `WORKFLOW.md` e geram as oito entradas Spec Kit do workflow. `auditar` somente lê e valida; não altera documentos. Os hooks `SessionStart` e `SubagentStart` apenas injetam contexto e exigem trust explícito via `/hooks`. O `specify` recebe somente o handoff da fase selecionada e encerra em `PLAN_ONLY_STOP`; não há alias nem merge automático.
+No Codex 1.2.0, `iniciar` e `retomar` criam ou validam `WORKFLOW.md` e materializam incrementalmente as oito entradas Spec Kit: `.specify/memory/constitution.md`, `WORKFLOW.md`, `CONTEXT.md`, `docs/adr/`, `ROADMAP.md`, `DECISION-BACKLOG.md`, `PLAN-CONTEXT.md` e `handoffs/FASE-NNN-SPECIFY-HANDOFF.md`. `DECISION-FRONTIER.md`, `ROUND-LOG.jsonl`, `state.json` e `AUDIT.md` são auxiliares. `auditar` somente lê e valida; não altera documentos. Os hooks `SessionStart` e `SubagentStart` apenas injetam contexto e exigem trust explícito via `/hooks`. A skill termina em `PLAN_ONLY_STOP` sem chamar `specify`, implementar código ou criar branch, commit ou merge; o executor posterior entrega somente o handoff selecionado ao `specify`. Não há alias nem merge automático.
 
 
 ```text
