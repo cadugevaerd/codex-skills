@@ -12,7 +12,7 @@ plugin individual.
 | `code-review-cadu` | Revisa PRs com veredicto `GO`/`NO-GO` por finding e encaminha itens diferiveis ao backlog apos confirmacao. |
 | `code-debug` | Diagnóstico diagnose-only: reproduz comando, coleta evidências, testa hipóteses e entrega relatório sem executar correções. |
 | `relatorio-gerencial` | Gera relatorios executivos (uma pagina) de tarefas atuais e backlog multi-repositorio com linguagem gerencial e PDF. |
-| `grill-with-docs` | Isola um grill por feature/fix/hotfix em `.grill/work-items/<work-id>`, audita a Constituição read-only e reconcilia uma projeção global determinística. |
+| `grill-with-docs` | Isola grills em `.grill/work-items/<work-id>`, encerra em `PLAN_ONLY_STOP`, preserva a Constituição e reconcilia o global somente após ship externo e `complete/GO`. |
 | `grillme-gestor` | Versao sem jargao tecnico da `grillme-langgraph`, voltada a gestores, salvando o artefato tecnico em markdown. |
 | `rag-kag-decision` | Decide quando usar RAG, KAG, GraphRAG ou abordagem hibrida conforme documentos, entidades, relacoes, regras, temporalidade, custo e risco. |
 | `modelos-custo-beneficio` | Consulta OpenRouter e lista até 5 candidatos para Model Engineering Eval, com inteligência Artificial Analysis >35 via OpenRouter Benchmarks, reasoning controlável, throughput p75/p50 ≥60 t/s e variantes `:exacto`/`:nitro`; não decide runtime. |

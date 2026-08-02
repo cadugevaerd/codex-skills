@@ -20,7 +20,7 @@ ROUND_ID = re.compile(r"^R-(\d{4})$")
 FIELD = re.compile(r"(?m)^\s*-\s*([\w/-]+):\s*(.*?)\s*$")
 TOP_FIELD = re.compile(r"(?m)^([\w-]+):\s*(.*?)\s*$")
 TECH_HEADING = re.compile(
-    r"^##\s+(Stack|Banco|Framework|Classes|Componentes|Implementação|API interna)\b",
+    r"^#{2,6}\s+(Stack|Banco|Framework|Classes|Componentes|Implementação|API interna)\b",
     re.IGNORECASE | re.MULTILINE,
 )
 TECH_FIELD_NAMES = {
@@ -133,8 +133,12 @@ def audit(root_arg: Path, project_root_arg: Path | None = None) -> tuple[list[st
     findings: list[str] = []
     blockers: list[str] = []
     legacy = project_root_arg is None
-
-    constitution = managed_path(project_root, ".specify/memory/constitution.md", "constitution", findings if legacy else [])
+    constitution_findings: list[str] = []
+    constitution = managed_path(project_root, ".specify/memory/constitution.md", "constitution", constitution_findings)
+    if legacy:
+        findings.extend(constitution_findings)
+    else:
+        findings.extend(item for item in constitution_findings if item != "required input missing: .specify/memory/constitution.md")
     constitution_template = managed_path(project_root, ".specify/templates/constitution-template.md", "constitution-template", findings if legacy else [])
     workflow = managed_path(project_root, "WORKFLOW.md", "WORKFLOW", findings)
     context = managed_path(root, "CONTEXT.md", "CONTEXT", findings)
@@ -165,8 +169,8 @@ def audit(root_arg: Path, project_root_arg: Path | None = None) -> tuple[list[st
     if workflow and workflow.is_file():
         text = workflow.read_text(encoding="utf-8")
         markers = re.findall(r"grill-with-docs-workflow:(v\d+)", text)
-        if markers != ["v1"]:
-            findings.append("WORKFLOW: marker/version deve ser exatamente v1")
+        if markers != ["v2"]:
+            findings.append("WORKFLOW: marker/version deve ser exatamente v2")
         essentials = (
             "ROADMAP.md",
             "PLAN-CONTEXT.md",
@@ -229,11 +233,9 @@ def audit(root_arg: Path, project_root_arg: Path | None = None) -> tuple[list[st
                 findings.append(f"{adr_id}: sources ausente")
             if status == "accepted" and evidence == "unverified":
                 findings.append(f"{adr_id}: accepted depende de unverified")
-            for reference in re.findall(r"\bADR-\d{4}\b", text):
-                if reference != adr_id and reference not in adr_ids:
-                    # Forward references are checked again after all ADRs below.
-                    pass
-        for path in sorted(adr_dir.glob("*.md")):
+        for path in sorted(adr_dir.iterdir()):
+            if path.is_symlink() or not path.is_file() or path.suffix != ".md":
+                continue
             text = path.read_text(encoding="utf-8")
             for reference in re.findall(r"\bADR-\d{4}\b", text):
                 if reference != path.stem and reference not in adr_ids:
@@ -360,7 +362,7 @@ def audit(root_arg: Path, project_root_arg: Path | None = None) -> tuple[list[st
             findings.append(f"{phase.phase_id}: handoff BL divergence")
         if not re.search(r"(?m)^##\s+WHAT\s*$", text) or not re.search(r"(?m)^##\s+WHY\s*$", text):
             findings.append(f"{phase.phase_id}: handoff WHAT/WHY ausente")
-        if re.search(r"(?m)^##\s+HOW\s*$", text):
+        if re.search(r"(?m)^#{2,6}\s+HOW\s*$", text):
             findings.append(f"{phase.phase_id}: HOW proibido no handoff")
         if TECH_HEADING.search(text):
             findings.append(f"{phase.phase_id}: heading técnico proibido no handoff")
@@ -498,20 +500,24 @@ def audit(root_arg: Path, project_root_arg: Path | None = None) -> tuple[list[st
             if not isinstance(value, dict):
                 findings.append(f"state: {key} deve ser objeto")
                 continue
+            if key == "constitution" and not expected:
+                if value.get("state") != "not-present" or value.get("path") is not None or value.get("sha256") is not None:
+                    findings.append("state: constitution ausente deve ser not-present")
+                continue
             path_root = project_root if key in {"constitution", "workflow"} else root
             if expected and expected.is_file() and not state_path_matches(path_root, value.get("path"), expected):
                 findings.append(f"state: {key} path divergence")
             if expected and expected.is_file() and value.get("sha256") != sha256(expected):
                 findings.append(f"state: {key} hash divergence")
-            if key == "workflow" and value.get("version") != "v1":
+            if key == "workflow" and value.get("version") != "v2":
                 findings.append("state: workflow version divergence")
         limits = state_data.get("limits")
         if not isinstance(limits, dict) or not limits:
             findings.append("state: limits ausente/inválido")
-        elif any(not isinstance(value, int) or value < 1 for value in limits.values()):
+        elif any(type(value) is not int or value < 1 for value in limits.values()):
             findings.append("state: limits deve conter inteiros positivos")
         second_pass = state_data.get("second_pass")
-        if not isinstance(second_pass, dict) or not isinstance(second_pass.get("new_material_dqs"), int):
+        if not isinstance(second_pass, dict) or type(second_pass.get("new_material_dqs")) is not int:
             findings.append("state: second_pass inválido")
         elif selected_phase and second_pass["new_material_dqs"] != 0:
             findings.append("state: segunda passada criou DQ material")
@@ -569,7 +575,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     relative_handoff = selected_handoff.relative_to(root).as_posix() if selected_handoff else ""
     if json_mode:
-        print(json.dumps({"verdict": "GO", "selected_phase": selected_phase, "selected_handoff": relative_handoff}, ensure_ascii=False, sort_keys=True))
+        print(json.dumps({"verdict": "GO", "code": "OK", "selected_phase": selected_phase, "selected_handoff": relative_handoff}, ensure_ascii=False, sort_keys=True))
     else:
         print(f"GO\nselected-phase: {selected_phase}\nselected-handoff: {relative_handoff}")
     return 0

@@ -1,10 +1,5 @@
 # DECISION-BACKLOG
 
-## BL-0001 — <!-- decisão/evidência pendente -->
-- state: open
-- phase: FASE-001
-- owner: <!-- pessoa ou papel -->
-- evidence-needed: <!-- fonte, teste ou aprovação externa -->
-- next-action: <!-- ação verificável de desbloqueio -->
+<!-- Sem decisões adiadas inicialmente. Crie BL-NNNN somente quando uma decisão real for adiada. -->
 
-> Estados: `open | resolved | superseded`. Todo BL pertence a exatamente uma fase e deve ser referenciado no ROADMAP, handoff e PLAN-CONTEXT.
+> Estados: `open | resolved | superseded`. Todo BL pertence a exatamente uma fase e deve ser referenciado no ROADMAP, handoff e PLAN-CONTEXT. Não fabrique um BL apenas para preencher o template.

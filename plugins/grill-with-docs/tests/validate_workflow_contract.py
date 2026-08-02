@@ -4,7 +4,7 @@ from __future__ import annotations
 import hashlib, json, os, subprocess, sys, tempfile, unittest
 from pathlib import Path
 
-HERE=Path(__file__).resolve(); PLUGIN=HERE.parents[1]; SCRIPT=PLUGIN/'skills/grill-with-docs/scripts/ensure_workflow.py'; TEMPLATE=PLUGIN/'skills/grill-with-docs/assets/WORKFLOW.template.md'; HOOKS=PLUGIN/'hooks/hooks.json'; MARK='grill-with-docs-workflow:v1'
+HERE=Path(__file__).resolve(); PLUGIN=HERE.parents[1]; SCRIPT=PLUGIN/'skills/grill-with-docs/scripts/ensure_workflow.py'; TEMPLATE=PLUGIN/'skills/grill-with-docs/assets/WORKFLOW.template.md'; HOOKS=PLUGIN/'hooks/hooks.json'; MARK='grill-with-docs-workflow:v2'
 
 def run(*args,cwd=None,input=None): return subprocess.run([sys.executable,str(SCRIPT),*args],cwd=cwd,input=input,text=True,capture_output=True)
 class Contract(unittest.TestCase):
@@ -20,8 +20,8 @@ class Contract(unittest.TestCase):
  def test_create_reuse_hash_readback(self):
   r=run('--ensure',str(self.root)); self.assertEqual(r.returncode,0); o=json.loads(r.stdout); self.assertEqual(o['status'],'CREATED'); p=self.root/'WORKFLOW.md'; self.assertEqual(o['sha256'],hashlib.sha256(p.read_bytes()).hexdigest()); b=p.read_bytes(); r=run('--ensure',str(self.root)); self.assertEqual(json.loads(r.stdout)['status'],'REUSED'); self.assertEqual(b,p.read_bytes())
  def test_versions_and_humans(self):
-  p=self.root/'WORKFLOW.md'; p.write_text(MARK.replace('v1','v2')); self.assertEqual(run('--ensure',str(self.root)).returncode,2)
-  p.write_text(TEMPLATE.read_text().replace('<!-- grill-with-docs-workflow:v1 -->','<!-- human-maintained equivalent -->')); b=p.read_bytes(); self.assertEqual(json.loads(run('--ensure',str(self.root)).stdout)['status'],'REUSED'); self.assertEqual(b,p.read_bytes())
+  p=self.root/'WORKFLOW.md'; p.write_text(MARK.replace('v2','v3')); self.assertEqual(run('--ensure',str(self.root)).returncode,2)
+  p.write_text(TEMPLATE.read_text().replace('<!-- grill-with-docs-workflow:v2 -->','<!-- human-maintained equivalent -->')); b=p.read_bytes(); self.assertEqual(json.loads(run('--ensure',str(self.root)).stdout)['status'],'REUSED'); self.assertEqual(b,p.read_bytes())
   p.write_text('human'); self.assertEqual(run('--ensure',str(self.root)).returncode,2)
   p.write_bytes(b'\xff\xfe'); r=run('--ensure',str(self.root)); self.assertEqual(r.returncode,2); self.assertNotIn('Traceback',r.stderr)
  def test_roots_symlink_and_concurrency(self):
@@ -30,7 +30,7 @@ class Contract(unittest.TestCase):
   p=self.root/'WORKFLOW.md'; p.symlink_to(self.root/'outside'); self.assertEqual(run('--ensure',str(self.root)).returncode,2); p.unlink()
   import multiprocessing
   with multiprocessing.Pool(6) as pool: results=pool.starmap(run,[('--ensure',str(self.root))]*6)
-  self.assertTrue(all(x.returncode==0 for x in results)); self.assertIn('grill-with-docs-workflow:v1',p.read_text())
+  self.assertTrue(all(x.returncode==0 for x in results)); self.assertIn('grill-with-docs-workflow:v2',p.read_text())
  def test_hook_events_context_missing_invalid(self):
   run('--ensure',str(self.root));
   for ev in ('SessionStart','SubagentStart'):

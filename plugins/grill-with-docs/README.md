@@ -5,7 +5,7 @@ Plugin plan-only para entrevistar decisões arquiteturais sem colisão entre wor
 ```text
 feature/fix/hotfix → .grill/work-items/<work-id>/ → audit → PLAN_ONLY_STOP
                                                          │
-trabalhos concluídos ────────────────────────────────────┴→ reconcile → .grill/global/
+ship externo → complete/GO ─────────────────────────────┴→ reconcile → .grill/global/
 ```
 
 ## Início rápido
@@ -14,6 +14,11 @@ trabalhos concluídos ───────────────────�
 CORE="$PLUGIN_ROOT/skills/grill-with-docs/scripts/grill_workspace.py"
 python3 "$CORE" init "$PWD" --type feature --slug minha-feature
 python3 "$CORE" audit "$PWD" --work-id <work-id>
+```
+
+Após o `PLAN_ONLY_STOP`, faça o ship externamente. Quando a fase estiver `complete` e a auditoria retornar `GO`, gere o preview de reconciliação:
+
+```bash
 python3 "$CORE" reconcile "$PWD" --source-root ../outra-worktree
 ```
 
@@ -36,7 +41,7 @@ python3 "$CORE" migrate "$PWD" --type fix --slug migracao --apply
 - `WORKFLOW.md` e a Constituição são project-wide.
 - Constituição ausente é `not-present`; presente é read-only e inviolável.
 - `CONSTITUTION-CHECK.md` exige cobertura por cláusula, evidência e justificativa.
-- Auditoria, hooks e reconcile preview são read-only.
+- Auditoria, hooks e reconcile preview são read-only; reconcile só ocorre depois de `PLAN_ONLY_STOP` e do ship externo com fase `complete`/auditoria `GO`.
 - O global é projeção determinística; nunca é fonte de verdade.
 - IDs locais tornam-se `<work-id>/<ID>` na projeção.
 - A sessão encerra em `PLAN_ONLY_STOP`, antes de implementação.

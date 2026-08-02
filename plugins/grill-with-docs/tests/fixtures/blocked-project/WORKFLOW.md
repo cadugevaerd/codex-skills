@@ -1,4 +1,4 @@
-<!-- grill-with-docs-workflow:v1 -->
+<!-- grill-with-docs-workflow:v2 -->
 # Spec Kit Workflow (project-wide)
 
 Generic, project-independent contract. Requires Spec Kit >=0.11.2 and verified extensions: `git`, `agent-assign`, `bugfix`, `verify-review-ship`.
