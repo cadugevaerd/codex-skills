@@ -12,7 +12,7 @@ plugin individual.
 | `code-review-cadu` | Revisa PRs com veredicto `GO`/`NO-GO` por finding e encaminha itens diferiveis ao backlog apos confirmacao. |
 | `code-debug` | Diagnóstico diagnose-only: reproduz comando, coleta evidências, testa hipóteses e entrega relatório sem executar correções. |
 | `relatorio-gerencial` | Gera relatorios executivos (uma pagina) de tarefas atuais e backlog multi-repositorio com linguagem gerencial e PDF. |
-| `grill-with-docs` | Conduz decisões arquiteturais em loop auditável: fronteira DQ, ROADMAP por fases, handoff isolado e SAFETY_STOP retomável. |
+| `grill-with-docs` | Isola um grill por feature/fix/hotfix em `.grill/work-items/<work-id>`, audita a Constituição read-only e reconcilia uma projeção global determinística. |
 | `grillme-gestor` | Versao sem jargao tecnico da `grillme-langgraph`, voltada a gestores, salvando o artefato tecnico em markdown. |
 | `rag-kag-decision` | Decide quando usar RAG, KAG, GraphRAG ou abordagem hibrida conforme documentos, entidades, relacoes, regras, temporalidade, custo e risco. |
 | `modelos-custo-beneficio` | Consulta OpenRouter e lista até 5 candidatos para Model Engineering Eval, com inteligência Artificial Analysis >35 via OpenRouter Benchmarks, reasoning controlável, throughput p75/p50 ≥60 t/s e variantes `:exacto`/`:nitro`; não decide runtime. |
@@ -73,12 +73,13 @@ O `/prompt-only-agent` coleta apenas as decisões essenciais, uma pergunta por v
 ## Uso do grill-with-docs
 
 ```text
-/grill-with-docs iniciar greenfield fonte=https://docs.example.com
-/grill-with-docs retomar ./docs
-/grill-with-docs auditar ./docs
+/grill-with-docs iniciar type=feature slug=minha-feature
+/grill-with-docs retomar work-id=<id>
+/grill-with-docs auditar work-id=<id>
+/grill-with-docs conciliar
 ```
 
-O plugin mantém uma pergunta atômica por rodada e registra fontes, evidências, custos e a fronteira `DQ-NNNN`. Cada rodada atualiza ADRs, glossário, backlog, `ROADMAP` por fases e `ROUND-LOG.jsonl`; novas evidências exigem impact scan. O loop só libera uma fase após auditoria `GO`; repetição, falta de progresso, escopo crescente ou budget acionam `SAFETY_STOP` retomável. Cada `FASE-NNN` referencia termos de `CONTEXT.md`, ADRs/BLs tocados e um handoff isolado para `specify`. O auditor stdlib é fail-closed e ignora ADRs legados sem `managed-by: grill-with-docs/v1`.
+Cada feature, fix ou hotfix usa branch/worktree dedicada e artefatos em `.grill/work-items/<work-id>/`. `WORKFLOW.md` e a Constituição permanecem project-wide. A Constituição é opcional; quando presente, é read-only e cada cláusula exige evidência e justificativa, sem waiver por ADR. `grill_workspace.py` fornece `init`, `audit`, `reconcile` e `migrate`; reconcile preview não escreve, e apply gera somente `.grill/global/ROADMAP.md` e `AUDIT.md` em branch de integração limpa. IDs locais são qualificados como `<work-id>/<ID>`. O fluxo termina em `PLAN_ONLY_STOP` antes de implementação.
 
 
 ```text

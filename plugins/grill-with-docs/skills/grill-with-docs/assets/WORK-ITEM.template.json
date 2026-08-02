@@ -1,0 +1,29 @@
+{
+  "schema": "grill-work-item/v2",
+  "immutable": {
+    "schema": "grill-work-item/v2",
+    "work_id": "{{WORK_ID}}",
+    "type": "{{TYPE}}",
+    "slug": "{{SLUG}}",
+    "branch": "{{BRANCH}}",
+    "head": "{{HEAD}}",
+    "base_ref": "{{BASE_REF}}",
+    "base_commit": "{{BASE_COMMIT}}",
+    "constitution": {
+      "state": "{{CONSTITUTION_STATE}}",
+      "path": "{{CONSTITUTION_PATH}}",
+      "sha256": "{{CONSTITUTION_SHA256}}"
+    },
+    "workflow": {
+      "path": "WORKFLOW.md",
+      "sha256": "{{WORKFLOW_SHA256}}"
+    }
+  },
+  "immutable_sha256": "{{IMMUTABLE_SHA256}}",
+  "scope": {
+    "paths": []
+  },
+  "depends-on-work": [],
+  "conflicts-with-adrs": [],
+  "initial_artifacts": {}
+}

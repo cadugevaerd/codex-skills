@@ -1,20 +1,20 @@
 {
   "name": "grill-with-docs",
-  "version": "1.1.0",
-  "description": "Conduz decisões arquiteturais em loop auditável, com ROADMAP por fases, fronteira de decisões e checkpoints seguros.",
+  "version": "2.0.0",
+  "description": "Isola um grill por feature/fix/hotfix, aplica gate constitucional read-only e reconcilia um ROADMAP global determinístico.",
   "author": {"name": "Carlos Araujo", "email": "cadu.gevaerd@gmail.com", "url": "https://github.com/cadugevaerd"},
   "homepage": "https://github.com/cadugevaerd/codex-skills",
   "repository": "https://github.com/cadugevaerd/codex-skills",
   "license": "MIT",
-  "keywords": ["architecture", "adr", "decision-log", "evidence", "interview", "roadmap", "audit", "convergence"],
+  "keywords": ["architecture", "adr", "decision-log", "worktree", "constitution", "roadmap", "audit", "reconciliation"],
   "skills": "./skills/",
   "interface": {
     "displayName": "Grill with Docs",
-    "shortDescription": "Conduz decisões arquiteturais rastreáveis por fases.",
-    "longDescription": "Mantém uma pergunta atômica por vez, fronteira DQ auditável, ROADMAP por fases, ADRs/CONTEXT/backlog e checkpoints SAFETY_STOP para convergir sem loop eterno.",
+    "shortDescription": "Um grill isolado por work item, com reconciliação global.",
+    "longDescription": "Mantém artefatos por feature/fix/hotfix em .grill/work-items, valida a Constituição sem modificá-la e agrega somente trabalhos concluídos em uma projeção global determinística.",
     "developerName": "Carlos Araujo",
     "category": "Development",
-    "capabilities": ["Architecture Interview", "Decision Frontier", "Phase Roadmap", "Evidence Tracking", "ADR Management", "Decision Audit"],
-    "defaultPrompt": ["/grill-with-docs iniciar greenfield fonte=https://docs.example.com", "/grill-with-docs retomar ./docs", "/grill-with-docs auditar ./docs"]
+    "capabilities": ["Isolated Work Items", "Architecture Interview", "Constitution Gate", "Decision Audit", "Worktree Reconciliation", "Legacy Migration"],
+    "defaultPrompt": ["/grill-with-docs iniciar type=feature slug=minha-feature", "/grill-with-docs retomar work-id=<id>", "/grill-with-docs auditar work-id=<id>", "/grill-with-docs conciliar"]
   }
 }

@@ -1,0 +1,53 @@
+# grill-with-docs v2
+
+Plugin plan-only para entrevistar decisões arquiteturais sem colisão entre worktrees.
+
+```text
+feature/fix/hotfix → .grill/work-items/<work-id>/ → audit → PLAN_ONLY_STOP
+                                                         │
+trabalhos concluídos ────────────────────────────────────┴→ reconcile → .grill/global/
+```
+
+## Início rápido
+
+```bash
+CORE="$PLUGIN_ROOT/skills/grill-with-docs/scripts/grill_workspace.py"
+python3 "$CORE" init "$PWD" --type feature --slug minha-feature
+python3 "$CORE" audit "$PWD" --work-id <work-id>
+python3 "$CORE" reconcile "$PWD" --source-root ../outra-worktree
+```
+
+Aplicação da projeção global:
+
+```bash
+python3 "$CORE" reconcile "$PWD" --apply --integration-branch main
+```
+
+Migração legada, sempre preview-first:
+
+```bash
+python3 "$CORE" migrate "$PWD" --type fix --slug migracao
+python3 "$CORE" migrate "$PWD" --type fix --slug migracao --apply
+```
+
+## Contrato
+
+- Um bundle completo por work item em `.grill/work-items/<work-id>/`.
+- `WORKFLOW.md` e a Constituição são project-wide.
+- Constituição ausente é `not-present`; presente é read-only e inviolável.
+- `CONSTITUTION-CHECK.md` exige cobertura por cláusula, evidência e justificativa.
+- Auditoria, hooks e reconcile preview são read-only.
+- O global é projeção determinística; nunca é fonte de verdade.
+- IDs locais tornam-se `<work-id>/<ID>` na projeção.
+- A sessão encerra em `PLAN_ONLY_STOP`, antes de implementação.
+
+## Exit codes
+
+| Código | Resultado |
+|---:|---|
+| 0 | GO, PREVIEW, APPLIED, CREATED ou REUSED |
+| 1 | NO-GO |
+| 2 | BLOCKED ou erro de uso |
+| 3 | BLOCKED-CONSTITUTION |
+
+Consulte `skills/grill-with-docs/SKILL.md` e `references/session-protocol.md` para o protocolo normativo.
