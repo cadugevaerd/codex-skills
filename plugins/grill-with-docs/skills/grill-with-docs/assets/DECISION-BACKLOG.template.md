@@ -1,11 +1,10 @@
 # DECISION-BACKLOG
 
-## BL-0001 — <!-- pergunta adiada -->
+## BL-0001 — <!-- decisão/evidência pendente -->
 - state: open
-- motivo: <!-- por que não decidir agora -->
-- impacto: <!-- artefatos/fases condicionados -->
-- evidência necessária: <!-- fonte/teste/decisão -->
-- responsável: <!-- pessoa ou TBD -->
-- gatilho de retomada: <!-- evento verificável -->
-- ponto de parada: <!-- limite da investigação -->
-- due: <!-- data ou marco opcional -->
+- phase: FASE-001
+- owner: <!-- pessoa ou papel -->
+- evidence-needed: <!-- fonte, teste ou aprovação externa -->
+- next-action: <!-- ação verificável de desbloqueio -->
+
+> Estados: `open | resolved | superseded`. Todo BL pertence a exatamente uma fase e deve ser referenciado no ROADMAP, handoff e PLAN-CONTEXT.

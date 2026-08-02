@@ -1,16 +1,16 @@
 # ROADMAP
 
-## FASE-001 — <!-- nome -->
+- execution-order: FASE-001
+
+## FASE-001 — <!-- nome estável da fase -->
 - state: planned
 - objetivo: <!-- resultado observável -->
 - scope-in: <!-- incluído -->
 - scope-out: <!-- excluído -->
 - context-refs: <!-- termos canônicos de CONTEXT.md -->
-- ADRs: ADR-0001
-- BLs: BL-0001
+- ADRs: none
+- BLs: none
 - depends-on: none
-- entrada: <!-- critério -->
-- saída: <!-- critério -->
 - specify-handoff: handoffs/FASE-001-SPECIFY-HANDOFF.md
 
-> Não duplique decisões: referências apontam para CONTEXT, ADRs e BLs canônicos. Cada fase alimenta o `specify` isoladamente.
+> `execution-order` é explícita, topológica e independente dos números de fase. Cada fase tem um handoff exclusivo; somente a primeira incompleta pode ficar `ready-for-specify`.
