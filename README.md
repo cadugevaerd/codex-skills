@@ -46,6 +46,8 @@ codex plugin add whatsapp-business-platform@codex-skills
 codex plugin add caveman-stable@codex-skills
 ```
 
+Após instalar `caveman-stable`, abra `/hooks`, revise e confie o hook antes da primeira sessão. Sem essa confiança explícita, o `SessionStart` permanece inativo. Consulte [`plugins/caveman-stable/README.md`](plugins/caveman-stable/README.md).
+
 A skill `/langsmith-evals` fica disponível imediatamente. Para registrar também os
 tres custom agents do Codex, execute uma vez a partir do clone deste marketplace:
 

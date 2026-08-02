@@ -13,7 +13,7 @@ codex plugin add caveman-stable@codex-skills
 
 Para desenvolvimento local, substitua a primeira linha por `codex plugin marketplace add .` na raiz do clone.
 
-Revise e confie o hook em `/hooks` antes de usar. O injetor requer Python 3, não usa dependências externas e recebe JSON por stdin. O contrato é lido somente de `PLUGIN_ROOT`; nenhum estado ou arquivo do repositório é gravado.
+Revise e confie o hook em `/hooks` antes de usar. O injetor requer Python 3, não usa dependências externas e recebe JSON por stdin. Em Windows, requer o Python Launcher `py`. O contrato é lido somente de `PLUGIN_ROOT`; nenhum estado ou arquivo do repositório é gravado.
 
 A entrada `SessionStart` usa o matcher `startup|resume|clear|compact`. A inclusão de `compact` reinjeta o contrato após compactação automática ou manual.
 
@@ -34,8 +34,18 @@ plugins/caveman-stable/
 ├── skills/caveman-stable/references/output-contract.md
 ├── UPSTREAM.md
 ├── tests/shared-files.sha256
+├── tests/smoke_codex_cli.py
 └── tests/validate_contract.py
 ```
+
+## Testes
+
+```bash
+python3 plugins/caveman-stable/tests/validate_contract.py
+CODEX_BIN=/caminho/para/codex python3 plugins/caveman-stable/tests/smoke_codex_cli.py
+```
+
+O smoke instala o marketplace em um `CODEX_HOME` temporário, valida o pacote instalado e executa os quatro payloads de `SessionStart`.
 
 ## Atribuição
 

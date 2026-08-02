@@ -101,8 +101,12 @@ def main() -> None:
     session_hook = hooks["hooks"]["SessionStart"]
     assert len(session_hook) == 1
     assert session_hook[0]["matcher"] == "startup|resume|clear|compact"
-    command = session_hook[0]["hooks"][0]["command"]
+    handler = session_hook[0]["hooks"][0]
+    command = handler["command"]
     assert command == 'python3 "${PLUGIN_ROOT}/hooks/inject_context.py"'
+    assert handler["commandWindows"] == 'py -3 "%PLUGIN_ROOT%\\hooks\\inject_context.py"'
+    assert handler["timeout"] == 5
+    assert handler["additionalContextLimit"] == 5000
     assert not any(path.name == "state.json" for path in PLUGIN_ROOT.rglob("*"))
 
     verify_shared_files()
