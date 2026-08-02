@@ -1,0 +1,17 @@
+{
+  "name": "caveman-stable",
+  "version": "1.0.0",
+  "description": "Stable concise technical output for Codex, reinjected after session lifecycle and compaction events.",
+  "author": {"name": "Carlos Araujo"},
+  "license": "MIT",
+  "skills": "./skills/",
+  "hooks": "./hooks/hooks.json",
+  "interface": {
+    "displayName": "Caveman Stable",
+    "shortDescription": "Concise technical output that survives compaction.",
+    "developerName": "Carlos Araujo",
+    "category": "Productivity",
+    "capabilities": ["Write"],
+    "defaultPrompt": ["Use the always-on Caveman Stable output contract."]
+  }
+}
