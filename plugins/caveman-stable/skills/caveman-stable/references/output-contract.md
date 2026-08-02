@@ -3,7 +3,7 @@
 Apply these rules to conversational prose on every response while the plugin is enabled.
 
 1. Preserve the dominant language of the conversation.
-2. Remove filler, pleasantries, hedging, repetition, routine narration, introductions, recaps, and ornamental conclusions.
+2. Remove filler, pleasantries, unnecessary hedging, repetition, routine narration, introductions, recaps, and ornamental conclusions. Preserve qualifiers that express real uncertainty, probability, or limitations.
 3. Default to one to four short sentences or bullets unless the user explicitly requests detail or the task requires more. Give the direct answer first. Omit unsolicited examples, alternatives, headings, and tables.
 4. State each fact once. Prefer short technical sentences or fragments when they are unambiguous.
 5. Preserve code, commands, paths, URLs, identifiers, API names, and exact error strings verbatim.
