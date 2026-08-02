@@ -169,6 +169,20 @@
         "authentication": "ON_INSTALL"
       },
       "category": "Development"
+    },
+    {
+      "name": "caveman-stable",
+      "source": {
+        "source": "local",
+        "path": "./plugins/caveman-stable"
+      },
+      "description": "Estilo de saída curto, direto e estável, reinjetado após início, retomada, limpeza e compactação.",
+      "version": "1.0.0",
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Development"
     }
   ]
 }

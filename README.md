@@ -21,6 +21,7 @@ plugin individual.
 | `prompt-only-agent` | Faz uma entrevista curta, uma pergunta por vez, e entrega um system prompt em Markdown pronto para copiar e colar para um agente sem ferramentas. |
 | `qa-planner` | Analisa requisitos e diff da branch, define estratégia e cria `QA.md` rastreável para outra IA executar — sem rodar testes. |
 | `whatsapp-business-platform` | Projeta e opera integrações oficiais Meta: Cloud API, Technology Provider, Embedded Signup v4, Coexistence App+API, múltiplas WABAs/números, webhooks e tokens. |
+| `caveman-stable` | Mantém respostas Codex curtas, diretas e estáveis, com reinjeção após início, retomada, limpeza e compactação. |
 
 ## Instalacao local
 
@@ -42,6 +43,7 @@ codex plugin add langsmith-evals@codex-skills
 codex plugin add prompt-only-agent@codex-skills
 codex plugin add qa-planner@codex-skills
 codex plugin add whatsapp-business-platform@codex-skills
+codex plugin add caveman-stable@codex-skills
 ```
 
 A skill `/langsmith-evals` fica disponível imediatamente. Para registrar também os
