@@ -13,8 +13,8 @@ import sys
 import tempfile
 from pathlib import Path
 
-VERSION = "v1"
-MARKER = "grill-with-docs-workflow:v1"
+VERSION = "v2"
+MARKER = "grill-with-docs-workflow:v2"
 HERE = Path(__file__).resolve()
 TEMPLATE = HERE.parents[1] / "assets/WORKFLOW.template.md"
 ESSENTIAL = (
@@ -202,7 +202,7 @@ def hook() -> int:
             content, text = read_regular(path)
         except (OSError, UnicodeError):
             content, text = b"", ""
-        if compatible(text):
+        if managed_version(text) == VERSION and compatible(text):
             message = (
                 f"Leia {path}; sha256={digest(content)}. Fluxo COMPLETO: ROADMAP/handoff → "
                 "specify → plan → checklist → tasks → analyze → agent-assign → agent-execute → "

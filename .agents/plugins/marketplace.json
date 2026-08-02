@@ -7,8 +7,8 @@
     {
       "name": "grill-with-docs",
       "source": {"source": "local", "path": "./plugins/grill-with-docs"},
-      "description": "Isola um grill por feature/fix/hotfix, aplica gate constitucional read-only e reconcilia um ROADMAP global determinístico.",
-      "version": "2.0.0",
+      "description": "Isola um grill por feature/fix/hotfix, aplica gate constitucional read-only e encerra em PLAN_ONLY_STOP; após ship externo e complete/GO, reconcilia o ROADMAP global.",
+      "version": "2.0.1",
       "policy": {"installation": "AVAILABLE", "authentication": "ON_INSTALL"},
       "category": "Development"
     },

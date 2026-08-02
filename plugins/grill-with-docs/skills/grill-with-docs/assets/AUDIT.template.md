@@ -5,7 +5,7 @@
 - selected-phase: <!-- somente em GO -->
 - selected-handoff: <!-- somente em GO; caminho relativo -->
 - constitution: <!-- path + sha256 -->
-- workflow: <!-- path + sha256 + v1 -->
+- workflow: <!-- path + sha256 + v2 -->
 - second-pass-new-material-dqs: 0
 
 ## Findings
@@ -14,4 +14,4 @@
 ## Blockers
 - <!-- BL open, owner, evidence-needed e next-action; somente em BLOCKED -->
 
-> O comando `auditar` é read-only. Código 0=GO, 1=NO-GO, 2=BLOCKED.
+> O comando `auditar` é read-only. Código 0=GO, 1=NO-GO, 2=BLOCKED, 3=BLOCKED-CONSTITUTION (gate constitucional).

@@ -17,7 +17,7 @@
   "version": "1.0.0",
   "workflow": {
     "path": "WORKFLOW.md",
-    "sha256": "c489d73ee4a305ec40f5b60f998078a63174b12f142606b25a7672544739efb3",
-    "version": "v1"
+    "sha256": "5dffe98302566a4e11a86fcd5d8a364cb688dcf953a3b6c435e529db2a14280d",
+    "version": "v2"
   }
 }

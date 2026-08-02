@@ -195,7 +195,7 @@ Choose implementation details during the external plan step.
         "workflow": {
             "path": "WORKFLOW.md",
             "sha256": sha256(workflow),
-            "version": "v1",
+            "version": "v2",
         },
         "limits": {
             "max_questions_per_run": 25,
@@ -279,7 +279,7 @@ class AuditorContract(unittest.TestCase):
 
     def test_workflow_marker_and_state_integrity(self) -> None:
         workflow = self.root / "WORKFLOW.md"
-        workflow.write_text(workflow.read_text().replace("workflow:v1", "workflow:v2"), encoding="utf-8")
+        workflow.write_text(workflow.read_text().replace("workflow:v2", "workflow:v3"), encoding="utf-8")
         self.assert_no_go("WORKFLOW: marker/version")
         write_project(self.root)
         state = json.loads((self.root / "state.json").read_text())

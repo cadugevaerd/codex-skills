@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import errno
 import hashlib
 import json
 import os
@@ -216,8 +217,10 @@ def constitution_clauses(text: str) -> list[dict[str, str]]:
             continue
         slug = re.sub(r"[^a-z0-9]+", "-", normalized.casefold()).strip("-") or "clause"
         clause_id = slug
-        if clause_id in seen:
-            clause_id = f"{slug}-{hashlib.sha256(normalized.encode()).hexdigest()[:8]}"
+        suffix = 2
+        while clause_id in seen:
+            clause_id = f"{slug}-{suffix}"
+            suffix += 1
         seen.add(clause_id)
         clauses.append({"id": clause_id, "heading": normalized})
     if not clauses:
@@ -375,7 +378,7 @@ def state_template(root: Path, work_id: str, constitution: dict[str, Any], workf
     value = json.loads((ASSETS / "state.template.json").read_text(encoding="utf-8"))
     value["work_id"] = work_id
     value["constitution"] = constitution
-    value["workflow"] = {**workflow, "version": "v1"}
+    value["workflow"] = {**workflow, "version": "v2"}
     return (json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2) + "\n").encode("utf-8")
 
 
@@ -407,11 +410,71 @@ def validate_metadata(metadata: dict[str, Any], expected_work_id: str | None = N
     immutable = metadata.get("immutable")
     if not isinstance(immutable, dict) or metadata.get("immutable_sha256") != hash_bytes(canonical(immutable)):
         raise CliFailure(EXIT_BLOCKED, "BLOCKED", "IMMUTABLE-TAMPERED", expected_work_id or "unknown")
-    if immutable.get("schema") != "grill-work-item/v2" or not isinstance(immutable.get("work_id"), str):
+    if (
+        immutable.get("schema") != "grill-work-item/v2"
+        or not isinstance(immutable.get("work_id"), str)
+        or immutable.get("type") not in KINDS
+        or not isinstance(immutable.get("slug"), str)
+        or not SLUG_RE.fullmatch(immutable["slug"])
+        or not WORK_ID_RE.fullmatch(immutable["work_id"])
+    ):
         raise CliFailure(EXIT_BLOCKED, "BLOCKED", "METADATA-SCHEMA", expected_work_id or "unknown")
     if expected_work_id is not None and immutable["work_id"] != expected_work_id:
         raise CliFailure(EXIT_BLOCKED, "BLOCKED", "WORK-ID-DIVERGENCE", expected_work_id)
+    migration = metadata.get("migration")
+    if migration is not None:
+        if not isinstance(migration, dict):
+            raise CliFailure(EXIT_BLOCKED, "BLOCKED", "MIGRATION-SCHEMA", immutable["work_id"])
+        source_hashes = migration.get("source_hashes")
+        source_paths = migration.get("source_paths")
+        if (
+            not isinstance(source_hashes, dict)
+            or not isinstance(source_paths, dict)
+            or set(source_hashes) != set(source_paths)
+            or not all(isinstance(key, str) and isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value) for key, value in source_hashes.items())
+            or not all(isinstance(key, str) and isinstance(value, str) and value for key, value in source_paths.items())
+        ):
+            raise CliFailure(EXIT_BLOCKED, "BLOCKED", "MIGRATION-SCHEMA", immutable["work_id"])
     return immutable
+
+
+def process_start_observation(pid: int) -> tuple[str, str | None]:
+    """Observe Linux process identity without treating read errors as death."""
+    if not sys.platform.startswith("linux"):
+        return "unsupported", None
+    path = Path("/proc") / str(pid) / "stat"
+    try:
+        fields = path.read_text(encoding="utf-8").rsplit(")", 1)[1].split()
+    except FileNotFoundError:
+        return "missing", None
+    except (OSError, UnicodeError, IndexError):
+        return "unavailable", None
+    if len(fields) <= 19:
+        return "unavailable", None
+    return "found", f"linux:{fields[19]}"
+
+
+def process_start_token(pid: int) -> str | None:
+    status, token = process_start_observation(pid)
+    return token if status == "found" else None
+
+
+def stale_local_lock(lock: Path) -> bool:
+    try:
+        value = json.loads((lock / "owner.json").read_text(encoding="utf-8"))
+        pid, host, recorded_start = value.get("pid"), value.get("host"), value.get("process_start")
+    except (OSError, UnicodeError, json.JSONDecodeError, AttributeError):
+        return False
+    observation, current_start = process_start_observation(pid) if type(pid) is int else ("unavailable", None)
+    return bool(
+        host == socket.gethostname()
+        and type(pid) is int
+        and pid > 0
+        and isinstance(recorded_start, str)
+        and recorded_start.startswith("linux:")
+        and observation in {"found", "missing"}
+        and current_start != recorded_start
+    )
 
 
 def acquire_lock(
@@ -428,9 +491,11 @@ def acquire_lock(
     while True:
         try:
             lock.mkdir()
-            (lock / "owner.json").write_text(
-                json.dumps({"pid": os.getpid(), "host": socket.gethostname()}, sort_keys=True), encoding="utf-8"
-            )
+            owner = {"pid": os.getpid(), "host": socket.gethostname()}
+            start_token = process_start_token(os.getpid())
+            if start_token is not None:
+                owner["process_start"] = start_token
+            (lock / "owner.json").write_text(json.dumps(owner, sort_keys=True), encoding="utf-8")
             return lock
         except FileExistsError:
             # Work-item directories are published by one atomic rename. Once the
@@ -438,6 +503,25 @@ def acquire_lock(
             # waiting for the creator to remove its diagnostic lock directory.
             if reuse_if_target_exists and target.is_dir() and not target.is_symlink():
                 return None
+            recovery = locks / f".{work_id}.recovery"
+            recovered = False
+            try:
+                recovery.mkdir()
+            except FileExistsError:
+                pass
+            else:
+                try:
+                    # Re-read the owner while holding the recovery mutex. This
+                    # prevents an old waiter from deleting a newly acquired lock.
+                    if stale_local_lock(lock):
+                        shutil.rmtree(lock, ignore_errors=False)
+                        recovered = True
+                except FileNotFoundError:
+                    recovered = True
+                finally:
+                    shutil.rmtree(recovery, ignore_errors=True)
+            if recovered:
+                continue
             if time.monotonic() >= deadline:
                 raise CliFailure(EXIT_BLOCKED, "BLOCKED", "LOCK-CONTENTION", work_id)
             time.sleep(0.03)
@@ -554,9 +638,14 @@ def init_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         staging = write_bundle_staging(root, work_id, metadata, files)
         try:
             rename_child(target.parent, staging, target)
-        except FileExistsError:
+        except OSError as exc:
+            if exc.errno not in {errno.EEXIST, errno.ENOTEMPTY}:
+                raise
             shutil.rmtree(staging, ignore_errors=True)
             bundle = read_local_bundle(root, target)
+            immutable = validate_metadata(bundle.metadata, work_id)
+            if immutable.get("type") != args.type or immutable.get("slug") != args.slug:
+                raise CliFailure(EXIT_BLOCKED, "BLOCKED", "IDENTITY-DIVERGENCE", work_id)
             return {"status": "REUSED", "work_id": work_id, "path": str(target), "fingerprint": bundle.fingerprint}, EXIT_OK
         bundle = read_local_bundle(root, target)
         return {"status": "CREATED", "work_id": work_id, "path": str(target), "fingerprint": bundle.fingerprint}, EXIT_OK
@@ -589,7 +678,7 @@ def audit_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     after = read_external_bundle(item) if args.artifact_root else read_local_bundle(root, item)
     if before.fingerprint != after.fingerprint:
         return {"verdict": "NO-GO", "code": "AUDITOR-MUTATED-WORK-ITEM"}, EXIT_NO_GO
-    exit_code = process.returncode if process.returncode in {0, 1, 2} else EXIT_NO_GO
+    exit_code = process.returncode if process.returncode in {0, 1, 2, 3} else EXIT_NO_GO
     payload = {
         "verdict": receipt.get("verdict", "NO-GO"),
         "code": receipt.get("code", "OK" if exit_code == 0 else "AUDIT-FAILED"),
@@ -654,6 +743,8 @@ def scopes_overlap(left: str, right: str) -> bool:
 def scan_qualified_ids(bundle: ItemBundle) -> set[str]:
     ids: set[str] = set()
     for path, data in bundle.files.items():
+        if path == "WORK-ITEM.json":
+            continue
         name = Path(path).stem
         if ADR_RE.fullmatch(name):
             ids.add(f"{bundle.work_id}/{name}")
@@ -751,7 +842,9 @@ def validate_reconciliation(root: Path, bundles: list[ItemBundle]) -> tuple[dict
             conflicts.append(f"ADR-CONFLICT-SCHEMA:{work_id}")
             continue
         for reference in references:
-            if isinstance(reference, str) and reference in qualified:
+            if not isinstance(reference, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{1,100}/ADR-\d{4}", reference):
+                conflicts.append(f"ADR-CONFLICT-SCHEMA:{work_id}")
+            elif reference in qualified:
                 conflicts.append(f"ADR-CONFLICT:{work_id}->{reference}")
     return unique, sorted(set(conflicts)), sorted(qualified)
 
@@ -773,16 +866,23 @@ def global_documents(items: dict[str, ItemBundle], qualified: list[str], preview
 
 
 def dirty_paths(root: Path) -> set[str]:
-    output = run_git(root, "status", "--porcelain=v1", "--untracked-files=all", "-z")
-    assert isinstance(output, str)
+    output = run_git(root, "status", "--porcelain=v1", "--untracked-files=all", "-z", text=False)
+    assert isinstance(output, bytes)
     paths: set[str] = set()
-    for record in output.split("\0"):
+    records = output.split(b"\0")
+    index = 0
+    while index < len(records):
+        record = records[index]
+        index += 1
         if not record:
             continue
-        value = record[3:]
-        if " -> " in value:
-            value = value.split(" -> ", 1)[1]
+        status = record[:2].decode("ascii", "replace")
+        value = record[3:].decode("utf-8", "surrogateescape")
         paths.add(value)
+        if "R" in status or "C" in status:
+            if index < len(records) and records[index]:
+                paths.add(records[index].decode("utf-8", "surrogateescape"))
+                index += 1
     return paths
 
 
@@ -845,7 +945,10 @@ def reconcile_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
                 if disallowed:
                     return {**preview, "verdict": "BLOCKED", "code": "DIRTY-WORKTREE", "dirty": sorted(disallowed)}, EXIT_BLOCKED
                 return {**preview, "verdict": "REUSED", "code": "OK"}, EXIT_OK
-        dirty = {path for path in dirty_paths(root) if not path.startswith(".grill/locks/global-reconciliation.lock/")}
+        dirty = {
+            path for path in dirty_paths(root)
+            if not path.startswith(".grill/locks/global-reconciliation.lock/") and path not in MANAGED_GLOBAL
+        }
         if dirty:
             return {**preview, "verdict": "BLOCKED", "code": "DIRTY-WORKTREE", "dirty": sorted(dirty)}, EXIT_BLOCKED
         replace_global_directory(root, roadmap, audit)
@@ -922,12 +1025,14 @@ def migrate_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             if migration.get("source_hashes") != hashes:
                 return {**preview, "verdict": "BLOCKED", "code": "TARGET-DIVERGES", "work_id": work_id}, EXIT_BLOCKED
             for path, data in mapped.items():
+                if path == "state.json":
+                    continue
                 if bundle.files.get(path) != data:
                     return {**preview, "verdict": "BLOCKED", "code": "TARGET-DIVERGES", "work_id": work_id}, EXIT_BLOCKED
             return {**preview, "verdict": "REUSED", "work_id": work_id}, EXIT_OK
         immutable = immutable_metadata(root, args, work_id)
         files = initial_files(root, work_id, immutable)
-        files.update(mapped)
+        files.update({path: data for path, data in mapped.items() if path != "state.json"})
         metadata = metadata_document(immutable, files, migration={"source_hashes": hashes, "source_paths": sources})
         staging = write_bundle_staging(root, work_id, metadata, files)
         try:

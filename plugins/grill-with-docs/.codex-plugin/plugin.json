@@ -1,7 +1,7 @@
 {
   "name": "grill-with-docs",
-  "version": "2.0.0",
-  "description": "Isola um grill por feature/fix/hotfix, aplica gate constitucional read-only e reconcilia um ROADMAP global determinístico.",
+  "version": "2.0.1",
+  "description": "Isola um grill por feature/fix/hotfix, aplica gate constitucional read-only e encerra em PLAN_ONLY_STOP; após ship externo e complete/GO, reconcilia o ROADMAP global.",
   "author": {"name": "Carlos Araujo", "email": "cadu.gevaerd@gmail.com", "url": "https://github.com/cadugevaerd"},
   "homepage": "https://github.com/cadugevaerd/codex-skills",
   "repository": "https://github.com/cadugevaerd/codex-skills",

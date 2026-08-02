@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import concurrent.futures
+import importlib.util
 import json
 import os
 import re
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
@@ -19,6 +21,16 @@ SCRIPT = PLUGIN / "skills/grill-with-docs/scripts/grill_workspace.py"
 WORKFLOW_TEMPLATE = PLUGIN / "skills/grill-with-docs/assets/WORKFLOW.template.md"
 CHECK_START = "<!-- grill-constitution-check:start -->"
 CHECK_END = "<!-- grill-constitution-check:end -->"
+
+
+def load_workspace_module():
+    name = "grill_workspace_contract_module"
+    spec = importlib.util.spec_from_file_location(name, SCRIPT)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
 
 
 def invoke(*args: object) -> tuple[subprocess.CompletedProcess[str], dict]:
@@ -169,6 +181,8 @@ class WorkspaceV2Contract(unittest.TestCase):
         self.assertTrue((second / "handoffs").is_dir())
         self.assertFalse((self.root / ".grill/global").exists())
         self.assertEqual((self.root / "WORKFLOW.md").read_bytes(), WORKFLOW_TEMPLATE.read_bytes())
+        state = json.loads((first / "state.json").read_text(encoding="utf-8"))
+        self.assertEqual(state["workflow"]["version"], "v2")
 
     def test_init_reuse_identity_conflict_and_immutable_tamper(self) -> None:
         item = self._init_item(work_id="stable-id")
@@ -288,8 +302,9 @@ class WorkspaceV2Contract(unittest.TestCase):
             handle.write('{"round_id":"R-0042"}\n')
         process, payload = invoke("reconcile", self.root, "--source-root", source)
         self.assertEqual((process.returncode, payload["verdict"]), (0, "PREVIEW"))
-        for qualified in ("source-one/ADR-0042", "source-one/R-0042", "source-one/DQ-0001", "source-one/BL-0001", "source-one/FASE-001"):
+        for qualified in ("source-one/ADR-0042", "source-one/R-0042", "source-one/DQ-0001", "source-one/FASE-001"):
             self.assertIn(qualified, payload["qualified_ids"])
+        self.assertNotIn("source-one/BL-0001", payload["qualified_ids"])
         self.assertNotIn("source-one/source-one", payload["qualified_ids"])
 
     def test_reconcile_source_ref_is_real_repeatable_and_read_only(self) -> None:
@@ -383,6 +398,41 @@ class WorkspaceV2Contract(unittest.TestCase):
         self.assertEqual(verdicts.count("REUSED"), 3)
         self.assertEqual(set(snapshot(self.root / ".grill/global")), {"AUDIT.md", "ROADMAP.md"})
 
+    def test_reconcile_concurrent_waiters_recover_one_orphan_lock(self) -> None:
+        item = self._init_item(); self._mark_complete(item); self._commit_all(self.root)
+        lock = self.root / ".grill/locks/global-reconciliation.lock"
+        lock.mkdir(parents=True)
+        (lock / "owner.json").write_text(
+            json.dumps({"pid": 999_999_999, "host": socket.gethostname(), "process_start": "linux:0"}),
+            encoding="utf-8",
+        )
+        command = ("reconcile", self.root, "--apply", "--integration-branch", "main")
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+            results = list(executor.map(lambda _index: invoke(*command), range(4)))
+        self.assertTrue(all(process.returncode == 0 for process, _payload in results))
+        verdicts = [payload["verdict"] for _process, payload in results]
+        self.assertEqual(verdicts.count("APPLIED"), 1)
+        self.assertEqual(verdicts.count("REUSED"), 3)
+        self.assertFalse(lock.exists())
+
+    def test_unavailable_process_identity_never_marks_live_lock_stale(self) -> None:
+        module = load_workspace_module()
+        lock = self.root / "identity.lock"
+        lock.mkdir()
+        (lock / "owner.json").write_text(
+            json.dumps({"pid": os.getpid(), "host": socket.gethostname(), "process_start": "linux:recorded"}),
+            encoding="utf-8",
+        )
+        original = getattr(module, "process_start_observation")
+        try:
+            setattr(module, "process_start_observation", lambda _pid: ("unavailable", None))
+            self.assertFalse(module.stale_local_lock(lock))
+            setattr(module, "process_start_observation", lambda _pid: ("found", "linux:reused"))
+            self.assertTrue(module.stale_local_lock(lock))
+        finally:
+            setattr(module, "process_start_observation", original)
+            sys.modules.pop("grill_workspace_contract_module", None)
+
     def test_migrate_preview_apply_preserves_files_directories_and_reuses(self) -> None:
         originals = {
             "CONTEXT.md": b"legacy context\n",
@@ -428,6 +478,50 @@ class WorkspaceV2Contract(unittest.TestCase):
         process, _payload = invoke("migrate", linked, "--type", "fix", "--slug", "link", "--work-id", "link-migration", "--apply")
         self.assertEqual(process.returncode, 2)
         self.assertFalse((linked / ".grill/work-items/link-migration").exists())
+
+    def test_core_validation_rejects_invalid_metadata_migration_and_adr_reference(self) -> None:
+        item = self._init_item(work_id="validation")
+        metadata = self._metadata(item)
+        metadata["immutable"]["type"] = "task"
+        metadata["immutable_sha256"] = "bad"
+        self._write_metadata(item, metadata)
+        process, payload = invoke("reconcile", self.root)
+        self.assertEqual(process.returncode, 2)
+        self.assertIn(payload["code"], {"IMMUTABLE-TAMPERED", "METADATA-SCHEMA"})
+
+        other = self._new_repo()
+        (other / "CONTEXT.md").write_text("legacy\n", encoding="utf-8")
+        process, _payload = invoke("migrate", other, "--type", "feature", "--slug", "legacy", "--work-id", "migration", "--apply")
+        self.assertEqual(process.returncode, 0)
+        migrated = other / ".grill/work-items/migration/WORK-ITEM.json"
+        value = json.loads(migrated.read_text(encoding="utf-8"))
+        value["migration"]["source_hashes"]["CONTEXT.md"] = "not-a-sha256"
+        migrated.write_text(json.dumps(value), encoding="utf-8")
+        process, payload = invoke("reconcile", other)
+        self.assertEqual((process.returncode, payload["code"]), (2, "MIGRATION-SCHEMA"))
+
+    def test_constitution_repeated_headings_get_unique_ids(self) -> None:
+        constitution = self._constitution()
+        constitution.write_text("# C\n## Rules\na\n## Rules\nb\n## Rules\nc\n", encoding="utf-8")
+        process, payload = invoke("init", self.root, "--type", "feature", "--slug", "repeat", "--work-id", "repeat")
+        self.assertEqual(process.returncode, 0, payload)
+        check = self._read_check(self.root / ".grill/work-items/repeat")
+        self.assertEqual([entry["id"] for entry in check["clauses"]], ["rules", "rules-2", "rules-3"])
+
+    def test_migrate_does_not_replace_generated_state(self) -> None:
+        (self.root / "state.json").write_text('{"status":"legacy"}\n', encoding="utf-8")
+        arguments = ("migrate", self.root, "--type", "fix", "--slug", "state", "--work-id", "state-migration", "--apply")
+        process, payload = invoke(*arguments)
+        self.assertEqual((process.returncode, payload["verdict"]), (0, "APPLIED"))
+        target = self.root / ".grill/work-items/state-migration/state.json"
+        state = json.loads(target.read_text(encoding="utf-8"))
+        self.assertEqual(state["work_id"], "state-migration")
+        self.assertEqual(state["workflow"]["version"], "v2")
+        generated = target.read_bytes()
+        process, payload = invoke(*arguments)
+        self.assertEqual((process.returncode, payload["verdict"]), (0, "REUSED"))
+        self.assertEqual(target.read_bytes(), generated)
+        self.assertIn("constitution", state)
 
     def test_migrate_rejects_broken_file_and_directory_symlinks(self) -> None:
         broken_file = self._new_repo()

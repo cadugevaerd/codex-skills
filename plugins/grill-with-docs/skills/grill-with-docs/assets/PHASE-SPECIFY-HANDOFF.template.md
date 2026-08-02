@@ -1,7 +1,7 @@
 # FASE-001 — <!-- nome -->
 
 - phase: FASE-001
-- state: planned
+- state: ready-for-specify
 - roadmap: ROADMAP.md#FASE-001
 - context-refs: <!-- termos canônicos -->
 - ADRs: none
