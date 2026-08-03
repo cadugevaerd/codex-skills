@@ -2,33 +2,33 @@
   "schema_version": 1,
   "status": "released",
   "product": "backlogctl",
-  "release": "v2.1.0",
-  "version": "2.1.0",
-  "base_url": "https://github.com/cadugevaerd/backlogctl-releases/releases/download/v2.1.0/",
+  "release": "v2.3.0",
+  "version": "2.3.0",
+  "base_url": "https://github.com/cadugevaerd/backlogctl-releases/releases/download/v2.3.0/",
   "assets": {
     "darwin-x64": {
       "file": "backlogctl_darwin_amd64",
-      "sha256": "250f02f0ccc48d7e8d9f7a011a1af22a05467364819326831ffd3191e5663bbd"
+      "sha256": "90e0842f0107f007887078d68c96eb3250ad297ab1733bf75ac5d0793010c54a"
     },
     "darwin-arm64": {
       "file": "backlogctl_darwin_arm64",
-      "sha256": "f611602f05514fdf8b8f697dd474bef0dd67196b233f55bcb1ab383a66171434"
+      "sha256": "1d297fa28196067e233ba70c7550c80e7ef3ada4a8bb2387501d0360d338096b"
     },
     "linux-x64": {
       "file": "backlogctl_linux_amd64",
-      "sha256": "debfb54a5619f79596fa507ae5b4770a1f68b58fc5bcbe8f45d86669211ae947"
+      "sha256": "7c6b143f8f96f99b6d975d3ea7475e49c28949e896c54c41dd07aedbc9b6bb53"
     },
     "linux-arm64": {
       "file": "backlogctl_linux_arm64",
-      "sha256": "63ab47ea75409ae5e73c02f5adc159bf1d05d4bf2d126fbddf34896945e921ea"
+      "sha256": "7f8751d16d8b43e55954a59b6c1316960d5c346d89b48e2acaabc8d88557ec65"
     },
     "win32-x64": {
       "file": "backlogctl_windows_amd64.exe",
-      "sha256": "7d7b9e87d33ea751af07f6d91e9bf4a4b2dc80a1273c27b43c1660c548b10942"
+      "sha256": "ceac91ca378f579f956440a4f5f74309a223d7d6ede08e027a0c0ebf8462df84"
     },
     "win32-arm64": {
       "file": "backlogctl_windows_arm64.exe",
-      "sha256": "6f60c413088649960e651e013aa26e6b864927f55dbf73b2251854a3aac15289"
+      "sha256": "fed756a655a409ee0920e7b5ccc8832251040c6eea318a8a3c7d370271f8adb1"
     }
   }
 }

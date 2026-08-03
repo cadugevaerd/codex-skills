@@ -2,7 +2,7 @@
 
 ## Versões
 
-`backlogctl` é a única fonte de verdade. CLI **2.1.0**, DB **schema 5**, envelope geral `contract_version:"2"` e documento do import `contract_version:"3"`. Skills nunca leem/escrevem SQLite diretamente.
+`backlogctl` é a única fonte de verdade. CLI **2.3.0**, DB **schema 5**, envelope geral `contract_version:"2"` e documento do import `contract_version:"3"`. Skills nunca leem/escrevem SQLite diretamente.
 
 Formas globais: `backlogctl [--json] doctor --db PATH` para o comando de topo, ou `backlogctl [--json] <família> <comando> ...` para famílias; `--json` vem antes do comando/família. Sucesso: `{result:"ok",operation,contract_version:"2",changed,data,warnings,next_action}`. Erros de domínio: exit 1 e diagnóstico em stderr; gramática inválida: exit 2.
 
@@ -32,4 +32,4 @@ Consultas, `merge preview|list|show`, `import preview`, `todo scan` e `update ch
 
 `todo scan --code ABC --path SOURCE` é puro, explícito e somente profile `software`; `todo apply` exige os mesmos argumentos, SHA e `--confirm`, sem alterar fontes.
 
-`backlogctl version` imprime exatamente a versão semântica, por exemplo `2.1.0`, sem prefixo, sufixo ou texto adicional. `update install` verifica SHA e essa saída exata de `version` antes/depois do rename com rollback. `update migrate` exige DB existente, integrity check e backup antes das migrations; schema futuro é bloqueado.
+`backlogctl version` imprime exatamente a versão semântica, por exemplo `2.3.0`, sem prefixo, sufixo ou texto adicional. `update install` verifica SHA e essa saída exata de `version` antes/depois do rename com rollback. `update migrate` exige DB existente, integrity check e backup antes das migrations; schema futuro é bloqueado.

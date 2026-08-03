@@ -1,7 +1,7 @@
 {
   "name": "backlog",
-  "version": "2.4.0",
-  "description": "Backlog multi-repositório via backlogctl 2.1: contextos, formato, merge, import v3, TODO opt-in e update verificado.",
+  "version": "2.4.1",
+  "description": "Backlog multi-repositório via backlogctl 2.3: contextos, formato, merge, import v3, TODO opt-in e update verificado.",
   "author": {"name": "Carlos Araujo", "email": "cadu.gevaerd@gmail.com", "url": "https://github.com/cadugevaerd"},
   "homepage": "https://github.com/cadugevaerd/codex-skills",
   "repository": "https://github.com/cadugevaerd/codex-skills",
