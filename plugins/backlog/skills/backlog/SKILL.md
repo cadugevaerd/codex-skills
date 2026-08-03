@@ -11,4 +11,4 @@ Antes de chamar uma rota, liste: comando exato, backlog/fonte, leitura ou mutaç
 
 Superfície: `store`, `doctor`, `backlog`, `item`, `context`, `decision`, `format`, `export`, `merge`, `import`, `todo` e `update`. Toda mutação exige confirmação explícita; proposals/import/scans devem ser revalidados antes de apply.
 
-CLI 2.1.0, DB schema 5, envelope contract 2 e import document contract 3. Preserve `description`; use `item reconcile-status`/`archive` apenas como operações administrativas confirmadas. Nunca leia SQLite diretamente nem trate JSON v1 como import nativo.
+CLI 2.3.0, DB schema 5, envelope contract 2 e import document contract 3. Preserve `description`; use `item reconcile-status`/`archive` apenas como operações administrativas confirmadas. Nunca leia SQLite diretamente nem trate JSON v1 como import nativo.

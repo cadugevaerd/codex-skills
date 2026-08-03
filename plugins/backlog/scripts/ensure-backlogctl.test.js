@@ -13,9 +13,9 @@ function manifest(payload = Buffer.from('binary')) {
     schema_version: 1,
     status: 'released',
     product: 'backlogctl',
-    release: 'v2.1.0',
-    version: '2.1.0',
-    base_url: 'https://github.com/cadugevaerd/backlogctl-releases/releases/download/v2.1.0/',
+    release: 'v2.3.0',
+    version: '2.3.0',
+    base_url: 'https://github.com/cadugevaerd/backlogctl-releases/releases/download/v2.3.0/',
     assets: {
       'linux-x64': {
         file: 'backlogctl_linux_amd64',
@@ -28,9 +28,9 @@ function manifest(payload = Buffer.from('binary')) {
 test('manifest accepts only immutable official release coordinates', () => {
   assert.doesNotThrow(() => bootstrap.validateManifest(manifest()));
   for (const mutate of [
-    m => { m.base_url = 'https://evil.example/releases/download/v2.1.0/'; },
-    m => { m.base_url = 'http://github.com/cadugevaerd/backlogctl-releases/releases/download/v2.1.0/'; },
-    m => { m.base_url = 'https://github.com/cadugevaerd/other/releases/download/v2.1.0/'; },
+    m => { m.base_url = 'https://evil.example/releases/download/v2.3.0/'; },
+    m => { m.base_url = 'http://github.com/cadugevaerd/backlogctl-releases/releases/download/v2.3.0/'; },
+    m => { m.base_url = 'https://github.com/cadugevaerd/other/releases/download/v2.3.0/'; },
     m => { m.base_url = 'https://github.com/cadugevaerd/backlogctl-releases/releases/download/v9.9.9/'; },
     m => { m.assets['linux-x64'].file = '../backlogctl'; },
     m => { m.assets['linux-x64'].sha256 = 'abc'; },
@@ -41,7 +41,7 @@ test('manifest accepts only immutable official release coordinates', () => {
 });
 
 test('redirects remain inside official HTTPS release paths', () => {
-  const from = new URL('https://github.com/cadugevaerd/backlogctl-releases/releases/download/v2.1.0/a');
+  const from = new URL('https://github.com/cadugevaerd/backlogctl-releases/releases/download/v2.3.0/a');
   assert.equal(bootstrap.allowedRedirect(from, new URL('https://objects.githubusercontent.com/x')), true);
   assert.equal(bootstrap.allowedRedirect(from, new URL('https://release-assets.githubusercontent.com/x')), true);
   assert.equal(bootstrap.allowedRedirect(from, new URL('http://objects.githubusercontent.com/x')), false);
