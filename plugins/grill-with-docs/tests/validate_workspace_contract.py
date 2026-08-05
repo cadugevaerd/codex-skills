@@ -570,12 +570,13 @@ class WorkspaceV2Contract(unittest.TestCase):
         self.assertEqual(failed.returncode, 0)
         go_failed, failed_payload = invoke("hotfix-go", self.root, "--work-id", "hotfix-failure")
         self.assertEqual((go_failed.returncode, failed_payload["code"]), (1, "CORRECTION-TEST-FAILED"))
-        timeout, _ = invoke("hotfix", self.root, "--slug", "timeout", "--scope", "src/timeout.py",
+        timeout_root = self._new_repo()
+        timeout, _ = invoke("hotfix", timeout_root, "--slug", "timeout", "--scope", "src/timeout.py",
                             "--reproduction", "500", "--evidence", "incident.log", "--correction-test", "tests/test_timeout.py",
                             "--rollback", "git revert", "--constitution-evidence", "not-applicable", "--work-id", "hotfix-timeout",
                             "--test-command", f"{sys.executable} -c 'import time; time.sleep(2)'", "--test-timeout", "1")
         self.assertEqual(timeout.returncode, 0)
-        go_timeout, timeout_payload = invoke("hotfix-go", self.root, "--work-id", "hotfix-timeout")
+        go_timeout, timeout_payload = invoke("hotfix-go", timeout_root, "--work-id", "hotfix-timeout")
         self.assertEqual((go_timeout.returncode, timeout_payload["code"]), (1, "CORRECTION-TEST-TIMEOUT"))
         newline, newline_payload = invoke("hotfix", self.root, "--slug", "newline", "--scope", "src/api.py\nother.py",
                                           "--reproduction", "500", "--evidence", "incident.log", "--correction-test", "t",

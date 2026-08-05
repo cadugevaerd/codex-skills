@@ -115,17 +115,17 @@ Exit codes: `0 GO`, `1 NO-GO`, `2 BLOCKED/uso`, `3 BLOCKED-CONSTITUTION`.
 Preview é o padrão e não escreve:
 
 ```text
-python3 .../grill_workspace.py hotfix ROOT --slug SLUG --scope PATHS --reproduction REPRO --evidence EVIDENCE --correction-test TEST --rollback ROLLBACK --constitution-evidence EVIDENCE
+python3 .../grill_workspace.py hotfix ROOT --slug SLUG --scope PATHS --reproduction REPRO --evidence EVIDENCE --correction-test TEST --rollback ROLLBACK --constitution-evidence EVIDENCE --test-command "python3 -m unittest tests/test_fix.py"
 python3 .../grill_workspace.py reconcile ROOT \
   [--source-root OUTRA_WORKTREE] [--source-ref REF]
 ```
 
 O reconciliador lê bundles completos sem checkout e detecta: `work_id` duplicado divergente, sobreposição de escopo, dependência ausente/cíclica, conflito ADR declarado, estado não concluído e hash constitucional stale. IDs são qualificados globalmente.
 
-Aplicação exige branch de integração explícita, árvore limpa e zero conflitos:
+O fluxo feature/fix termina em `PLAN_ONLY_STOP`; não use `reconcile` como continuação de um hotfix antes do ship externo. Aplicação exige branch de integração explícita, árvore limpa e zero conflitos:
 
 ```text
-python3 .../grill_workspace.py hotfix ROOT --slug SLUG --scope PATHS --reproduction REPRO --evidence EVIDENCE --correction-test TEST --rollback ROLLBACK --constitution-evidence EVIDENCE
+python3 .../grill_workspace.py hotfix ROOT --slug SLUG --scope PATHS --reproduction REPRO --evidence EVIDENCE --correction-test TEST --rollback ROLLBACK --constitution-evidence EVIDENCE --test-command "python3 -m unittest tests/test_fix.py"
 python3 .../grill_workspace.py reconcile ROOT --apply --integration-branch BRANCH
 ```
 
@@ -148,4 +148,4 @@ Hotfix-fast não lê nem altera ROADMAP/BL/DQ; sua saída é `HOTFIX-GO` somente
 
 A ordem vem de `execution-order`, não dos números de fase. Para `GO`, a fase selecionada deve ser a primeira incompleta, ter predecessores completos, nenhum BL aberto e handoff WHAT/WHY exclusivo. `PLAN-CONTEXT.md`, ADRs e `CONTEXT.md` fornecem HOW.
 
-Após auditoria `GO` e entrega do handoff, emita `PLAN_ONLY_STOP` e pare. Agentes externos executarão `specify|plan` em outro ciclo. Após ship, marque a fase `complete`, reaudite e só então reconcilie globalmente.
+Após auditoria `GO` e entrega do handoff, emita `PLAN_ONLY_STOP` e pare. Esse stop aplica-se somente a feature/fix; hotfix encerra em `hotfix.closed` e pode seguir para `HOTFIX-GO`. Agentes externos executarão `specify|plan` em outro ciclo. Após ship, marque a fase `complete`, reaudite e só então reconcilie globalmente.

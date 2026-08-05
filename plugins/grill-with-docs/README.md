@@ -3,7 +3,8 @@
 Plugin plan-only para entrevistar decisões arquiteturais sem colisão entre worktrees.
 
 ```text
-feature/fix/hotfix → .grill/work-items/<work-id>/ → audit → PLAN_ONLY_STOP
+feature/fix → .grill/work-items/<work-id>/ → audit → PLAN_ONLY_STOP
+hotfix/incident → .grill/work-items/<work-id>/ → HOTFIX-GO (ship externo)
                                                          │
 ship externo → complete/GO ─────────────────────────────┴→ reconcile → .grill/global/
 ```
@@ -23,6 +24,7 @@ python3 "$CORE" audit "$PWD" --work-id <work-id>
 ```bash
 CORE="$PLUGIN_ROOT/skills/grill-with-docs/scripts/grill_workspace.py"
 python3 "$CORE" init "$PWD" --type feature --slug minha-feature
+# Feature/fix são plan-only e encerram em PLAN_ONLY_STOP; apenas hotfix usa hotfix-go.
 python3 "$CORE" hotfix-go "$PWD" --work-id <work-id>
 python3 "$CORE" audit "$PWD" --work-id <work-id>
 ```

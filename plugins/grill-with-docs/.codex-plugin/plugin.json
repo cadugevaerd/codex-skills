@@ -38,6 +38,9 @@
     ],
     "defaultPrompt": [
       "/grill-with-docs iniciar type=feature slug=minha-feature",
+      "/grill-with-docs iniciar type=fix slug=correcao",
+      "/grill-with-docs hotfix slug=incidente",
+      "/grill-with-docs hotfix-go work-id=<id>",
       "/grill-with-docs retomar work-id=<id>",
       "/grill-with-docs auditar work-id=<id>",
       "/grill-with-docs conciliar"

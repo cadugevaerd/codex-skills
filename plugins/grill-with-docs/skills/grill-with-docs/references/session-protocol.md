@@ -74,7 +74,7 @@ Duas rodadas sem progresso, terceira repetição, terceira expansão consecutiva
 
 ## Hotfix-fast / incident
 
-`hotfix` é a trilha executável de incidente. Ela cria um bundle autocontido com `HOTFIX.md`, `state.json` e `WORK-ITEM.json` marcado `closed=true`, e retorna `HOTFIX-GO` apenas quando todos os campos obrigatórios estão presentes. Escopo com traversal/quebra de linha, ausência de evidência ou divergência de identidade falha fechado. Não consultar ROADMAP, BL, DQ, workflow global ou reconciliação para decidir segurança do hotfix; a Constituição continua obrigatória quando presente. Ship é externo. Reconciliação e auditoria documental completa são ações pós-ship.
+`hotfix` é a trilha executável de incidente. Ela cria um bundle autocontido com `HOTFIX.md`, `state.json` e `WORK-ITEM.json` marcado `closed=true`, e retorna `HOTFIX-GO` apenas quando todos os campos obrigatórios estão presentes. Escopo com traversal/quebra de linha, ausência de evidência ou divergência de identidade falha fechado. Não consultar ROADMAP, BL, DQ, workflow global ou reconciliação para decidir segurança do hotfix; a Constituição continua obrigatória quando presente. O bundle deve registrar `hotfix.closed=true`; `HOTFIX-GO` revalida integridade, identidade, escopo e teste. Ship é externo. Reconciliação e auditoria documental completa são ações pós-ship.
 
 Feature/fix continuam em `PLAN_ONLY_STOP` e não ganham atalho de implementação.
 

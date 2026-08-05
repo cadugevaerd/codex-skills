@@ -395,7 +395,7 @@ def initial_files(root: Path, work_id: str, immutable: dict[str, Any]) -> dict[s
 def hotfix_files(root: Path, work_id: str, immutable: dict[str, Any], details: dict[str, str]) -> dict[str, bytes]:
     """Build a prepared, self-contained incident record with no roadmap dependencies."""
     files = {"HOTFIX.md": ("# HOTFIX-PREPARED\n\n" + "\n".join(f"- {key}: {value}" for key, value in details.items()) + "\n\n## Delivery boundary\n\nHOTFIX-GO requires the separate hotfix-go revalidation step. Reconciliation and full documentary audit are post-ship.\n").encode("utf-8")}
-    files["state.json"] = (json.dumps({"version": "2.1.1", "status": "prepared", "audit_verdict": "PREPARED", "mode": "hotfix", "work_id": work_id, "post_ship": ["reconcile", "full-document-audit"]}, ensure_ascii=False, sort_keys=True, indent=2) + "\n").encode("utf-8")
+    files["state.json"] = (json.dumps({"version": "1.1.0", "status": "prepared", "audit_verdict": "PREPARED", "mode": "hotfix", "work_id": work_id, "post_ship": ["reconcile", "full-document-audit"]}, ensure_ascii=False, sort_keys=True, indent=2) + "\n").encode("utf-8")
     files["CONSTITUTION-CHECK.md"] = check_document(immutable["constitution"], constitution_info(root)[2], pending=True)
     return files
 
@@ -420,7 +420,9 @@ def hotfix_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         if target.exists():
             bundle = read_local_bundle(root, target)
             validate_bundle_integrity(bundle)
-            if bundle.metadata.get("hotfix", {}).get("scope") != args.scope or bundle.metadata.get("scope", {}).get("paths") != scope_paths:
+            existing = bundle.metadata.get("hotfix", {})
+            requested = {**values, "closed": True, "test-timeout": args.test_timeout, "post_ship": ["reconcile", "full-document-audit"]}
+            if existing != requested or bundle.metadata.get("scope", {}).get("paths") != scope_paths or bundle.metadata.get("immutable", {}).get("slug") != args.slug:
                 raise CliFailure(EXIT_BLOCKED, "BLOCKED", "HOTFIX-IDENTITY-DIVERGENCE", work_id)
             return {"verdict": "HOTFIX-PREPARED", "status": "REUSED", "work_id": work_id, "path": str(target)}, EXIT_OK
         immutable = immutable_metadata(root, argparse.Namespace(type="hotfix", slug=args.slug, base_ref=args.base_ref), work_id)
@@ -482,6 +484,27 @@ def validate_scope(raw: str) -> list[str]:
         if not path or candidate.is_absolute() or any(part in {"", ".", ".."} for part in candidate.parts) or "\\" in path:
             raise CliFailure(EXIT_NO_GO, "NO-GO", "SCOPE-NOT-CLOSED", path or raw)
     return paths
+
+
+def changed_paths_from_base(root: Path, base_commit: str) -> set[str]:
+    if not isinstance(base_commit, str) or not re.fullmatch(r"[0-9a-f]{40}", base_commit):
+        raise CliFailure(EXIT_BLOCKED, "BLOCKED", "INVALID-BASE-COMMIT", str(base_commit))
+    output = run_git(root, "diff", "--name-only", "--diff-filter=ACDMRTUXB", base_commit, "HEAD")
+    status = run_git(root, "status", "--porcelain=v1", "--untracked-files=all")
+    paths = {line.strip() for line in output.splitlines() if line.strip()}
+    for line in status.splitlines():
+        if len(line) >= 4:
+            paths.add(line[3:].split(" -> ", 1)[-1])
+    return paths
+
+
+def validate_hotfix_scope_changes(root: Path, bundle: ItemBundle) -> None:
+    changed = changed_paths_from_base(root, bundle.metadata.get("immutable", {}).get("base_commit"))
+    allowed = set(bundle.metadata.get("scope", {}).get("paths", []))
+    allowed.add(f".grill/work-items/{bundle.work_id}")
+    outside = sorted(path for path in changed if not any(path == item or path.startswith(item.rstrip("/") + "/") for item in allowed))
+    if outside:
+        raise CliFailure(EXIT_NO_GO, "NO-GO", "HOTFIX-SCOPE-VIOLATION", ",".join(outside))
 
 
 def validate_bundle_integrity(bundle: ItemBundle) -> None:
@@ -758,6 +781,7 @@ def hotfix_go_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     bundle = read_local_bundle(root, item)
     validate_bundle_integrity(bundle)
     hotfix = validated_hotfix(bundle)
+    validate_hotfix_scope_changes(root, bundle)
     validate_constitution_check(root, bundle.files, bundle.metadata["immutable"].get("constitution", {}))
     command = hotfix.get("test-command")
     if not isinstance(command, str) or not command.strip():
@@ -766,6 +790,8 @@ def hotfix_go_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         argv = shlex.split(command)
     except ValueError as exc:
         raise CliFailure(EXIT_NO_GO, "NO-GO", "TEST-COMMAND-INVALID", str(exc)) from exc
+    if not argv:
+        raise CliFailure(EXIT_NO_GO, "NO-GO", "TEST-COMMAND-MISSING", args.work_id)
     timeout = hotfix.get("test-timeout", 30)
     if type(timeout) is not int or not 1 <= timeout <= 300:
         raise CliFailure(EXIT_BLOCKED, "BLOCKED", "INVALID-TEST-TIMEOUT", str(timeout))
@@ -791,6 +817,7 @@ def audit_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         if isinstance(probe, dict) and isinstance(probe.get("hotfix"), dict):
             bundle = read_external_bundle(item) if args.artifact_root else read_local_bundle(root, item)
             try:
+                validate_bundle_integrity(bundle)
                 hotfix = validated_hotfix(bundle)
             except CliFailure as failure:
                 return {"verdict": failure.verdict, "code": failure.code}, failure.exit_code
