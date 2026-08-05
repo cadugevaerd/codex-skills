@@ -108,7 +108,7 @@ python3 "${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/skills/grill-with-docs/scripts/gr
 
 Para artefatos externos ao checkout, use `--artifact-root PATH --project-root ROOT`. A auditoria valida a Constituição e chama o auditor decisório real com roots separados. Ela não chama `ensure_workflow.py`, não cria arquivos e compara fingerprints antes/depois.
 
-Exit codes: `0 GO`, `1 NO-GO`, `2 BLOCKED/uso`, `3 BLOCKED-CONSTITUTION`.
+Exit codes: `0 GO/MILESTONE-COMPLETE`, `1 NO-GO`, `2 BLOCKED/uso`, `3 BLOCKED-CONSTITUTION`.
 
 ## Reconciliação global
 
@@ -120,7 +120,7 @@ python3 .../grill_workspace.py reconcile ROOT \
   [--source-root OUTRA_WORKTREE] [--source-ref REF]
 ```
 
-O reconciliador lê bundles completos sem checkout e detecta: `work_id` duplicado divergente, sobreposição de escopo, dependência ausente/cíclica, conflito ADR declarado, estado não concluído e hash constitucional stale. IDs são qualificados globalmente.
+O reconciliador lê bundles completos sem checkout e detecta: `work_id` duplicado divergente, sobreposição de escopo, dependência ausente/cíclica, conflito ADR declarado, estado não concluído e hash constitucional stale. Só aceita milestone com `milestone_status=completed`, `state.status=complete`, `active_phase=null`, `audit_verdict=GO` e todas as fases do `execution-order` em `complete|superseded`. IDs são qualificados globalmente.
 
 O fluxo feature/fix termina em `PLAN_ONLY_STOP`; não use `reconcile` como continuação de um hotfix antes do ship externo. Aplicação exige branch de integração explícita, árvore limpa e zero conflitos:
 
@@ -146,9 +146,9 @@ A migração copia arquivos planos, `docs/adr|adrs` e `handoffs` para staging, p
 
 Hotfix-fast não lê nem altera ROADMAP/BL/DQ; sua saída é `HOTFIX-GO` somente com escopo fechado, evidência reproduzível, teste de correção, rollback e sem conflito constitucional real.
 
-A ordem vem de `execution-order`, não dos números de fase. Para `GO`, a fase selecionada deve ser a primeira incompleta, ter predecessores completos, nenhum BL aberto e handoff WHAT/WHY exclusivo. `PLAN-CONTEXT.md`, ADRs e `CONTEXT.md` fornecem HOW.
+A ordem vem de `execution-order`, não dos números de fase. Para `GO`, a fase selecionada deve ser a primeira incompleta, ter predecessores terminais (`complete|superseded`), nenhum BL aberto e handoff WHAT/WHY exclusivo. `PLAN-CONTEXT.md`, ADRs e `CONTEXT.md` fornecem HOW. Quando não resta fase incompleta, o estado terminal exige zero BL/DQ material aberto, `milestone_status=completed`, `state.status=complete`, `active_phase=null` e `audit_verdict=GO`; a auditoria emite `MILESTONE-COMPLETE`. Uma última fase `superseded` é conclusão legítima, não NO-GO por si só.
 
-Após auditoria `GO` e entrega do handoff, emita `PLAN_ONLY_STOP` e pare. Esse stop aplica-se somente a feature/fix; hotfix encerra em `hotfix.closed` e pode seguir para `HOTFIX-GO`. Agentes externos executarão `specify|plan` em outro ciclo. Após ship, marque a fase `complete`, reaudite e só então reconcilie globalmente.
+Após auditoria `GO` e entrega do handoff, emita `PLAN_ONLY_STOP` e pare. Esse stop aplica-se somente a feature/fix; hotfix encerra em `hotfix.closed` e pode seguir para `HOTFIX-GO`. Agentes externos executarão `specify|plan` em outro ciclo. Após ship, marque a fase entregue como `complete` ou a fase substituída como `superseded`; ao encerrar o milestone, grave o estado terminal, reaudite até `MILESTONE-COMPLETE` e só então reconcilie globalmente.
 
 ## Portabilidade do workspace
 

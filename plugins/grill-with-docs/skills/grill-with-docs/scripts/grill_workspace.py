@@ -990,6 +990,45 @@ def scan_qualified_ids(bundle: ItemBundle) -> set[str]:
     return ids
 
 
+def reconciliation_roadmap_is_terminal(files: dict[str, bytes]) -> bool:
+    raw = files.get("ROADMAP.md")
+    if raw is None:
+        return False
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeError:
+        return False
+    order_lines = [line for line in text.splitlines() if line.startswith("- execution-order:")]
+    if len(order_lines) != 1:
+        return False
+    raw_order = order_lines[0].split(":", 1)[1]
+    execution_order = [value.strip() for value in raw_order.split(",") if value.strip()]
+    if not execution_order or len(execution_order) != len(set(execution_order)) or any(PHASE_RE.fullmatch(value) is None for value in execution_order):
+        return False
+    phase_states: dict[str, str] = {}
+    seen_phases: set[str] = set()
+    current_phase: str | None = None
+    for line in text.splitlines():
+        heading = re.match(r"^##\s+(FASE-\d{3})\b", line)
+        if heading:
+            phase_id = heading.group(1)
+            if phase_id in seen_phases:
+                return False
+            seen_phases.add(phase_id)
+            current_phase = phase_id
+            continue
+        state_match = re.fullmatch(r"- state:\s*(\S+)\s*", line)
+        if state_match and current_phase:
+            if current_phase in phase_states:
+                return False
+            phase_states[current_phase] = state_match.group(1)
+    return (
+        seen_phases == set(execution_order)
+        and set(phase_states) == set(execution_order)
+        and all(phase_states[phase_id] in {"complete", "superseded"} for phase_id in execution_order)
+    )
+
+
 def validate_reconciliation(root: Path, bundles: list[ItemBundle]) -> tuple[dict[str, ItemBundle], list[str], list[str]]:
     unique: dict[str, ItemBundle] = {}
     conflicts: list[str] = []
@@ -1018,8 +1057,17 @@ def validate_reconciliation(root: Path, bundles: list[ItemBundle]) -> tuple[dict
             state = json.loads(state_raw.decode("utf-8")) if state_raw else {}
         except (UnicodeError, json.JSONDecodeError):
             state = {}
-        if state.get("status") != "complete" or state.get("audit_verdict") != "GO":
+        if not isinstance(state, dict):
+            state = {}
+        if (
+            state.get("status") != "complete"
+            or state.get("milestone_status") != "completed"
+            or state.get("active_phase") is not None
+            or state.get("audit_verdict") != "GO"
+        ):
             conflicts.append(f"STATE-NOT-RECONCILABLE:{work_id}")
+        if not reconciliation_roadmap_is_terminal(bundle.files):
+            conflicts.append(f"ROADMAP-NOT-TERMINAL:{work_id}")
         scopes[work_id] = normalized_scope(bundle.metadata, work_id)
         raw_deps = bundle.metadata.get("depends-on-work", [])
         if not isinstance(raw_deps, list) or not all(isinstance(value, str) for value in raw_deps):

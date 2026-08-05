@@ -38,6 +38,7 @@ BL_STATES = {"open", "resolved", "superseded"}
 DQ_STATES = {"open", "resolved", "deferred", "split", "blocked", "out-of-scope"}
 HOTFIX_REQUIRED = ("scope", "reproduction", "evidence", "correction-test", "rollback", "constitution-evidence")
 SESSION_STATES = {"in-progress", "ready", "blocked", "safety-stop", "paused-user", "complete"}
+MILESTONE_STATES = {"in-progress", "blocked", "completed"}
 
 
 @dataclass(frozen=True)
@@ -128,7 +129,7 @@ def state_path_matches(root: Path, raw: object, expected: Path) -> bool:
         return False
 
 
-def audit(root_arg: Path, project_root_arg: Path | None = None) -> tuple[list[str], list[str], str | None, Path | None]:
+def audit(root_arg: Path, project_root_arg: Path | None = None) -> tuple[list[str], list[str], str | None, Path | None, bool]:
     root = root_arg.resolve()
     project_root = (project_root_arg or root_arg).resolve()
     findings: list[str] = []
@@ -444,6 +445,7 @@ def audit(root_arg: Path, project_root_arg: Path | None = None) -> tuple[list[st
 
     ready = [phase_id for phase_id in execution_order if phases.get(phase_id) and phases[phase_id].state == "ready-for-specify"]
     incomplete = [phase_id for phase_id in execution_order if phases.get(phase_id) and phases[phase_id].state not in {"complete", "superseded"}]
+    terminal_milestone = bool(execution_order) and not incomplete
     blocked_phase: str | None = None
     selected_phase: str | None = None
     if len(ready) > 1:
@@ -454,10 +456,21 @@ def audit(root_arg: Path, project_root_arg: Path | None = None) -> tuple[list[st
             findings.append("ROADMAP: ready não é primeira incompleta")
     elif incomplete and phases[incomplete[0]].state == "blocked":
         blocked_phase = incomplete[0]
+    elif terminal_milestone:
+        pass
     else:
         findings.append("ROADMAP: zero ready não-blocked")
 
     active_phase = selected_phase or blocked_phase
+    if terminal_milestone:
+        terminal_open_bls = sorted(
+            bl_id
+            for phase in phases.values()
+            for bl_id in phase.bls
+            if backlog_items.get(bl_id, {}).get("state") == "open"
+        )
+        if terminal_open_bls:
+            findings.append(f"milestone terminal ligado a BL open: {', '.join(terminal_open_bls)}")
     if active_phase:
         phase = phases[active_phase]
         for dependency in phase.dependencies:
@@ -474,6 +487,8 @@ def audit(root_arg: Path, project_root_arg: Path | None = None) -> tuple[list[st
 
     if selected_phase and any(state in {"open", "blocked"} for state in dq_states.values()):
         findings.append("FRONTIER: DQ material open/blocked impede GO")
+    if terminal_milestone and any(state in {"open", "blocked"} for state in dq_states.values()):
+        findings.append("FRONTIER: DQ material open/blocked impede conclusão")
 
     state_data: dict[str, object] = {}
     if state_path and state_path.is_file():
@@ -492,7 +507,20 @@ def audit(root_arg: Path, project_root_arg: Path | None = None) -> tuple[list[st
             findings.append("state: version inválida")
         if state_data.get("status") not in SESSION_STATES:
             findings.append("state: status inválido")
-        if active_phase and state_data.get("active_phase") != active_phase:
+        milestone_status = state_data.get("milestone_status")
+        if milestone_status is not None and milestone_status not in MILESTONE_STATES:
+            findings.append("state: milestone_status inválido")
+        if terminal_milestone and milestone_status != "completed":
+            findings.append("state: milestone terminal exige milestone_status completed")
+        if not terminal_milestone and milestone_status == "completed":
+            findings.append("state: milestone_status completed exige todas as fases terminais")
+        if terminal_milestone and state_data.get("status") != "complete":
+            findings.append("state: milestone terminal exige status complete")
+        if terminal_milestone and state_data.get("active_phase") is not None:
+            findings.append("state: milestone terminal exige active_phase null")
+        if terminal_milestone and state_data.get("audit_verdict") != "GO":
+            findings.append("state: milestone terminal exige audit_verdict GO")
+        if not terminal_milestone and active_phase and state_data.get("active_phase") != active_phase:
             findings.append("state: active_phase divergence")
         if blocked_phase and state_data.get("audit_verdict") == "GO":
             findings.append("state: blocked não pode ter audit_verdict GO")
@@ -530,7 +558,7 @@ def audit(root_arg: Path, project_root_arg: Path | None = None) -> tuple[list[st
     unique_findings = sorted(set(findings))
     if unique_findings:
         blockers.clear()
-    return unique_findings, sorted(set(blockers)), selected_phase, selected_handoff
+    return unique_findings, sorted(set(blockers)), selected_phase, selected_handoff, terminal_milestone
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -548,7 +576,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     root = args.root.resolve()
     try:
-        findings, blockers, selected_phase, selected_handoff = audit(root, args.project_root)
+        findings, blockers, selected_phase, selected_handoff, terminal_milestone = audit(root, args.project_root)
     except UnicodeError:
         if not json_mode:
             print("NO-GO\n- invalid UTF-8 input")
@@ -574,6 +602,12 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print("BLOCKED\n" + "\n".join(f"- {blocker}" for blocker in blockers))
         return 2
+    if terminal_milestone:
+        if json_mode:
+            print(json.dumps({"verdict": "MILESTONE-COMPLETE", "code": "MILESTONE-COMPLETE", "selected_phase": None, "selected_handoff": ""}, ensure_ascii=False, sort_keys=True))
+        else:
+            print("MILESTONE-COMPLETE\nselected-phase: none\nselected-handoff:")
+        return 0
     relative_handoff = selected_handoff.relative_to(root).as_posix() if selected_handoff else ""
     if json_mode:
         print(json.dumps({"verdict": "GO", "code": "OK", "selected_phase": selected_phase, "selected_handoff": relative_handoff}, ensure_ascii=False, sort_keys=True))

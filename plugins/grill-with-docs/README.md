@@ -1,4 +1,4 @@
-# grill-with-docs v2.1.2 — Delivery First
+# grill-with-docs v2.1.3 — Delivery First
 
 Plugin plan-only para entrevistar decisões arquiteturais sem colisão entre worktrees.
 
@@ -6,7 +6,7 @@ Plugin plan-only para entrevistar decisões arquiteturais sem colisão entre wor
 feature/fix → .grill/work-items/<work-id>/ → audit → PLAN_ONLY_STOP
 hotfix/incident → .grill/work-items/<work-id>/ → HOTFIX-GO (ship externo)
                                                          │
-ship externo → complete/GO ─────────────────────────────┴→ reconcile → .grill/global/
+ship externo → fases complete|superseded → MILESTONE-COMPLETE → reconcile → .grill/global/
 ```
 
 ## Hotfix-fast / incidente
@@ -29,7 +29,7 @@ python3 "$CORE" hotfix-go "$PWD" --work-id <work-id>
 python3 "$CORE" audit "$PWD" --work-id <work-id>
 ```
 
-Após o `PLAN_ONLY_STOP`, faça o ship externamente. Quando a fase estiver `complete` e a auditoria retornar `GO`, gere o preview de reconciliação:
+Após o `PLAN_ONLY_STOP`, faça o ship externamente. Uma fase entregue fica `complete`; uma fase legitimamente substituída fica `superseded`. Quando todas as fases estiverem em um desses estados e não houver BL/DQ material aberto, grave `milestone_status=completed`, `state.status=complete`, `active_phase=null` e `audit_verdict=GO`; a auditoria retorna `MILESTONE-COMPLETE`. Então gere o preview de reconciliação:
 
 ```bash
 python3 "$CORE" reconcile "$PWD" --source-root ../outra-worktree
@@ -54,7 +54,7 @@ python3 "$CORE" migrate "$PWD" --type fix --slug migracao --apply
 - `WORKFLOW.md` e a Constituição são project-wide.
 - Constituição ausente é `not-present`; presente é read-only e inviolável.
 - `CONSTITUTION-CHECK.md` exige cobertura por cláusula, evidência e justificativa.
-- Auditoria, hooks e reconcile preview são read-only; reconcile só ocorre depois de `PLAN_ONLY_STOP` e do ship externo com fase `complete`/auditoria `GO`.
+- Auditoria, hooks e reconcile preview são read-only; reconcile só ocorre depois de `PLAN_ONLY_STOP` e do ship externo, com milestone terminal `MILESTONE-COMPLETE`.
 - O global é projeção determinística; nunca é fonte de verdade.
 - IDs locais tornam-se `<work-id>/<ID>` na projeção.
 - A sessão encerra em `PLAN_ONLY_STOP`, antes de implementação.
@@ -63,7 +63,7 @@ python3 "$CORE" migrate "$PWD" --type fix --slug migracao --apply
 
 | Código | Resultado |
 |---:|---|
-| 0 | GO, PREVIEW, APPLIED, CREATED ou REUSED |
+| 0 | GO, MILESTONE-COMPLETE, PREVIEW, APPLIED, CREATED ou REUSED |
 | 1 | NO-GO |
 | 2 | BLOCKED ou erro de uso |
 | 3 | BLOCKED-CONSTITUTION |
