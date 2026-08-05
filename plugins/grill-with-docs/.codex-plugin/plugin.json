@@ -1,12 +1,25 @@
 {
   "name": "grill-with-docs",
-  "version": "2.0.1",
-  "description": "Isola um grill por feature/fix/hotfix, aplica gate constitucional read-only e encerra em PLAN_ONLY_STOP; após ship externo e complete/GO, reconcilia o ROADMAP global.",
-  "author": {"name": "Carlos Araujo", "email": "cadu.gevaerd@gmail.com", "url": "https://github.com/cadugevaerd"},
+  "version": "2.1.1",
+  "description": "Entrega hotfixes por uma faixa rápida e verificável (HOTFIX-PREPARED → HOTFIX-GO), mantendo planejamento arquitetural em PLAN_ONLY_STOP.",
+  "author": {
+    "name": "Carlos Araujo",
+    "email": "cadu.gevaerd@gmail.com",
+    "url": "https://github.com/cadugevaerd"
+  },
   "homepage": "https://github.com/cadugevaerd/codex-skills",
   "repository": "https://github.com/cadugevaerd/codex-skills",
   "license": "MIT",
-  "keywords": ["architecture", "adr", "decision-log", "worktree", "constitution", "roadmap", "audit", "reconciliation"],
+  "keywords": [
+    "architecture",
+    "adr",
+    "decision-log",
+    "worktree",
+    "constitution",
+    "roadmap",
+    "audit",
+    "reconciliation"
+  ],
   "skills": "./skills/",
   "interface": {
     "displayName": "Grill with Docs",
@@ -14,7 +27,23 @@
     "longDescription": "Mantém artefatos por feature/fix/hotfix em .grill/work-items, valida a Constituição sem modificá-la e agrega somente trabalhos concluídos em uma projeção global determinística.",
     "developerName": "Carlos Araujo",
     "category": "Development",
-    "capabilities": ["Isolated Work Items", "Architecture Interview", "Constitution Gate", "Decision Audit", "Worktree Reconciliation", "Legacy Migration"],
-    "defaultPrompt": ["/grill-with-docs iniciar type=feature slug=minha-feature", "/grill-with-docs retomar work-id=<id>", "/grill-with-docs auditar work-id=<id>", "/grill-with-docs conciliar"]
+    "capabilities": [
+      "Isolated Work Items",
+      "Architecture Interview",
+      "Constitution Gate",
+      "Decision Audit",
+      "Worktree Reconciliation",
+      "Legacy Migration",
+      "Delivery First Hotfix"
+    ],
+    "defaultPrompt": [
+      "/grill-with-docs iniciar type=feature slug=minha-feature",
+      "/grill-with-docs iniciar type=fix slug=correcao",
+      "/grill-with-docs hotfix slug=incidente",
+      "/grill-with-docs hotfix-go work-id=<id>",
+      "/grill-with-docs retomar work-id=<id>",
+      "/grill-with-docs auditar work-id=<id>",
+      "/grill-with-docs conciliar"
+    ]
   }
 }

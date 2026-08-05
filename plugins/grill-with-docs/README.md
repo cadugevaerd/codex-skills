@@ -1,18 +1,31 @@
-# grill-with-docs v2
+# grill-with-docs v2.1.1 — Delivery First
 
 Plugin plan-only para entrevistar decisões arquiteturais sem colisão entre worktrees.
 
 ```text
-feature/fix/hotfix → .grill/work-items/<work-id>/ → audit → PLAN_ONLY_STOP
+feature/fix → .grill/work-items/<work-id>/ → audit → PLAN_ONLY_STOP
+hotfix/incident → .grill/work-items/<work-id>/ → HOTFIX-GO (ship externo)
                                                          │
 ship externo → complete/GO ─────────────────────────────┴→ reconcile → .grill/global/
 ```
+
+## Hotfix-fast / incidente
+
+```bash
+python3 "$CORE" hotfix "$PWD" --slug auth-timeout --scope src/auth.py --reproduction "curl /login returns 500" --evidence "incident-2026-08-05.log" --correction-test "tests/test_auth.py::test_timeout" --rollback "revert commit X" --constitution-evidence evidence/constitution.txt --test-command "python3 -c 'raise SystemExit(0)'" --test-timeout 30
+python3 "$CORE" hotfix-go "$PWD" --work-id <work-id>
+python3 "$CORE" audit "$PWD" --work-id <work-id>
+```
+
+``hotfix` retorna HOTFIX-PREPARED; `hotfix-go` revalida e executa o teste antes de emitir HOTFIX-GO. HOTFIX-GO é autocontido e fail-closed; não exige ROADMAP/BL/DQ/reconciliação para segurança. Full audit e reconciliação são pós-ship. Feature/fix continuam `PLAN_ONLY_STOP`.
 
 ## Início rápido
 
 ```bash
 CORE="$PLUGIN_ROOT/skills/grill-with-docs/scripts/grill_workspace.py"
 python3 "$CORE" init "$PWD" --type feature --slug minha-feature
+# Feature/fix são plan-only e encerram em PLAN_ONLY_STOP; apenas hotfix usa hotfix-go.
+python3 "$CORE" hotfix-go "$PWD" --work-id <work-id>
 python3 "$CORE" audit "$PWD" --work-id <work-id>
 ```
 

@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 import re
+import shlex
 import shutil
 import socket
 import subprocess
@@ -391,6 +392,73 @@ def initial_files(root: Path, work_id: str, immutable: dict[str, Any]) -> dict[s
     return files
 
 
+def hotfix_files(root: Path, work_id: str, immutable: dict[str, Any], details: dict[str, str]) -> dict[str, bytes]:
+    """Build a prepared, self-contained incident record with no roadmap dependencies."""
+    files = {"HOTFIX.md": ("# HOTFIX-PREPARED\n\n" + "\n".join(f"- {key}: {value}" for key, value in details.items()) + "\n\n## Delivery boundary\n\nHOTFIX-GO requires the separate hotfix-go revalidation step. Reconciliation and full documentary audit are post-ship.\n").encode("utf-8")}
+    files["state.json"] = (json.dumps({"version": "1.1.0", "status": "prepared", "audit_verdict": "PREPARED", "mode": "hotfix", "work_id": work_id, "post_ship": ["reconcile", "full-document-audit"]}, ensure_ascii=False, sort_keys=True, indent=2) + "\n").encode("utf-8")
+    files["CONSTITUTION-CHECK.md"] = check_document(immutable["constitution"], constitution_info(root)[2], pending=True)
+    return files
+
+
+def hotfix_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
+    root = project_root(args.root)
+    if not SLUG_RE.fullmatch(args.slug):
+        raise CliFailure(EXIT_BLOCKED, "BLOCKED", "INVALID-IDENTITY", "slug invalid")
+    values = {"scope": args.scope, "reproduction": args.reproduction, "evidence": args.evidence, "correction-test": args.correction_test, "rollback": args.rollback, "constitution-evidence": args.constitution_evidence, "test-command": args.test_command}
+    if any(not value.strip() for value in values.values()):
+        raise CliFailure(EXIT_NO_GO, "NO-GO", "HOTFIX-INCOMPLETE", "all hotfix evidence fields are required")
+    scope_paths = validate_scope(args.scope)
+    if args.test_timeout < 1 or args.test_timeout > 300:
+        raise CliFailure(EXIT_BLOCKED, "BLOCKED", "INVALID-TEST-TIMEOUT", str(args.test_timeout))
+        raise CliFailure(EXIT_NO_GO, "NO-GO", "SCOPE-NOT-CLOSED", "scope contains traversal or line break")
+    work_id = args.work_id or f"hotfix-{args.slug}-{uuid.uuid4().hex}"
+    if not WORK_ID_RE.fullmatch(work_id):
+        raise CliFailure(EXIT_BLOCKED, "BLOCKED", "INVALID-WORK-ID", work_id)
+    target = root / ".grill" / "work-items" / work_id
+    lock = acquire_lock(root, work_id, target, reuse_if_target_exists=True)
+    try:
+        if target.exists():
+            bundle = read_local_bundle(root, target)
+            validate_bundle_integrity(bundle)
+            existing = bundle.metadata.get("hotfix", {})
+            requested = {**values, "closed": True, "test-timeout": args.test_timeout, "post_ship": ["reconcile", "full-document-audit"]}
+            if existing != requested or bundle.metadata.get("scope", {}).get("paths") != scope_paths or bundle.metadata.get("immutable", {}).get("slug") != args.slug:
+                raise CliFailure(EXIT_BLOCKED, "BLOCKED", "HOTFIX-IDENTITY-DIVERGENCE", work_id)
+            return {"verdict": "HOTFIX-PREPARED", "status": "REUSED", "work_id": work_id, "path": str(target)}, EXIT_OK
+        immutable = immutable_metadata(root, argparse.Namespace(type="hotfix", slug=args.slug, base_ref=args.base_ref), work_id)
+        constitution = immutable["constitution"]
+        if constitution.get("state") == "present":
+            evidence = Path(args.constitution_evidence)
+            if evidence.is_absolute() or any(part in {"", ".", ".."} for part in evidence.parts):
+                raise CliFailure(EXIT_NO_GO, "NO-GO", "INVALID-CONSTITUTION-EVIDENCE", args.constitution_evidence)
+            evidence_path = root / evidence
+            text = safe_read(evidence_path, root=root, utf8=True)
+            if not isinstance(text, str) or not text.strip():
+                raise CliFailure(EXIT_NO_GO, "NO-GO", "INVALID-CONSTITUTION-EVIDENCE", args.constitution_evidence)
+            values["constitution-evidence"] = json.dumps({"path": evidence.as_posix(), "sha256": hash_bytes(text.encode("utf-8"))}, sort_keys=True)
+        else:
+            values["constitution-evidence"] = "not-present"
+        files = hotfix_files(root, work_id, immutable, values)
+        if immutable["constitution"].get("state") == "present":
+            evidence = json.loads(values["constitution-evidence"])
+            payload = {"constitution_state": "present", "constitution_sha256": immutable["constitution"]["sha256"], "clauses": [{"id": clause["id"], "heading": clause["heading"], "status": "PASS", "evidence": [evidence["path"] + "#" + evidence["sha256"]], "justification": "constitution evidence recorded reproducibly"} for clause in constitution_info(root)[2]]}
+            files["CONSTITUTION-CHECK.md"] = ("# Constitution Check\n\n" + CHECK_START + "\n```json\n" + json.dumps(payload, ensure_ascii=False, sort_keys=True, indent=2) + "\n```\n" + CHECK_END + "\n").encode("utf-8")
+        metadata = metadata_document(immutable, files)
+        metadata["scope"] = {"paths": scope_paths}
+        metadata["hotfix"] = {**values, "closed": True, "test-timeout": args.test_timeout, "post_ship": ["reconcile", "full-document-audit"]}
+        metadata["hotfix_sha256"] = hash_bytes(canonical(metadata["hotfix"]))
+        staging = write_bundle_staging(root, work_id, metadata, files)
+        try:
+            rename_child(target.parent, staging, target)
+        except Exception:
+            shutil.rmtree(staging, ignore_errors=True)
+            raise
+        return {"verdict": "HOTFIX-PREPARED", "status": "CREATED", "work_id": work_id, "path": str(target), "mode": "hotfix-fast", "post_ship": metadata["hotfix"]["post_ship"]}, EXIT_OK
+    finally:
+        if lock is not None:
+            shutil.rmtree(lock, ignore_errors=True)
+
+
 def metadata_document(immutable: dict[str, Any], files: dict[str, bytes], *, migration: dict[str, Any] | None = None) -> dict[str, Any]:
     result: dict[str, Any] = {
         "schema": "grill-work-item/v2",
@@ -404,6 +472,58 @@ def metadata_document(immutable: dict[str, Any], files: dict[str, bytes], *, mig
     if migration:
         result["migration"] = migration
     return result
+
+
+
+def validate_scope(raw: str) -> list[str]:
+    if not isinstance(raw, str) or not raw.strip() or "\n" in raw or "\r" in raw:
+        raise CliFailure(EXIT_NO_GO, "NO-GO", "SCOPE-NOT-CLOSED", "scope contains line break or is empty")
+    paths = [part.strip() for part in raw.split(",")]
+    for path in paths:
+        candidate = Path(path)
+        if not path or candidate.is_absolute() or any(part in {"", ".", ".."} for part in candidate.parts) or "\\" in path:
+            raise CliFailure(EXIT_NO_GO, "NO-GO", "SCOPE-NOT-CLOSED", path or raw)
+    return paths
+
+
+def changed_paths_from_base(root: Path, base_commit: str) -> set[str]:
+    if not isinstance(base_commit, str) or not re.fullmatch(r"[0-9a-f]{40}", base_commit):
+        raise CliFailure(EXIT_BLOCKED, "BLOCKED", "INVALID-BASE-COMMIT", str(base_commit))
+    output = run_git(root, "diff", "--name-only", "--diff-filter=ACDMRTUXB", base_commit, "HEAD")
+    status = run_git(root, "status", "--porcelain=v1", "--untracked-files=all")
+    paths = {line.strip() for line in output.splitlines() if line.strip()}
+    for line in status.splitlines():
+        if len(line) >= 4:
+            paths.add(line[3:].split(" -> ", 1)[-1])
+    return paths
+
+
+def validate_hotfix_scope_changes(root: Path, bundle: ItemBundle) -> None:
+    changed = changed_paths_from_base(root, bundle.metadata.get("immutable", {}).get("base_commit"))
+    allowed = set(bundle.metadata.get("scope", {}).get("paths", []))
+    allowed.add(f".grill/work-items/{bundle.work_id}")
+    outside = sorted(path for path in changed if not any(path == item or path.startswith(item.rstrip("/") + "/") for item in allowed))
+    if outside:
+        raise CliFailure(EXIT_NO_GO, "NO-GO", "HOTFIX-SCOPE-VIOLATION", ",".join(outside))
+
+
+def validate_bundle_integrity(bundle: ItemBundle) -> None:
+    expected = bundle.metadata.get("initial_artifacts")
+    actual = {path: hash_bytes(data) for path, data in sorted(bundle.files.items()) if path != "WORK-ITEM.json"}
+    if not isinstance(expected, dict) or expected != actual:
+        raise CliFailure(EXIT_BLOCKED, "BLOCKED", "BUNDLE-INTEGRITY", bundle.work_id)
+
+
+def validated_hotfix(bundle: ItemBundle) -> dict[str, Any]:
+    hotfix = bundle.metadata.get("hotfix")
+    if not isinstance(hotfix, dict) or bundle.metadata.get("hotfix_sha256") != hash_bytes(canonical(hotfix)):
+        raise CliFailure(EXIT_BLOCKED, "BLOCKED", "HOTFIX-METADATA-TAMPERED", bundle.work_id)
+    if hotfix.get("closed") is not True:
+        raise CliFailure(EXIT_NO_GO, "NO-GO", "HOTFIX-INCOMPLETE", bundle.work_id)
+    scope = validate_scope(hotfix.get("scope", ""))
+    if bundle.metadata.get("scope", {}).get("paths") != scope:
+        raise CliFailure(EXIT_BLOCKED, "BLOCKED", "HOTFIX-SCOPE-DIVERGENCE", bundle.work_id)
+    return hotfix
 
 
 def validate_metadata(metadata: dict[str, Any], expected_work_id: str | None = None) -> dict[str, Any]:
@@ -654,8 +774,70 @@ def init_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             shutil.rmtree(lock, ignore_errors=True)
 
 
+
+def hotfix_go_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
+    root = project_root(args.root)
+    item = root / ".grill" / "work-items" / args.work_id
+    bundle = read_local_bundle(root, item)
+    validate_bundle_integrity(bundle)
+    hotfix = validated_hotfix(bundle)
+    validate_hotfix_scope_changes(root, bundle)
+    validate_constitution_check(root, bundle.files, bundle.metadata["immutable"].get("constitution", {}))
+    command = hotfix.get("test-command")
+    if not isinstance(command, str) or not command.strip():
+        raise CliFailure(EXIT_NO_GO, "NO-GO", "TEST-COMMAND-MISSING", args.work_id)
+    try:
+        argv = shlex.split(command)
+    except ValueError as exc:
+        raise CliFailure(EXIT_NO_GO, "NO-GO", "TEST-COMMAND-INVALID", str(exc)) from exc
+    if not argv:
+        raise CliFailure(EXIT_NO_GO, "NO-GO", "TEST-COMMAND-MISSING", args.work_id)
+    timeout = hotfix.get("test-timeout", 30)
+    if type(timeout) is not int or not 1 <= timeout <= 300:
+        raise CliFailure(EXIT_BLOCKED, "BLOCKED", "INVALID-TEST-TIMEOUT", str(timeout))
+    try:
+        process = subprocess.run(argv, cwd=root, capture_output=True, text=True, check=False, timeout=timeout, shell=False)
+        output = ((process.stdout or "") + (process.stderr or ""))[:4096]
+        if process.returncode != 0:
+            return {"verdict": "NO-GO", "code": "CORRECTION-TEST-FAILED", "returncode": process.returncode, "output": output}, EXIT_NO_GO
+    except subprocess.TimeoutExpired as exc:
+        output = ((exc.stdout or "") if isinstance(exc.stdout, str) else "")[:4096]
+        return {"verdict": "NO-GO", "code": "CORRECTION-TEST-TIMEOUT", "output": output}, EXIT_NO_GO
+    return {"verdict": "HOTFIX-GO", "code": "HOTFIX-GO", "work_id": args.work_id, "test": {"returncode": 0, "output": output}}, EXIT_OK
+
+
 def audit_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     root = project_root(args.project_root or args.root)
+    item = Path(os.path.abspath(args.artifact_root)) if args.artifact_root else root / ".grill" / "work-items" / args.work_id
+    if item.is_dir() and (item / "WORK-ITEM.json").is_file():
+        try:
+            probe = json.loads((item / "WORK-ITEM.json").read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            probe = {}
+        if isinstance(probe, dict) and isinstance(probe.get("hotfix"), dict):
+            bundle = read_external_bundle(item) if args.artifact_root else read_local_bundle(root, item)
+            try:
+                validate_bundle_integrity(bundle)
+                hotfix = validated_hotfix(bundle)
+            except CliFailure as failure:
+                return {"verdict": failure.verdict, "code": failure.code}, failure.exit_code
+            required = ("scope", "reproduction", "evidence", "correction-test", "rollback", "constitution-evidence")
+            missing = [key for key in required if not isinstance(hotfix.get(key), str) or not hotfix[key].strip()]
+            if missing or hotfix.get("closed") is not True:
+                return {"verdict": "NO-GO", "code": "HOTFIX-INCOMPLETE", "missing": missing}, EXIT_NO_GO
+            try:
+                scope_paths = validate_scope(hotfix["scope"])
+            except CliFailure:
+                return {"verdict": "NO-GO", "code": "SCOPE-NOT-CLOSED"}, EXIT_NO_GO
+            if bundle.metadata.get("scope", {}).get("paths") != scope_paths:
+                return {"verdict": "NO-GO", "code": "SCOPE-METADATA-DIVERGENCE"}, EXIT_NO_GO
+            try:
+                constitutional = validate_constitution_check(root, bundle.files, bundle.metadata["immutable"].get("constitution", {}))
+            except CliFailure as failure:
+                return {"verdict": "BLOCKED-CONSTITUTION", "code": failure.code}, EXIT_CONSTITUTION
+            return {"verdict": "HOTFIX-PREPARED", "code": "HOTFIX-PREPARED", "work_id": bundle.work_id,
+                    "scope": hotfix["scope"], "constitutional": constitutional,
+                    "post_ship": hotfix.get("post_ship", ["reconcile", "full-document-audit"])}, EXIT_OK
     if not args.artifact_root and not args.work_id:
         raise CliFailure(EXIT_BLOCKED, "BLOCKED", "INVALID-ARGUMENTS", "--work-id or --artifact-root is required")
     item = Path(os.path.abspath(args.artifact_root)) if args.artifact_root else root / ".grill" / "work-items" / args.work_id
@@ -1066,6 +1248,22 @@ def build_parser() -> JsonParser:
     reconcile_parser.add_argument("--source-ref", action="append", default=[])
     reconcile_parser.add_argument("--apply", action="store_true")
     reconcile_parser.add_argument("--integration-branch")
+    hotfix_parser = subparsers.add_parser("hotfix")
+    hotfix_parser.add_argument("root")
+    hotfix_parser.add_argument("--slug", required=True)
+    hotfix_parser.add_argument("--scope", required=True)
+    hotfix_parser.add_argument("--reproduction", required=True)
+    hotfix_parser.add_argument("--evidence", required=True)
+    hotfix_parser.add_argument("--correction-test", required=True, dest="correction_test")
+    hotfix_parser.add_argument("--rollback", required=True)
+    hotfix_parser.add_argument("--constitution-evidence", required=True, dest="constitution_evidence")
+    hotfix_parser.add_argument("--test-command", required=True, dest="test_command")
+    hotfix_parser.add_argument("--test-timeout", type=int, default=30, dest="test_timeout")
+    hotfix_parser.add_argument("--work-id")
+    hotfix_parser.add_argument("--base-ref")
+    go_parser = subparsers.add_parser("hotfix-go")
+    go_parser.add_argument("root")
+    go_parser.add_argument("--work-id", required=True)
     migrate_parser = subparsers.add_parser("migrate")
     migrate_parser.add_argument("root")
     migrate_parser.add_argument("--type", required=True)
@@ -1084,6 +1282,8 @@ def main(argv: list[str] | None = None) -> int:
             "audit": audit_command,
             "reconcile": reconcile_command,
             "migrate": migrate_command,
+            "hotfix": hotfix_command,
+            "hotfix-go": hotfix_go_command,
         }
         payload, exit_code = handlers[args.command](args)
     except CliFailure as failure:

@@ -541,5 +541,54 @@ class WorkspaceV2Contract(unittest.TestCase):
         self.assertFalse((broken_directory / ".grill/work-items/broken-dir").exists())
 
 
+    def test_hotfix_fast_is_self_contained_and_feature_remains_plan_only(self) -> None:
+        args = ("hotfix", self.root, "--slug", "incident", "--scope", "src/auth.py",
+                "--reproduction", "curl /login => 500", "--evidence", "incident.log",
+                "--correction-test", "tests/auth.py::test_timeout", "--rollback", "revert abc",
+                "--constitution-evidence", "not-applicable", "--test-command", f"{sys.executable} -c 'pass'",
+                "--work-id", "hotfix-incident")
+        process, payload = invoke(*args)
+        self.assertEqual((process.returncode, payload["verdict"]), (0, "HOTFIX-PREPARED"))
+        item = self.root / ".grill/work-items/hotfix-incident"
+        self.assertTrue((item / "HOTFIX.md").is_file())
+        audit, audited = invoke("audit", self.root, "--work-id", "hotfix-incident")
+        self.assertEqual((audit.returncode, audited["verdict"]), (0, "HOTFIX-PREPARED"))
+        go, released = invoke("hotfix-go", self.root, "--work-id", "hotfix-incident")
+        self.assertEqual((go.returncode, released["verdict"]), (0, "HOTFIX-GO"))
+        self.assertFalse((self.root / ".grill/global").exists())
+        bad, bad_payload = invoke("hotfix", self.root, "--slug", "bad", "--scope", "../escape",
+                                  "--reproduction", "r", "--evidence", "e", "--correction-test", "t",
+                                  "--rollback", "b", "--constitution-evidence", "c", "--test-command", "true")
+        self.assertEqual((bad.returncode, bad_payload["code"]), (1, "SCOPE-NOT-CLOSED"))
+
+
+    def test_hotfix_fast_rejects_failed_test_timeout_and_tampered_bundle(self) -> None:
+        base = ("hotfix", self.root, "--slug", "failure", "--scope", "src/api.py",
+                "--reproduction", "500", "--evidence", "incident.log", "--correction-test", "tests/test_api.py",
+                "--rollback", "git revert", "--constitution-evidence", "not-applicable", "--work-id", "hotfix-failure")
+        failed, _ = invoke(*base, "--test-command", f"{sys.executable} -c 'import sys; sys.exit(7)'")
+        self.assertEqual(failed.returncode, 0)
+        go_failed, failed_payload = invoke("hotfix-go", self.root, "--work-id", "hotfix-failure")
+        self.assertEqual((go_failed.returncode, failed_payload["code"]), (1, "CORRECTION-TEST-FAILED"))
+        timeout_root = self._new_repo()
+        timeout, _ = invoke("hotfix", timeout_root, "--slug", "timeout", "--scope", "src/timeout.py",
+                            "--reproduction", "500", "--evidence", "incident.log", "--correction-test", "tests/test_timeout.py",
+                            "--rollback", "git revert", "--constitution-evidence", "not-applicable", "--work-id", "hotfix-timeout",
+                            "--test-command", f"{sys.executable} -c 'import time; time.sleep(2)'", "--test-timeout", "1")
+        self.assertEqual(timeout.returncode, 0)
+        go_timeout, timeout_payload = invoke("hotfix-go", timeout_root, "--work-id", "hotfix-timeout")
+        self.assertEqual((go_timeout.returncode, timeout_payload["code"]), (1, "CORRECTION-TEST-TIMEOUT"))
+        newline, newline_payload = invoke("hotfix", self.root, "--slug", "newline", "--scope", "src/api.py\nother.py",
+                                          "--reproduction", "500", "--evidence", "incident.log", "--correction-test", "t",
+                                          "--rollback", "git revert", "--constitution-evidence", "not-applicable", "--test-command", "true")
+        self.assertEqual((newline.returncode, newline_payload["code"]), (1, "SCOPE-NOT-CLOSED"))
+        item = self.root / ".grill/work-items/hotfix-failure/WORK-ITEM.json"
+        data = json.loads(item.read_text(encoding="utf-8"))
+        data["hotfix"]["test-command"] = f"{sys.executable} -c 'pass'"
+        item.write_text(json.dumps(data), encoding="utf-8")
+        tampered, tampered_payload = invoke("hotfix-go", self.root, "--work-id", "hotfix-failure")
+        self.assertEqual((tampered.returncode, tampered_payload["code"]), (2, "HOTFIX-METADATA-TAMPERED"))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -25,5 +25,6 @@
   },
   "depends-on-work": [],
   "conflicts-with-adrs": [],
-  "initial_artifacts": {}
+  "initial_artifacts": {},
+  "hotfix": null
 }

@@ -35,6 +35,8 @@ ESSENTIAL = (
     "Spec Kit >=0.11.2",
     "A–E",
     "no PR",
+    "hotfix-fast",
+    "HOTFIX-GO",
 )
 
 
