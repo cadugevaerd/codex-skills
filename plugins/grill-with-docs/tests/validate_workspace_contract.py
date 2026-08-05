@@ -14,6 +14,7 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest import mock
 from pathlib import Path
 
 PLUGIN = Path(__file__).resolve().parents[1]
@@ -21,6 +22,25 @@ SCRIPT = PLUGIN / "skills/grill-with-docs/scripts/grill_workspace.py"
 WORKFLOW_TEMPLATE = PLUGIN / "skills/grill-with-docs/assets/WORKFLOW.template.md"
 CHECK_START = "<!-- grill-constitution-check:start -->"
 CHECK_END = "<!-- grill-constitution-check:end -->"
+
+
+def symlink_supported() -> bool:
+    with tempfile.TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        target = root / "target"
+        target.mkdir()
+        try:
+            (root / "link").symlink_to(target, target_is_directory=True)
+        except (OSError, NotImplementedError):
+            return False
+        return True
+
+
+SYMLINK_SUPPORTED = symlink_supported()
+
+
+def python_test_command(code: str) -> str:
+    return subprocess.list2cmdline([sys.executable, "-c", code])
 
 
 def load_workspace_module():
@@ -154,6 +174,61 @@ class WorkspaceV2Contract(unittest.TestCase):
         self._write_check(item, value)
         return value
 
+    def test_rename_child_fallback_does_not_open_when_capability_is_unavailable(self):
+        module = load_workspace_module()
+        with tempfile.TemporaryDirectory() as temporary:
+            parent = Path(temporary); source = parent / "source"; target = parent / "target"
+            source.mkdir()
+            with mock.patch.object(module.os, "supports_dir_fd", set()), mock.patch.object(module.os, "open", side_effect=AssertionError("open called")):
+                module.rename_child(parent, source, target)
+            self.assertTrue(target.is_dir())
+
+    def test_rename_child_moves_directory_and_rejects_preexisting_target(self):
+        module = load_workspace_module()
+        with tempfile.TemporaryDirectory() as temporary:
+            parent = Path(temporary); source = parent / "source"; target = parent / "target"
+            source.mkdir(); module.rename_child(parent, source, target)
+            self.assertFalse(source.exists()); self.assertTrue(target.is_dir())
+            source.mkdir(); (target / "keep").write_text("keep")
+            with self.assertRaises(OSError): module.rename_child(parent, source, target)
+            self.assertTrue(source.is_dir()); self.assertEqual((target / "keep").read_text(), "keep")
+
+    def test_rename_child_protected_branch_uses_dirfd_and_flags(self):
+        module = load_workspace_module()
+        if not hasattr(module.os, "O_DIRECTORY") or not hasattr(module.os, "O_NOFOLLOW"): self.skipTest("unsupported")
+        original_supports = module.os.supports_dir_fd
+        with tempfile.TemporaryDirectory() as temporary:
+            parent = Path(temporary); source = parent / "source"; target = parent / "target"; source.mkdir()
+            real_open = module.os.open
+            with mock.patch.object(module, "_rename_dirfd_capable", return_value=True), mock.patch.object(module.os, "open", wraps=real_open) as opened, mock.patch.object(module.os, "rename", wraps=module.os.rename) as renamed:
+                module.rename_child(parent, source, target)
+            self.assertTrue(opened.call_args.args[1] & module.os.O_DIRECTORY); self.assertTrue(opened.call_args.args[1] & module.os.O_NOFOLLOW)
+            self.assertEqual(renamed.call_args.kwargs["src_dir_fd"], renamed.call_args.kwargs["dst_dir_fd"])
+
+    def test_unexpected_permission_error_is_filesystem_json_with_context(self):
+        module = load_workspace_module(); error = PermissionError(13, "denied", "source"); error.filename2 = "target"
+        with mock.patch.object(module, "init_command", side_effect=error), mock.patch.object(module, "build_parser") as parser:
+            parser.return_value.parse_args.return_value.command = "init"
+            with mock.patch("builtins.print") as output:
+                self.assertEqual(module.main(["init", str(self.root), "--type", "feature", "--slug", "alpha"]), module.EXIT_BLOCKED)
+            payload = json.loads(output.call_args.args[0])
+        self.assertEqual(payload, {"verdict": "BLOCKED", "code": "FILESYSTEM", "error": "[Errno 13] denied: 'source' -> 'target'", "errno": 13, "path": "source", "path2": "target"})
+
+    def test_filesystem_json_normalizes_byte_paths_and_native_command_parsing(self):
+        module = load_workspace_module()
+        error = OSError(5, "io", b"\xffsource"); error.filename2 = b"\xfetarget"
+        with mock.patch.object(module, "init_command", side_effect=error), mock.patch.object(module, "build_parser") as parser:
+            parser.return_value.parse_args.return_value.command = "init"
+            with mock.patch("builtins.print") as output:
+                self.assertEqual(module.main(["init", str(self.root), "--type", "feature", "--slug", "alpha"]), module.EXIT_BLOCKED)
+            line = output.call_args.args[0]
+        payload = json.loads(line)
+        self.assertEqual(payload["path"], "\\xffsource")
+        self.assertEqual(payload["path2"], "\\xfetarget")
+        windows = r'"C:\Program Files\Python\python.exe" -c "pass"'
+        self.assertEqual(module.parse_test_command(windows, platform="nt"), windows)
+        self.assertEqual(module.parse_test_command("python -c 'pass'", platform="posix"), ["python", "-c", "pass"])
+
     def _set_scope(self, item: Path, paths: list[str]) -> None:
         value = self._metadata(item)
         value["scope"] = {"paths": paths}
@@ -196,7 +271,7 @@ class WorkspaceV2Contract(unittest.TestCase):
         process, payload = invoke("init", self.root, "--type", "feature", "--slug", "alpha", "--work-id", "stable-id")
         self.assertEqual((process.returncode, payload["code"]), (2, "IMMUTABLE-TAMPERED"))
 
-    def test_init_rejects_type_slug_work_id_and_symlink_root(self) -> None:
+    def test_init_rejects_type_slug_and_work_id(self) -> None:
         for args in (
             ("--type", "task", "--slug", "alpha", "--work-id", "valid-id"),
             ("--type", "feature", "--slug", "../escape", "--work-id", "valid-id"),
@@ -204,6 +279,8 @@ class WorkspaceV2Contract(unittest.TestCase):
         ):
             process, _payload = invoke("init", self.root, *args)
             self.assertEqual(process.returncode, 2)
+    @unittest.skipUnless(SYMLINK_SUPPORTED, "symlink creation is unavailable")
+    def test_init_rejects_symlink_root(self) -> None:
         outside = self._new_repo()
         (self.root / ".grill").symlink_to(outside, target_is_directory=True)
         process, payload = invoke("init", self.root, "--type", "feature", "--slug", "alpha", "--work-id", "safe-id")
@@ -213,7 +290,8 @@ class WorkspaceV2Contract(unittest.TestCase):
         command = ("init", self.root, "--type", "feature", "--slug", "parallel", "--work-id", "parallel-id")
         with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
             results = list(executor.map(lambda _index: invoke(*command), range(6)))
-        self.assertTrue(all(process.returncode == 0 for process, _payload in results))
+        failures = [(process.returncode, payload) for process, payload in results if process.returncode != 0]
+        self.assertFalse(failures, failures)
         statuses = [payload["status"] for _process, payload in results]
         self.assertEqual(statuses.count("CREATED"), 1)
         self.assertEqual(statuses.count("REUSED"), 5)
@@ -235,7 +313,7 @@ class WorkspaceV2Contract(unittest.TestCase):
         item = self._init_item(work_id="external-artifacts")
         temporary = tempfile.TemporaryDirectory()
         self.extra.append(temporary)
-        external = Path(temporary.name) / "arbitrary-directory-name"
+        external = Path(temporary.name).resolve() / "arbitrary-directory-name"
         shutil.copytree(item, external)
         before = snapshot(external)
         process, payload = invoke(
@@ -398,6 +476,7 @@ class WorkspaceV2Contract(unittest.TestCase):
         self.assertEqual(verdicts.count("REUSED"), 3)
         self.assertEqual(set(snapshot(self.root / ".grill/global")), {"AUDIT.md", "ROADMAP.md"})
 
+    @unittest.skipUnless(sys.platform.startswith("linux"), "requires Linux /proc process identity")
     def test_reconcile_concurrent_waiters_recover_one_orphan_lock(self) -> None:
         item = self._init_item(); self._mark_complete(item); self._commit_all(self.root)
         lock = self.root / ".grill/locks/global-reconciliation.lock"
@@ -463,7 +542,7 @@ class WorkspaceV2Contract(unittest.TestCase):
         process, payload = invoke("migrate", self.root, "--type", "feature", "--slug", "legacy", "--work-id", "migration", "--apply")
         self.assertEqual((process.returncode, payload["verdict"]), (0, "REUSED"))
 
-    def test_migrate_blocks_divergence_invalid_utf8_and_symlink_without_partial_target(self) -> None:
+    def test_migrate_blocks_divergence_and_invalid_utf8_without_partial_target(self) -> None:
         (self.root / "CONTEXT.md").write_text("legacy\n", encoding="utf-8")
         process, _payload = invoke("migrate", self.root, "--type", "fix", "--slug", "legacy", "--work-id", "migration", "--apply")
         self.assertEqual(process.returncode, 0)
@@ -474,6 +553,8 @@ class WorkspaceV2Contract(unittest.TestCase):
         process, _payload = invoke("migrate", invalid, "--type", "fix", "--slug", "utf", "--work-id", "utf-migration", "--apply")
         self.assertEqual(process.returncode, 1)
         self.assertFalse((invalid / ".grill/work-items/utf-migration").exists())
+    @unittest.skipUnless(SYMLINK_SUPPORTED, "symlink creation is unavailable")
+    def test_migrate_blocks_symlink_without_partial_target(self) -> None:
         linked = self._new_repo(); target = linked / "actual.md"; target.write_text("actual", encoding="utf-8"); (linked / "CONTEXT.md").symlink_to(target)
         process, _payload = invoke("migrate", linked, "--type", "fix", "--slug", "link", "--work-id", "link-migration", "--apply")
         self.assertEqual(process.returncode, 2)
@@ -523,6 +604,7 @@ class WorkspaceV2Contract(unittest.TestCase):
         self.assertEqual(target.read_bytes(), generated)
         self.assertIn("constitution", state)
 
+    @unittest.skipUnless(SYMLINK_SUPPORTED, "symlink creation is unavailable")
     def test_migrate_rejects_broken_file_and_directory_symlinks(self) -> None:
         broken_file = self._new_repo()
         (broken_file / "CONTEXT.md").symlink_to(broken_file / "does-not-exist")
@@ -545,7 +627,7 @@ class WorkspaceV2Contract(unittest.TestCase):
         args = ("hotfix", self.root, "--slug", "incident", "--scope", "src/auth.py",
                 "--reproduction", "curl /login => 500", "--evidence", "incident.log",
                 "--correction-test", "tests/auth.py::test_timeout", "--rollback", "revert abc",
-                "--constitution-evidence", "not-applicable", "--test-command", f"{sys.executable} -c 'pass'",
+                "--constitution-evidence", "not-applicable", "--test-command", python_test_command("pass"),
                 "--work-id", "hotfix-incident")
         process, payload = invoke(*args)
         self.assertEqual((process.returncode, payload["verdict"]), (0, "HOTFIX-PREPARED"))
@@ -566,7 +648,7 @@ class WorkspaceV2Contract(unittest.TestCase):
         base = ("hotfix", self.root, "--slug", "failure", "--scope", "src/api.py",
                 "--reproduction", "500", "--evidence", "incident.log", "--correction-test", "tests/test_api.py",
                 "--rollback", "git revert", "--constitution-evidence", "not-applicable", "--work-id", "hotfix-failure")
-        failed, _ = invoke(*base, "--test-command", f"{sys.executable} -c 'import sys; sys.exit(7)'")
+        failed, _ = invoke(*base, "--test-command", python_test_command("import sys; sys.exit(7)"))
         self.assertEqual(failed.returncode, 0)
         go_failed, failed_payload = invoke("hotfix-go", self.root, "--work-id", "hotfix-failure")
         self.assertEqual((go_failed.returncode, failed_payload["code"]), (1, "CORRECTION-TEST-FAILED"))
@@ -574,7 +656,7 @@ class WorkspaceV2Contract(unittest.TestCase):
         timeout, _ = invoke("hotfix", timeout_root, "--slug", "timeout", "--scope", "src/timeout.py",
                             "--reproduction", "500", "--evidence", "incident.log", "--correction-test", "tests/test_timeout.py",
                             "--rollback", "git revert", "--constitution-evidence", "not-applicable", "--work-id", "hotfix-timeout",
-                            "--test-command", f"{sys.executable} -c 'import time; time.sleep(2)'", "--test-timeout", "1")
+                            "--test-command", python_test_command("import time; time.sleep(2)"), "--test-timeout", "1")
         self.assertEqual(timeout.returncode, 0)
         go_timeout, timeout_payload = invoke("hotfix-go", timeout_root, "--work-id", "hotfix-timeout")
         self.assertEqual((go_timeout.returncode, timeout_payload["code"]), (1, "CORRECTION-TEST-TIMEOUT"))
@@ -584,7 +666,7 @@ class WorkspaceV2Contract(unittest.TestCase):
         self.assertEqual((newline.returncode, newline_payload["code"]), (1, "SCOPE-NOT-CLOSED"))
         item = self.root / ".grill/work-items/hotfix-failure/WORK-ITEM.json"
         data = json.loads(item.read_text(encoding="utf-8"))
-        data["hotfix"]["test-command"] = f"{sys.executable} -c 'pass'"
+        data["hotfix"]["test-command"] = python_test_command("pass")
         item.write_text(json.dumps(data), encoding="utf-8")
         tampered, tampered_payload = invoke("hotfix-go", self.root, "--work-id", "hotfix-failure")
         self.assertEqual((tampered.returncode, tampered_payload["code"]), (2, "HOTFIX-METADATA-TAMPERED"))
