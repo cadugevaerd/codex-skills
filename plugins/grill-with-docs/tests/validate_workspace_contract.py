@@ -583,10 +583,10 @@ class WorkspaceV2Contract(unittest.TestCase):
         self.assertEqual((newline.returncode, newline_payload["code"]), (1, "SCOPE-NOT-CLOSED"))
         item = self.root / ".grill/work-items/hotfix-failure/WORK-ITEM.json"
         data = json.loads(item.read_text(encoding="utf-8"))
-        data["hotfix"]["closed"] = False
+        data["hotfix"]["test-command"] = f"{sys.executable} -c 'pass'"
         item.write_text(json.dumps(data), encoding="utf-8")
         tampered, tampered_payload = invoke("hotfix-go", self.root, "--work-id", "hotfix-failure")
-        self.assertEqual((tampered.returncode, tampered_payload["code"]), (1, "HOTFIX-INCOMPLETE"))
+        self.assertEqual((tampered.returncode, tampered_payload["code"]), (2, "HOTFIX-METADATA-TAMPERED"))
 
 
 if __name__ == "__main__":

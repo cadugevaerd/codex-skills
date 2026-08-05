@@ -444,6 +444,7 @@ def hotfix_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         metadata = metadata_document(immutable, files)
         metadata["scope"] = {"paths": scope_paths}
         metadata["hotfix"] = {**values, "closed": True, "test-timeout": args.test_timeout, "post_ship": ["reconcile", "full-document-audit"]}
+        metadata["hotfix_sha256"] = hash_bytes(canonical(metadata["hotfix"]))
         staging = write_bundle_staging(root, work_id, metadata, files)
         try:
             rename_child(target.parent, staging, target)
@@ -488,6 +489,18 @@ def validate_bundle_integrity(bundle: ItemBundle) -> None:
     actual = {path: hash_bytes(data) for path, data in sorted(bundle.files.items()) if path != "WORK-ITEM.json"}
     if not isinstance(expected, dict) or expected != actual:
         raise CliFailure(EXIT_BLOCKED, "BLOCKED", "BUNDLE-INTEGRITY", bundle.work_id)
+
+
+def validated_hotfix(bundle: ItemBundle) -> dict[str, Any]:
+    hotfix = bundle.metadata.get("hotfix")
+    if not isinstance(hotfix, dict) or bundle.metadata.get("hotfix_sha256") != hash_bytes(canonical(hotfix)):
+        raise CliFailure(EXIT_BLOCKED, "BLOCKED", "HOTFIX-METADATA-TAMPERED", bundle.work_id)
+    if hotfix.get("closed") is not True:
+        raise CliFailure(EXIT_NO_GO, "NO-GO", "HOTFIX-INCOMPLETE", bundle.work_id)
+    scope = validate_scope(hotfix.get("scope", ""))
+    if bundle.metadata.get("scope", {}).get("paths") != scope:
+        raise CliFailure(EXIT_BLOCKED, "BLOCKED", "HOTFIX-SCOPE-DIVERGENCE", bundle.work_id)
+    return hotfix
 
 
 def validate_metadata(metadata: dict[str, Any], expected_work_id: str | None = None) -> dict[str, Any]:
@@ -744,10 +757,7 @@ def hotfix_go_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     item = root / ".grill" / "work-items" / args.work_id
     bundle = read_local_bundle(root, item)
     validate_bundle_integrity(bundle)
-    hotfix = bundle.metadata.get("hotfix")
-    if not isinstance(hotfix, dict) or hotfix.get("closed") is not True:
-        raise CliFailure(EXIT_NO_GO, "NO-GO", "HOTFIX-INCOMPLETE", args.work_id)
-    validate_scope(hotfix.get("scope", ""))
+    hotfix = validated_hotfix(bundle)
     validate_constitution_check(root, bundle.files, bundle.metadata["immutable"].get("constitution", {}))
     command = hotfix.get("test-command")
     if not isinstance(command, str) or not command.strip():
@@ -780,7 +790,10 @@ def audit_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             probe = {}
         if isinstance(probe, dict) and isinstance(probe.get("hotfix"), dict):
             bundle = read_external_bundle(item) if args.artifact_root else read_local_bundle(root, item)
-            hotfix = probe["hotfix"]
+            try:
+                hotfix = validated_hotfix(bundle)
+            except CliFailure as failure:
+                return {"verdict": failure.verdict, "code": failure.code}, failure.exit_code
             required = ("scope", "reproduction", "evidence", "correction-test", "rollback", "constitution-evidence")
             missing = [key for key in required if not isinstance(hotfix.get(key), str) or not hotfix[key].strip()]
             if missing or hotfix.get("closed") is not True:
