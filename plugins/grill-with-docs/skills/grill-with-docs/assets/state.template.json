@@ -1,6 +1,7 @@
 {
-  "version": "1.1.0",
+  "version": "1.2.0",
   "status": "in-progress",
+  "milestone_status": "in-progress",
   "active_phase": "FASE-001",
   "audit_verdict": "pending",
   "constitution": {

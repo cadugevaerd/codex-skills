@@ -129,8 +129,17 @@ class WorkspaceV2Contract(unittest.TestCase):
         path = item / "state.json"
         value = json.loads(path.read_text(encoding="utf-8"))
         value["status"] = "complete"
+        value["milestone_status"] = "completed"
+        value["active_phase"] = None
         value["audit_verdict"] = "GO"
         path.write_text(json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+        roadmap = item / "ROADMAP.md"
+        roadmap.write_text(
+            re.sub(r"(?m)^- state: (?:planned|ready-for-specify|blocked)$", "- state: complete", roadmap.read_text(encoding="utf-8")),
+            encoding="utf-8",
+        )
+        frontier = item / "DECISION-FRONTIER.md"
+        frontier.write_text(frontier.read_text(encoding="utf-8").replace("- state: open", "- state: resolved"), encoding="utf-8")
 
     def _constitution(self, root: Path | None = None) -> Path:
         root = root or self.root
@@ -443,6 +452,28 @@ class WorkspaceV2Contract(unittest.TestCase):
         self._mark_complete(owner); self._constitution()
         process, payload = invoke("reconcile", self.root)
         self.assertTrue(any(conflict.startswith("CONSTITUTION-STALE:") for conflict in payload["conflicts"]))
+
+    def test_reconcile_requires_terminal_milestone_contract(self) -> None:
+        item = self._init_item(work_id="terminal-contract")
+        state_path = item / "state.json"
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        state.update(status="complete", audit_verdict="GO")
+        state.pop("milestone_status", None)
+        state_path.write_text(json.dumps(state), encoding="utf-8")
+        process, payload = invoke("reconcile", self.root)
+        self.assertEqual(process.returncode, 1)
+        self.assertIn("STATE-NOT-RECONCILABLE:terminal-contract", payload["conflicts"])
+
+        self._mark_complete(item)
+        roadmap = item / "ROADMAP.md"
+        roadmap.write_text(roadmap.read_text(encoding="utf-8").replace("- state: complete", "- state: ready-for-specify", 1), encoding="utf-8")
+        process, payload = invoke("reconcile", self.root)
+        self.assertEqual(process.returncode, 1)
+        self.assertIn("ROADMAP-NOT-TERMINAL:terminal-contract", payload["conflicts"])
+
+        self._mark_complete(item)
+        process, payload = invoke("reconcile", self.root)
+        self.assertEqual((process.returncode, payload["verdict"]), (0, "PREVIEW"))
 
     def test_reconcile_apply_rejects_wrong_branch_and_dirty_tree(self) -> None:
         item = self._init_item(); self._mark_complete(item); self._commit_all(self.root)

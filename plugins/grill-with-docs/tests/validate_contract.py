@@ -201,6 +201,7 @@ Choose implementation details during the external plan step.
     state = {
         "version": "1.0.0",
         "status": "blocked" if blocked else "ready",
+        "milestone_status": "blocked" if blocked else "in-progress",
         "active_phase": "FASE-001",
         "audit_verdict": "BLOCKED" if blocked else "pending",
         "constitution": {
@@ -220,6 +221,24 @@ Choose implementation details during the external plan step.
         "second_pass": {"new_material_dqs": 0},
     }
     (root / "state.json").write_text(json.dumps(state, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def mark_milestone_terminal(root: Path, final_phase_state: str) -> None:
+    roadmap = root / "ROADMAP.md"
+    roadmap.write_text(
+        roadmap.read_text(encoding="utf-8")
+        .replace("- state: ready-for-specify", "- state: complete", 1)
+        .replace("- state: planned", f"- state: {final_phase_state}", 1),
+        encoding="utf-8",
+    )
+    first = root / "handoffs/FASE-001-SPECIFY-HANDOFF.md"
+    first.write_text(first.read_text(encoding="utf-8").replace("- state: ready-for-specify", "- state: complete", 1), encoding="utf-8")
+    second = root / "handoffs/FASE-002-SPECIFY-HANDOFF.md"
+    second.write_text(second.read_text(encoding="utf-8").replace("- state: planned", f"- state: {final_phase_state}", 1), encoding="utf-8")
+    state_path = root / "state.json"
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state.update(status="complete", milestone_status="completed", active_phase=None, audit_verdict="GO")
+    state_path.write_text(json.dumps(state, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
 class AuditorContract(unittest.TestCase):
@@ -247,6 +266,70 @@ class AuditorContract(unittest.TestCase):
         self.assertEqual(before, after)
         self.assertIn("selected-phase: FASE-001", first.stdout)
         self.assertIn("selected-handoff: handoffs/FASE-001-SPECIFY-HANDOFF.md", first.stdout)
+
+    def test_completed_milestone_has_explicit_terminal_verdict(self) -> None:
+        mark_milestone_terminal(self.root, "complete")
+        result = subprocess.run(
+            [sys.executable, str(AUDITOR), str(self.root), "--json"],
+            text=True,
+            capture_output=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(
+            json.loads(result.stdout),
+            {
+                "code": "MILESTONE-COMPLETE",
+                "selected_handoff": "",
+                "selected_phase": None,
+                "verdict": "MILESTONE-COMPLETE",
+            },
+        )
+
+    def test_superseded_final_phase_is_legitimate_terminal_state(self) -> None:
+        mark_milestone_terminal(self.root, "superseded")
+        result = subprocess.run(
+            [sys.executable, str(AUDITOR), str(self.root), "--json"],
+            text=True,
+            capture_output=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual((payload["verdict"], payload["code"]), ("MILESTONE-COMPLETE", "MILESTONE-COMPLETE"))
+
+    def test_terminal_milestone_requires_terminal_session_state(self) -> None:
+        mark_milestone_terminal(self.root, "complete")
+        state_path = self.root / "state.json"
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        state.update(status="ready", active_phase="FASE-002")
+        state_path.write_text(json.dumps(state), encoding="utf-8")
+        self.assert_no_go("milestone terminal exige status complete")
+
+    def test_terminal_milestone_requires_explicit_completed_milestone_state(self) -> None:
+        mark_milestone_terminal(self.root, "complete")
+        state_path = self.root / "state.json"
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        del state["milestone_status"]
+        state_path.write_text(json.dumps(state), encoding="utf-8")
+        self.assert_no_go("milestone terminal exige milestone_status completed")
+
+    def test_terminal_milestone_rejects_open_bl_and_dq(self) -> None:
+        for kind in ("BL", "DQ"):
+            with self.subTest(kind=kind):
+                write_project(self.root)
+                mark_milestone_terminal(self.root, "superseded")
+                if kind == "BL":
+                    path = self.root / "DECISION-BACKLOG.md"
+                    path.write_text(
+                        path.read_text(encoding="utf-8").replace("- state: resolved", "- state: open")
+                        + "\n- owner: owner\n- evidence-needed: evidence\n- next-action: action\n",
+                        encoding="utf-8",
+                    )
+                    expected = "milestone terminal ligado a BL open"
+                else:
+                    path = self.root / "DECISION-FRONTIER.md"
+                    path.write_text(path.read_text(encoding="utf-8").replace("- state: resolved", "- state: open"), encoding="utf-8")
+                    expected = "DQ material open/blocked impede conclusão"
+                self.assert_no_go(expected)
 
     def test_committed_go_and_blocked_fixtures(self) -> None:
         go = run_audit(FIXTURES / "go-project")
@@ -417,6 +500,8 @@ class AuditorContract(unittest.TestCase):
             "hash": lambda state: state["constitution"].update(sha256="bad"),
             "limits": lambda state: state.update(limits={}),
             "second": lambda state: state.update(second_pass={"new_material_dqs": 1}),
+            "milestone-invalid": lambda state: state.update(milestone_status="done"),
+            "milestone-premature": lambda state: state.update(milestone_status="completed"),
         }
         for name, mutate in mutations.items():
             with self.subTest(name=name):

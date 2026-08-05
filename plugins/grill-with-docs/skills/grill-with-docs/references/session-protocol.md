@@ -85,10 +85,11 @@ Feature/fix continuam em `PLAN_ONLY_STOP` e não ganham atalho de implementaçã
 - [ ] Validar Constituição antes do auditor decisório.
 - [ ] Confirmar fingerprints idênticos antes/depois.
 - [ ] Validar ordem explícita, fase única pronta, dependências, BLs e handoff WHAT/WHY.
+- [ ] Se todas as fases estiverem `complete|superseded`, exigir zero BL/DQ material aberto, `milestone_status=completed`, `state.status=complete`, `active_phase=null` e `audit_verdict=GO`; emitir `MILESTONE-COMPLETE` sem exigir nova fase ready.
 
 Roots separados são permitidos com `--artifact-root PATH --project-root ROOT`.
 
-Exit codes do core: `0` sucesso/GO/PREVIEW/APPLIED/CREATED/REUSED; `1` NO-GO; `2` BLOCKED/uso; `3` BLOCKED-CONSTITUTION.
+Exit codes do core: `0` sucesso/GO/MILESTONE-COMPLETE/PREVIEW/APPLIED/CREATED/REUSED; `1` NO-GO; `2` BLOCKED/uso; `3` BLOCKED-CONSTITUTION.
 
 ## Reconciliação
 
@@ -96,7 +97,7 @@ Preview:
 
 - [ ] Ler root atual, `--source-root` e `--source-ref` sem checkout.
 - [ ] Não criar `.grill`, lock ou arquivo global.
-- [ ] Exigir `state.status=complete` e `audit_verdict=GO`.
+- [ ] Exigir `milestone_status=completed`, `state.status=complete`, `active_phase=null`, `audit_verdict=GO` e todas as fases do `execution-order` em `complete|superseded`.
 - [ ] Detectar IDs divergentes, escopo sobreposto, dependências ausentes/cíclicas, ADRs conflitantes e Constituição stale.
 - [ ] Qualificar IDs como `<work-id>/<ID>`.
 
