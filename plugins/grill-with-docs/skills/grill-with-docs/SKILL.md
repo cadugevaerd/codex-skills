@@ -149,3 +149,7 @@ Hotfix-fast não lê nem altera ROADMAP/BL/DQ; sua saída é `HOTFIX-GO` somente
 A ordem vem de `execution-order`, não dos números de fase. Para `GO`, a fase selecionada deve ser a primeira incompleta, ter predecessores completos, nenhum BL aberto e handoff WHAT/WHY exclusivo. `PLAN-CONTEXT.md`, ADRs e `CONTEXT.md` fornecem HOW.
 
 Após auditoria `GO` e entrega do handoff, emita `PLAN_ONLY_STOP` e pare. Esse stop aplica-se somente a feature/fix; hotfix encerra em `hotfix.closed` e pode seguir para `HOTFIX-GO`. Agentes externos executarão `specify|plan` em outro ciclo. Após ship, marque a fase `complete`, reaudite e só então reconcilie globalmente.
+
+## Portabilidade do workspace
+
+O core requer Python >=3.10 e não possui dependências externas. Use `uv run --no-project` preferencialmente; `python3`, `python` ou `py -3` são fallbacks. A publicação do bundle escolhe previamente a capacidade completa de rename: em POSIX usa parent aberto com `O_RDONLY|O_DIRECTORY|O_NOFOLLOW`, compara `stat`/`fstat` e chama `os.rename` com `src_dir_fd`/`dst_dir_fd`; sem isso usa caminhos completos após validar parent/source/target. O fallback recusa um destino já visível, mas não reproduz proteção contra substituição do parent ou criação concorrente do target entre validação e rename (limite TOCTOU); o lock serializa escritores cooperantes. `hotfix-go` usa a command line nativa do Windows com `shell=False`. Esta versão não altera os hooks e não declara hooks universais em Windows.

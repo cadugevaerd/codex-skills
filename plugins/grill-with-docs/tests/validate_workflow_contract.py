@@ -6,6 +6,15 @@ from pathlib import Path
 
 HERE=Path(__file__).resolve(); PLUGIN=HERE.parents[1]; SCRIPT=PLUGIN/'skills/grill-with-docs/scripts/ensure_workflow.py'; TEMPLATE=PLUGIN/'skills/grill-with-docs/assets/WORKFLOW.template.md'; HOOKS=PLUGIN/'hooks/hooks.json'; MARK='grill-with-docs-workflow:v2'
 
+def symlink_supported():
+ with tempfile.TemporaryDirectory() as temporary:
+  root=Path(temporary); target=root/'target'; target.mkdir()
+  try: (root/'link').symlink_to(target,target_is_directory=True)
+  except (OSError,NotImplementedError): return False
+  return True
+
+SYMLINK_SUPPORTED=symlink_supported()
+
 def run(*args,cwd=None,input=None): return subprocess.run([sys.executable,str(SCRIPT),*args],cwd=cwd,input=input,text=True,capture_output=True)
 class Contract(unittest.TestCase):
  def setUp(self): self.t=tempfile.TemporaryDirectory(); self.root=Path(self.t.name); subprocess.run(['git','init','-q'],cwd=self.root,check=True)
@@ -24,13 +33,15 @@ class Contract(unittest.TestCase):
   p.write_text(TEMPLATE.read_text().replace('<!-- grill-with-docs-workflow:v2 -->','<!-- human-maintained equivalent -->')); b=p.read_bytes(); self.assertEqual(json.loads(run('--ensure',str(self.root)).stdout)['status'],'REUSED'); self.assertEqual(b,p.read_bytes())
   p.write_text('human'); self.assertEqual(run('--ensure',str(self.root)).returncode,2)
   p.write_bytes(b'\xff\xfe'); r=run('--ensure',str(self.root)); self.assertEqual(r.returncode,2); self.assertNotIn('Traceback',r.stderr)
- def test_roots_symlink_and_concurrency(self):
+ def test_roots_and_concurrency(self):
   self.assertEqual(run('--ensure',str(self.root/'x')).returncode,2); self.assertEqual(run('--ensure',str(self.root/'sub')).returncode,2)
-  r=run('--ensure','.',cwd=self.root); self.assertEqual(r.returncode,0,r.stdout+r.stderr); (self.root/'WORKFLOW.md').unlink()
-  p=self.root/'WORKFLOW.md'; p.symlink_to(self.root/'outside'); self.assertEqual(run('--ensure',str(self.root)).returncode,2); p.unlink()
+  r=run('--ensure','.',cwd=self.root); self.assertEqual(r.returncode,0,r.stdout+r.stderr); (self.root/'WORKFLOW.md').unlink(); p=self.root/'WORKFLOW.md'
   import multiprocessing
   with multiprocessing.Pool(6) as pool: results=pool.starmap(run,[('--ensure',str(self.root))]*6)
   self.assertTrue(all(x.returncode==0 for x in results)); self.assertIn('grill-with-docs-workflow:v2',p.read_text())
+ @unittest.skipUnless(SYMLINK_SUPPORTED,'symlink creation is unavailable')
+ def test_symlink_workflow_is_rejected(self):
+  self.assertEqual(run('--ensure',str(self.root)).returncode,0); p=self.root/'WORKFLOW.md'; p.unlink(); p.symlink_to(self.root/'outside'); self.assertEqual(run('--ensure',str(self.root)).returncode,2)
  def test_hook_events_context_missing_invalid(self):
   run('--ensure',str(self.root));
   for ev in ('SessionStart','SubagentStart'):

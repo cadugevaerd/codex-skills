@@ -142,7 +142,14 @@ def ensure_directory(root: Path, relative: str) -> Path:
             if cursor.is_symlink() or not cursor.is_dir():
                 raise CliFailure(EXIT_BLOCKED, "BLOCKED", "UNSAFE-DIRECTORY", str(cursor))
         else:
-            cursor.mkdir()
+            try:
+                cursor.mkdir()
+            except FileExistsError:
+                # Another cooperating process may create the same parent
+                # between exists() and mkdir(). Revalidate instead of leaking
+                # the benign race as a filesystem failure.
+                if cursor.is_symlink() or not cursor.is_dir():
+                    raise CliFailure(EXIT_BLOCKED, "BLOCKED", "UNSAFE-DIRECTORY", str(cursor))
     return target
 
 
@@ -666,18 +673,46 @@ def write_bundle_staging(root: Path, work_id: str, metadata: dict[str, Any], fil
         raise
 
 
+def _rename_dirfd_capable() -> bool:
+    """Return true only when the complete protected dir-fd primitive is available."""
+    return (os.rename in os.supports_dir_fd and hasattr(os, "O_DIRECTORY") and hasattr(os, "O_NOFOLLOW"))
+
+
 def rename_child(parent: Path, source: Path, target: Path) -> None:
-    """Rename children through a verified directory FD to avoid parent-path substitution."""
-    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
-    directory_fd = os.open(parent, flags)
-    try:
-        parent_stat = os.stat(parent, follow_symlinks=False)
-        fd_stat = os.fstat(directory_fd)
-        if (fd_stat.st_dev, fd_stat.st_ino) != (parent_stat.st_dev, parent_stat.st_ino):
-            raise CliFailure(EXIT_BLOCKED, "BLOCKED", "DIRECTORY-RACE", str(parent))
-        os.rename(source.name, target.name, src_dir_fd=directory_fd, dst_dir_fd=directory_fd)
-    finally:
-        os.close(directory_fd)
+    """Move child directories after rejecting a target visible during validation.
+
+    POSIX uses a verified parent FD and dir-fd rename. The path fallback is
+    portable but does not reproduce protection against substitution of the
+    parent or creation of the target between validation and rename (TOCTOU
+    limitation). The per-work-item lock serializes cooperating plugin writers.
+    """
+    if source.parent != parent or target.parent != parent:
+        raise CliFailure(EXIT_BLOCKED, "BLOCKED", "INVALID-RENAME-PATH", str(parent))
+    if parent.is_symlink() or not parent.is_dir() or source.is_symlink() or not source.is_dir() or target.is_symlink():
+        raise CliFailure(EXIT_BLOCKED, "BLOCKED", "UNSAFE-RENAME-PATH", str(parent))
+    protected = _rename_dirfd_capable()
+    if protected:
+        flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+        directory_fd = os.open(parent, flags)
+        try:
+            parent_stat = os.stat(parent, follow_symlinks=False)
+            fd_stat = os.fstat(directory_fd)
+            if (fd_stat.st_dev, fd_stat.st_ino) != (parent_stat.st_dev, parent_stat.st_ino):
+                raise CliFailure(EXIT_BLOCKED, "BLOCKED", "DIRECTORY-RACE", str(parent))
+            os.stat(source.name, dir_fd=directory_fd, follow_symlinks=False)
+            try:
+                os.stat(target.name, dir_fd=directory_fd, follow_symlinks=False)
+            except FileNotFoundError:
+                pass
+            else:
+                raise FileExistsError(errno.EEXIST, "target exists", str(target))
+            os.rename(source.name, target.name, src_dir_fd=directory_fd, dst_dir_fd=directory_fd)
+        finally:
+            os.close(directory_fd)
+        return
+    if target.exists():
+        raise FileExistsError(errno.EEXIST, "target exists", str(target))
+    os.rename(source, target)
 
 
 def read_local_bundle(root: Path, item: Path) -> ItemBundle:
@@ -775,6 +810,11 @@ def init_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
 
 
 
+def parse_test_command(command: str, *, platform: str | None = None) -> str | list[str]:
+    """Prepare a command for shell=False using the host's native argument grammar."""
+    return command if (platform or os.name) == "nt" else shlex.split(command)
+
+
 def hotfix_go_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     root = project_root(args.root)
     item = root / ".grill" / "work-items" / args.work_id
@@ -787,7 +827,7 @@ def hotfix_go_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     if not isinstance(command, str) or not command.strip():
         raise CliFailure(EXIT_NO_GO, "NO-GO", "TEST-COMMAND-MISSING", args.work_id)
     try:
-        argv = shlex.split(command)
+        argv = parse_test_command(command)
     except ValueError as exc:
         raise CliFailure(EXIT_NO_GO, "NO-GO", "TEST-COMMAND-INVALID", str(exc)) from exc
     if not argv:
@@ -1274,6 +1314,13 @@ def build_parser() -> JsonParser:
     return parser
 
 
+def diagnostic_path(value: object) -> str:
+    """Return a JSON-safe path while preserving undecodable bytes visibly."""
+    if isinstance(value, bytes):
+        return value.decode(sys.getfilesystemencoding(), errors="backslashreplace")
+    return str(value)
+
+
 def main(argv: list[str] | None = None) -> int:
     try:
         args = build_parser().parse_args(argv)
@@ -1288,7 +1335,16 @@ def main(argv: list[str] | None = None) -> int:
         payload, exit_code = handlers[args.command](args)
     except CliFailure as failure:
         payload, exit_code = failure.payload(), failure.exit_code
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+    except OSError as exc:
+        payload = {"verdict": "BLOCKED", "code": "FILESYSTEM", "error": str(exc)}
+        if exc.errno is not None:
+            payload["errno"] = exc.errno
+        if exc.filename is not None:
+            payload["path"] = diagnostic_path(exc.filename)
+        if exc.filename2 is not None:
+            payload["path2"] = diagnostic_path(exc.filename2)
+        exit_code = EXIT_BLOCKED
+    except (UnicodeError, json.JSONDecodeError) as exc:
         payload = {"verdict": "BLOCKED", "code": "UNEXPECTED-INPUT", "error": type(exc).__name__}
         exit_code = EXIT_BLOCKED
     print(json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")))

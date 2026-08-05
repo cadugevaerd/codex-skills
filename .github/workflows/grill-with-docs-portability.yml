@@ -1,0 +1,75 @@
+name: grill-with-docs portability
+
+on:
+  pull_request:
+    paths:
+      - "plugins/grill-with-docs/**"
+      - ".github/workflows/grill-with-docs-portability.yml"
+  push:
+    branches: [main]
+    paths:
+      - "plugins/grill-with-docs/**"
+      - ".github/workflows/grill-with-docs-portability.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: grill-with-docs-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract:
+    name: ${{ matrix.os }} / Python ${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            python: "3.10"
+            suite: full
+          - os: ubuntu-24.04
+            python: "3.14"
+            suite: full
+          - os: windows-2025
+            python: "3.14"
+            suite: portability
+          - os: macos-26
+            python: "3.14"
+            suite: full
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+
+      - name: Run contract suite through uv
+        if: matrix.suite == 'full'
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: uv run --no-project python -m unittest discover -s plugins/grill-with-docs/tests -p "validate_*.py"
+
+      - name: Run canonical validators directly
+        if: matrix.suite == 'full'
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: |
+          uv run --no-project python plugins/grill-with-docs/tests/validate_contract.py
+          uv run --no-project python plugins/grill-with-docs/tests/validate_workflow_contract.py
+          uv run --no-project python plugins/grill-with-docs/tests/validate_workspace_contract.py
+
+      - name: Run Windows portability smoke
+        if: matrix.suite == 'portability'
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: uv run --no-project python plugins/grill-with-docs/tests/validate_workspace_contract.py WorkspaceV2Contract.test_rename_child_moves_directory_and_rejects_preexisting_target WorkspaceV2Contract.test_init_isolates_same_slug_and_never_writes_global WorkspaceV2Contract.test_init_reuse_identity_conflict_and_immutable_tamper WorkspaceV2Contract.test_migrate_preview_apply_preserves_files_directories_and_reuses WorkspaceV2Contract.test_reconcile_apply_is_byte_idempotent_without_mtime_churn WorkspaceV2Contract.test_hotfix_fast_is_self_contained_and_feature_remains_plan_only WorkspaceV2Contract.test_filesystem_json_normalizes_byte_paths_and_native_command_parsing WorkspaceV2Contract.test_audit_supports_artifact_root_outside_project_root

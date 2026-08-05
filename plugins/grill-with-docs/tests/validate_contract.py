@@ -19,6 +19,21 @@ WORKFLOW_TEMPLATE = SKILL / "assets/WORKFLOW.template.md"
 FIXTURES = PLUGIN / "tests/fixtures"
 
 
+def symlink_supported() -> bool:
+    with tempfile.TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        target = root / "target"
+        target.mkdir()
+        try:
+            (root / "link").symlink_to(target, target_is_directory=True)
+        except (OSError, NotImplementedError):
+            return False
+        return True
+
+
+SYMLINK_SUPPORTED = symlink_supported()
+
+
 def sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -332,19 +347,23 @@ class AuditorContract(unittest.TestCase):
         state_path.write_text(json.dumps(state))
         self.assert_no_go("ready ligada a BL open")
 
-    def test_handoff_path_traversal_symlink_and_duplicate(self) -> None:
+    def test_handoff_path_traversal_and_duplicate(self) -> None:
         roadmap = self.root / "ROADMAP.md"
         roadmap.write_text(roadmap.read_text().replace("handoffs/FASE-001", "../FASE-001"), encoding="utf-8")
         self.assert_no_go("path escapes")
         write_project(self.root)
+        roadmap = self.root / "ROADMAP.md"
+        roadmap.write_text(roadmap.read_text().replace("handoffs/FASE-002-SPECIFY-HANDOFF.md", "handoffs/FASE-001-SPECIFY-HANDOFF.md"), encoding="utf-8")
+        self.assert_no_go("handoff duplicado")
+
+    @unittest.skipUnless(SYMLINK_SUPPORTED, "symlink creation is unavailable")
+    def test_handoff_symlink_is_rejected(self) -> None:
+        roadmap = self.root / "ROADMAP.md"
         target = self.root / "handoffs/FASE-001-SPECIFY-HANDOFF.md"
         link = self.root / "handoffs/link.md"
         link.symlink_to(target)
         roadmap.write_text(roadmap.read_text().replace("handoffs/FASE-001-SPECIFY-HANDOFF.md", "handoffs/link.md"), encoding="utf-8")
         self.assert_no_go("symlink")
-        write_project(self.root)
-        roadmap.write_text(roadmap.read_text().replace("handoffs/FASE-002-SPECIFY-HANDOFF.md", "handoffs/FASE-001-SPECIFY-HANDOFF.md"), encoding="utf-8")
-        self.assert_no_go("handoff duplicado")
 
     def test_handoff_triad_and_technical_content(self) -> None:
         handoff = self.root / "handoffs/FASE-001-SPECIFY-HANDOFF.md"
@@ -375,12 +394,14 @@ class AuditorContract(unittest.TestCase):
                 plan.write_text(plan.read_text().replace(old, new, 1), encoding="utf-8")
                 self.assert_no_go(expected)
 
-    def test_legacy_and_symlinked_managed_paths(self) -> None:
+    def test_legacy_managed_paths(self) -> None:
         legacy = self.root / "adrs"
         legacy.mkdir()
         (legacy / "ADR-0002.md").write_text("x")
         self.assert_no_go("adrs legado")
-        write_project(self.root)
+
+    @unittest.skipUnless(SYMLINK_SUPPORTED, "symlink creation is unavailable")
+    def test_symlinked_managed_path_is_rejected(self) -> None:
         workflow = self.root / "WORKFLOW.md"
         outside = self.root / "outside.md"
         outside.write_text(workflow.read_text())

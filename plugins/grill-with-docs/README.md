@@ -1,4 +1,4 @@
-# grill-with-docs v2.1.1 — Delivery First
+# grill-with-docs v2.1.2 — Delivery First
 
 Plugin plan-only para entrevistar decisões arquiteturais sem colisão entre worktrees.
 
@@ -69,3 +69,7 @@ python3 "$CORE" migrate "$PWD" --type fix --slug migracao --apply
 | 3 | BLOCKED-CONSTITUTION |
 
 Consulte `skills/grill-with-docs/SKILL.md` e `references/session-protocol.md` para o protocolo normativo.
+
+## Portabilidade e runtime
+
+Python >=3.10, somente biblioteca padrão. Recomenda-se executar com `uv run --no-project`; `python3`, `python` ou `py -3` são alternativas. Em POSIX, o rename do bundle usa `dir_fd`, `O_DIRECTORY` e `O_NOFOLLOW` quando a capacidade completa existe, protegendo a substituição do pai e recusando um destino já visível na validação. No fallback por caminhos (incluindo Windows), source/target são validados antes; a proteção contra substituição do pai ou criação concorrente do target não é reproduzida (limite TOCTOU), enquanto o lock serializa escritores cooperantes do plugin. `hotfix-go` usa parsing POSIX em POSIX e entrega a command line nativa diretamente ao `CreateProcess` no Windows, sempre com `shell=False`. Esta correção não altera hooks nem alega hooks universais Windows.
