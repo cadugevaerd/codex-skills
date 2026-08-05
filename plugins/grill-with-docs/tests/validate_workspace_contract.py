@@ -545,17 +545,20 @@ class WorkspaceV2Contract(unittest.TestCase):
         args = ("hotfix", self.root, "--slug", "incident", "--scope", "src/auth.py",
                 "--reproduction", "curl /login => 500", "--evidence", "incident.log",
                 "--correction-test", "tests/auth.py::test_timeout", "--rollback", "revert abc",
-                "--constitution-evidence", "no conflict", "--work-id", "hotfix-incident")
+                "--constitution-evidence", "not-applicable", "--test-command", f"{sys.executable} -c 'pass'",
+                "--work-id", "hotfix-incident")
         process, payload = invoke(*args)
-        self.assertEqual((process.returncode, payload["verdict"]), (0, "HOTFIX-GO"))
+        self.assertEqual((process.returncode, payload["verdict"]), (0, "HOTFIX-PREPARED"))
         item = self.root / ".grill/work-items/hotfix-incident"
         self.assertTrue((item / "HOTFIX.md").is_file())
         audit, audited = invoke("audit", self.root, "--work-id", "hotfix-incident")
-        self.assertEqual((audit.returncode, audited["verdict"]), (0, "HOTFIX-GO"))
+        self.assertEqual((audit.returncode, audited["verdict"]), (0, "HOTFIX-PREPARED"))
+        go, released = invoke("hotfix-go", self.root, "--work-id", "hotfix-incident")
+        self.assertEqual((go.returncode, released["verdict"]), (0, "HOTFIX-GO"))
         self.assertFalse((self.root / ".grill/global").exists())
         bad, bad_payload = invoke("hotfix", self.root, "--slug", "bad", "--scope", "../escape",
                                   "--reproduction", "r", "--evidence", "e", "--correction-test", "t",
-                                  "--rollback", "b", "--constitution-evidence", "c")
+                                  "--rollback", "b", "--constitution-evidence", "c", "--test-command", "true")
         self.assertEqual((bad.returncode, bad_payload["code"]), (1, "SCOPE-NOT-CLOSED"))
 
 
