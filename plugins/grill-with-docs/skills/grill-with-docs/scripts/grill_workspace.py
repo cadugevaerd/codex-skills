@@ -391,6 +391,50 @@ def initial_files(root: Path, work_id: str, immutable: dict[str, Any]) -> dict[s
     return files
 
 
+def hotfix_files(root: Path, work_id: str, immutable: dict[str, Any], details: dict[str, str]) -> dict[str, bytes]:
+    """Build a self-contained incident record with no roadmap dependencies."""
+    files = {"HOTFIX.md": ("# HOTFIX-GO\n\n" + "\n".join(f"- {key}: {value}" for key, value in details.items()) + "\n\n## Delivery boundary\n\nHOTFIX-GO is limited to the closed scope above. Reconciliation and full documentary audit are post-ship.\n").encode("utf-8")}
+    files["state.json"] = (json.dumps({"version": "1.0.0", "status": "complete", "audit_verdict": "GO", "mode": "hotfix", "work_id": work_id, "post_ship": ["reconcile", "full-document-audit"]}, ensure_ascii=False, sort_keys=True, indent=2) + "\n").encode("utf-8")
+    files["CONSTITUTION-CHECK.md"] = check_document(immutable["constitution"], constitution_info(root)[2], pending=False)
+    return files
+
+
+def hotfix_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
+    root = project_root(args.root)
+    if not SLUG_RE.fullmatch(args.slug):
+        raise CliFailure(EXIT_BLOCKED, "BLOCKED", "INVALID-IDENTITY", "slug invalid")
+    values = {"scope": args.scope, "reproduction": args.reproduction, "evidence": args.evidence, "correction-test": args.correction_test, "rollback": args.rollback, "constitution-evidence": args.constitution_evidence}
+    if any(not value.strip() for value in values.values()):
+        raise CliFailure(EXIT_NO_GO, "NO-GO", "HOTFIX-INCOMPLETE", "all hotfix evidence fields are required")
+    if any(token in args.scope for token in ("..", "\n", "\r")):
+        raise CliFailure(EXIT_NO_GO, "NO-GO", "SCOPE-NOT-CLOSED", "scope contains traversal or line break")
+    work_id = args.work_id or f"hotfix-{args.slug}-{uuid.uuid4().hex}"
+    if not WORK_ID_RE.fullmatch(work_id):
+        raise CliFailure(EXIT_BLOCKED, "BLOCKED", "INVALID-WORK-ID", work_id)
+    target = root / ".grill" / "work-items" / work_id
+    lock = acquire_lock(root, work_id, target, reuse_if_target_exists=True)
+    try:
+        if target.exists():
+            bundle = read_local_bundle(root, target)
+            if bundle.metadata.get("hotfix", {}).get("scope") != args.scope:
+                raise CliFailure(EXIT_BLOCKED, "BLOCKED", "HOTFIX-IDENTITY-DIVERGENCE", work_id)
+            return {"verdict": "HOTFIX-GO", "status": "REUSED", "work_id": work_id, "path": str(target)}, EXIT_OK
+        immutable = immutable_metadata(root, argparse.Namespace(type="hotfix", slug=args.slug, base_ref=args.base_ref), work_id)
+        files = hotfix_files(root, work_id, immutable, values)
+        metadata = metadata_document(immutable, files)
+        metadata["hotfix"] = {**values, "closed": True, "post_ship": ["reconcile", "full-document-audit"]}
+        staging = write_bundle_staging(root, work_id, metadata, files)
+        try:
+            rename_child(target.parent, staging, target)
+        except Exception:
+            shutil.rmtree(staging, ignore_errors=True)
+            raise
+        return {"verdict": "HOTFIX-GO", "status": "CREATED", "work_id": work_id, "path": str(target), "mode": "hotfix-fast", "post_ship": metadata["hotfix"]["post_ship"]}, EXIT_OK
+    finally:
+        if lock is not None:
+            shutil.rmtree(lock, ignore_errors=True)
+
+
 def metadata_document(immutable: dict[str, Any], files: dict[str, bytes], *, migration: dict[str, Any] | None = None) -> dict[str, Any]:
     result: dict[str, Any] = {
         "schema": "grill-work-item/v2",
@@ -656,6 +700,28 @@ def init_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
 
 def audit_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     root = project_root(args.project_root or args.root)
+    item = Path(os.path.abspath(args.artifact_root)) if args.artifact_root else root / ".grill" / "work-items" / args.work_id
+    if item.is_dir() and (item / "WORK-ITEM.json").is_file():
+        try:
+            probe = json.loads((item / "WORK-ITEM.json").read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            probe = {}
+        if isinstance(probe, dict) and isinstance(probe.get("hotfix"), dict):
+            bundle = read_external_bundle(item) if args.artifact_root else read_local_bundle(root, item)
+            hotfix = probe["hotfix"]
+            required = ("scope", "reproduction", "evidence", "correction-test", "rollback", "constitution-evidence")
+            missing = [key for key in required if not isinstance(hotfix.get(key), str) or not hotfix[key].strip()]
+            if missing or hotfix.get("closed") is not True:
+                return {"verdict": "NO-GO", "code": "HOTFIX-INCOMPLETE", "missing": missing}, EXIT_NO_GO
+            if any(token in hotfix["scope"] for token in ("..", "\\n", "\\r")):
+                return {"verdict": "NO-GO", "code": "SCOPE-NOT-CLOSED"}, EXIT_NO_GO
+            try:
+                constitutional = validate_constitution_check(root, bundle.files, bundle.metadata["immutable"].get("constitution", {}))
+            except CliFailure as failure:
+                return {"verdict": "BLOCKED-CONSTITUTION", "code": failure.code}, EXIT_CONSTITUTION
+            return {"verdict": "HOTFIX-GO", "code": "HOTFIX-GO", "work_id": bundle.work_id,
+                    "scope": hotfix["scope"], "constitutional": constitutional,
+                    "post_ship": hotfix.get("post_ship", ["reconcile", "full-document-audit"])}, EXIT_OK
     if not args.artifact_root and not args.work_id:
         raise CliFailure(EXIT_BLOCKED, "BLOCKED", "INVALID-ARGUMENTS", "--work-id or --artifact-root is required")
     item = Path(os.path.abspath(args.artifact_root)) if args.artifact_root else root / ".grill" / "work-items" / args.work_id
@@ -1066,6 +1132,17 @@ def build_parser() -> JsonParser:
     reconcile_parser.add_argument("--source-ref", action="append", default=[])
     reconcile_parser.add_argument("--apply", action="store_true")
     reconcile_parser.add_argument("--integration-branch")
+    hotfix_parser = subparsers.add_parser("hotfix")
+    hotfix_parser.add_argument("root")
+    hotfix_parser.add_argument("--slug", required=True)
+    hotfix_parser.add_argument("--scope", required=True)
+    hotfix_parser.add_argument("--reproduction", required=True)
+    hotfix_parser.add_argument("--evidence", required=True)
+    hotfix_parser.add_argument("--correction-test", required=True, dest="correction_test")
+    hotfix_parser.add_argument("--rollback", required=True)
+    hotfix_parser.add_argument("--constitution-evidence", required=True, dest="constitution_evidence")
+    hotfix_parser.add_argument("--work-id")
+    hotfix_parser.add_argument("--base-ref")
     migrate_parser = subparsers.add_parser("migrate")
     migrate_parser.add_argument("root")
     migrate_parser.add_argument("--type", required=True)
@@ -1084,6 +1161,7 @@ def main(argv: list[str] | None = None) -> int:
             "audit": audit_command,
             "reconcile": reconcile_command,
             "migrate": migrate_command,
+            "hotfix": hotfix_command,
         }
         payload, exit_code = handlers[args.command](args)
     except CliFailure as failure:

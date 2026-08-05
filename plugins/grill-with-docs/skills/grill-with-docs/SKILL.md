@@ -1,6 +1,6 @@
 ---
 name: grill-with-docs
-description: Entrevista decisões arquiteturais por work item isolado, audita a Constituição e reconcilia um ROADMAP global determinístico.
+description: Entrevista decisões arquiteturais por work item isolado, mantém feature plan-only e oferece hotfix-fast executável com HOTFIX-GO fail-closed.
 argument-hint: "iniciar|retomar|pausar|auditar|conciliar|migrar <git-root>"
 ---
 # Grill with Docs v2
@@ -21,6 +21,8 @@ worktree C ──> .grill/work-items/<work-id-C>/ ─┘
 4. A Constituição é opcional. Ausente significa `not-present`; presente é read-only e norma máxima.
 5. Nenhum ADR, decisão local ou reconciliação pode dispensar, enfraquecer ou violar a Constituição.
 6. Hooks são read-only e nunca criam work items automaticamente.
+7. Hotfix-fast é uma exceção operacional fechada: exige escopo, reprodução/evidência, teste de correção, rollback e evidência constitucional; não depende de ROADMAP, BL, DQ ou reconciliação para ser seguro.
+8. Feature e fix permanecem plan-only; hotfix só entrega HOTFIX-GO para ship externo e reconciliação/auditoria documental completa são pós-ship.
 7. A sessão termina em `PLAN_ONLY_STOP`; não implementa código, não executa `specify|plan` e não faz commit/merge.
 
 ## Identidade e inicialização
@@ -113,6 +115,7 @@ Exit codes: `0 GO`, `1 NO-GO`, `2 BLOCKED/uso`, `3 BLOCKED-CONSTITUTION`.
 Preview é o padrão e não escreve:
 
 ```text
+python3 .../grill_workspace.py hotfix ROOT --slug SLUG --scope PATHS --reproduction REPRO --evidence EVIDENCE --correction-test TEST --rollback ROLLBACK --constitution-evidence EVIDENCE
 python3 .../grill_workspace.py reconcile ROOT \
   [--source-root OUTRA_WORKTREE] [--source-ref REF]
 ```
@@ -122,6 +125,7 @@ O reconciliador lê bundles completos sem checkout e detecta: `work_id` duplicad
 Aplicação exige branch de integração explícita, árvore limpa e zero conflitos:
 
 ```text
+python3 .../grill_workspace.py hotfix ROOT --slug SLUG --scope PATHS --reproduction REPRO --evidence EVIDENCE --correction-test TEST --rollback ROLLBACK --constitution-evidence EVIDENCE
 python3 .../grill_workspace.py reconcile ROOT --apply --integration-branch BRANCH
 ```
 
@@ -139,6 +143,8 @@ python3 .../grill_workspace.py migrate ROOT --type feature|fix|hotfix --slug SLU
 A migração copia arquivos planos, `docs/adr|adrs` e `handoffs` para staging, preserva bytes e mantém a origem. Symlink, UTF-8 inválido, colisão ou divergência bloqueiam; falha não deixa bundle parcial.
 
 ## ROADMAP, GO e `PLAN_ONLY_STOP`
+
+Hotfix-fast não lê nem altera ROADMAP/BL/DQ; sua saída é `HOTFIX-GO` somente com escopo fechado, evidência reproduzível, teste de correção, rollback e sem conflito constitucional real.
 
 A ordem vem de `execution-order`, não dos números de fase. Para `GO`, a fase selecionada deve ser a primeira incompleta, ter predecessores completos, nenhum BL aberto e handoff WHAT/WHY exclusivo. `PLAN-CONTEXT.md`, ADRs e `CONTEXT.md` fornecem HOW.
 

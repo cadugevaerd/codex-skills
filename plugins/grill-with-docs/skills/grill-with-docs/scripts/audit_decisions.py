@@ -36,6 +36,7 @@ TECH_FIELD_NAMES = {
 PHASE_STATES = {"planned", "ready-for-specify", "blocked", "complete", "superseded"}
 BL_STATES = {"open", "resolved", "superseded"}
 DQ_STATES = {"open", "resolved", "deferred", "split", "blocked", "out-of-scope"}
+HOTFIX_REQUIRED = ("scope", "reproduction", "evidence", "correction-test", "rollback", "constitution-evidence")
 SESSION_STATES = {"in-progress", "ready", "blocked", "safety-stop", "paused-user", "complete"}
 
 

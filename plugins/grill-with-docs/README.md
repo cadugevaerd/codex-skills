@@ -1,4 +1,4 @@
-# grill-with-docs v2
+# grill-with-docs v2.1 — Delivery First
 
 Plugin plan-only para entrevistar decisões arquiteturais sem colisão entre worktrees.
 
@@ -7,6 +7,15 @@ feature/fix/hotfix → .grill/work-items/<work-id>/ → audit → PLAN_ONLY_STOP
                                                          │
 ship externo → complete/GO ─────────────────────────────┴→ reconcile → .grill/global/
 ```
+
+## Hotfix-fast / incidente
+
+```bash
+python3 "$CORE" hotfix "$PWD" --slug auth-timeout --scope src/auth.py --reproduction "curl /login returns 500" --evidence "incident-2026-08-05.log" --correction-test "tests/test_auth.py::test_timeout" --rollback "revert commit X" --constitution-evidence "scope preserves fail-closed auth"
+python3 "$CORE" audit "$PWD" --work-id <work-id>
+```
+
+`HOTFIX-GO` é autocontido e fail-closed; não exige ROADMAP/BL/DQ/reconciliação para segurança. Full audit e reconciliação são pós-ship. Feature/fix continuam `PLAN_ONLY_STOP`.
 
 ## Início rápido
 

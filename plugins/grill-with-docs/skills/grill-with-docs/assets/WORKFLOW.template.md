@@ -6,6 +6,9 @@ Generic, project-independent contract. Requires Spec Kit >=0.11.2 and verified e
 ## Loop externo: ROADMAP e handoff
 ROADMAP.md is the fixed, rarely renumbered phase order. Only one phase is `ready`; the previous phase must be `complete`. Check blockers before starting, record the decision, and create a single handoff for the next phase. `specify` receives only that handoff, never the whole roadmap. `before_specify` and branch/worktree checks happen before specify. The spec number is sequential and is not the phase number.
 
+## Delivery First / hotfix-fast
+Feature e fix permanecem plan-only. Incidentes podem usar `grill_workspace.py hotfix` com escopo fechado, reprodução/evidência, teste de correção, rollback e verificação constitucional. Essa trilha não depende do ROADMAP/BL/DQ nem do workflow global para decidir HOTFIX-GO; reconciliação e auditoria documental completa são pós-ship.
+
 ## Limite desta skill: PLAN_ONLY_STOP
 
 Este documento descreve um ciclo que será executado externamente. Durante `grill-with-docs`, `PLAN_ONLY_STOP` ocorre **antes de `specify`**: a skill prepara e audita entradas, entrega o path do handoff selecionado e para. Ela não chama `specify`/`plan`, não edita código e não cria branch, commit ou merge.

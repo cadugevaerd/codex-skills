@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0",
+  "version": "1.1.0",
   "status": "in-progress",
   "active_phase": "FASE-001",
   "audit_verdict": "pending",
@@ -10,7 +10,7 @@
   "workflow": {
     "path": "WORKFLOW.md",
     "sha256": "<sha256>",
-    "version": "v1"
+    "version": "v2"
   },
   "limits": {
     "max_questions_per_run": 25,

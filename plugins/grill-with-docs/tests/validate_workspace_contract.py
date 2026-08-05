@@ -541,5 +541,23 @@ class WorkspaceV2Contract(unittest.TestCase):
         self.assertFalse((broken_directory / ".grill/work-items/broken-dir").exists())
 
 
+    def test_hotfix_fast_is_self_contained_and_feature_remains_plan_only(self) -> None:
+        args = ("hotfix", self.root, "--slug", "incident", "--scope", "src/auth.py",
+                "--reproduction", "curl /login => 500", "--evidence", "incident.log",
+                "--correction-test", "tests/auth.py::test_timeout", "--rollback", "revert abc",
+                "--constitution-evidence", "no conflict", "--work-id", "hotfix-incident")
+        process, payload = invoke(*args)
+        self.assertEqual((process.returncode, payload["verdict"]), (0, "HOTFIX-GO"))
+        item = self.root / ".grill/work-items/hotfix-incident"
+        self.assertTrue((item / "HOTFIX.md").is_file())
+        audit, audited = invoke("audit", self.root, "--work-id", "hotfix-incident")
+        self.assertEqual((audit.returncode, audited["verdict"]), (0, "HOTFIX-GO"))
+        self.assertFalse((self.root / ".grill/global").exists())
+        bad, bad_payload = invoke("hotfix", self.root, "--slug", "bad", "--scope", "../escape",
+                                  "--reproduction", "r", "--evidence", "e", "--correction-test", "t",
+                                  "--rollback", "b", "--constitution-evidence", "c")
+        self.assertEqual((bad.returncode, bad_payload["code"]), (1, "SCOPE-NOT-CLOSED"))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
