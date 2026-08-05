@@ -562,5 +562,32 @@ class WorkspaceV2Contract(unittest.TestCase):
         self.assertEqual((bad.returncode, bad_payload["code"]), (1, "SCOPE-NOT-CLOSED"))
 
 
+    def test_hotfix_fast_rejects_failed_test_timeout_and_tampered_bundle(self) -> None:
+        base = ("hotfix", self.root, "--slug", "failure", "--scope", "src/api.py",
+                "--reproduction", "500", "--evidence", "incident.log", "--correction-test", "tests/test_api.py",
+                "--rollback", "git revert", "--constitution-evidence", "not-applicable", "--work-id", "hotfix-failure")
+        failed, _ = invoke(*base, "--test-command", f"{sys.executable} -c 'import sys; sys.exit(7)'")
+        self.assertEqual(failed.returncode, 0)
+        go_failed, failed_payload = invoke("hotfix-go", self.root, "--work-id", "hotfix-failure")
+        self.assertEqual((go_failed.returncode, failed_payload["code"]), (1, "CORRECTION-TEST-FAILED"))
+        timeout, _ = invoke("hotfix", self.root, "--slug", "timeout", "--scope", "src/timeout.py",
+                            "--reproduction", "500", "--evidence", "incident.log", "--correction-test", "tests/test_timeout.py",
+                            "--rollback", "git revert", "--constitution-evidence", "not-applicable", "--work-id", "hotfix-timeout",
+                            "--test-command", f"{sys.executable} -c 'import time; time.sleep(2)'", "--test-timeout", "1")
+        self.assertEqual(timeout.returncode, 0)
+        go_timeout, timeout_payload = invoke("hotfix-go", self.root, "--work-id", "hotfix-timeout")
+        self.assertEqual((go_timeout.returncode, timeout_payload["code"]), (1, "CORRECTION-TEST-TIMEOUT"))
+        newline, newline_payload = invoke("hotfix", self.root, "--slug", "newline", "--scope", "src/api.py\nother.py",
+                                          "--reproduction", "500", "--evidence", "incident.log", "--correction-test", "t",
+                                          "--rollback", "git revert", "--constitution-evidence", "not-applicable", "--test-command", "true")
+        self.assertEqual((newline.returncode, newline_payload["code"]), (1, "SCOPE-NOT-CLOSED"))
+        item = self.root / ".grill/work-items/hotfix-failure/WORK-ITEM.json"
+        data = json.loads(item.read_text(encoding="utf-8"))
+        data["hotfix"]["closed"] = False
+        item.write_text(json.dumps(data), encoding="utf-8")
+        tampered, tampered_payload = invoke("hotfix-go", self.root, "--work-id", "hotfix-failure")
+        self.assertEqual((tampered.returncode, tampered_payload["code"]), (1, "HOTFIX-INCOMPLETE"))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
