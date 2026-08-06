@@ -496,6 +496,91 @@ class WorkspaceV2Contract(unittest.TestCase):
         self.assertEqual(before_mtime, {path.name: path.stat().st_mtime_ns for path in global_dir.iterdir()})
         self.assertNotIn(b"\\n", (global_dir / "ROADMAP.md").read_bytes())
 
+    def test_targeted_reconcile_admits_terminal_target_beside_pending_sibling(self) -> None:
+        target = self._init_item(work_id="target"); self._mark_complete(target)
+        self._init_item(work_id="pending", slug="pending")
+        self._commit_all(self.root)
+        process, payload = invoke("reconcile", self.root, "--work-id", "target", "--apply", "--integration-branch", "main")
+        self.assertEqual((process.returncode, payload["verdict"]), (0, "APPLIED"))
+        self.assertEqual([p.name for p in (self.root / ".grill/global/receipts").iterdir()], ["target.json"])
+
+    def test_targeted_reconcile_rejects_pending_target_and_unreceived_dependency(self) -> None:
+        pending = self._init_item(work_id="pending")
+        process, payload = invoke("reconcile", self.root, "--work-id", "pending")
+        self.assertEqual(process.returncode, 1); self.assertIn("STATE-NOT-RECONCILABLE", payload["code"])
+        target = self._init_item(work_id="dependent", slug="dependent"); self._mark_complete(target); self._set_dependencies(target, ["missing"])
+        process, payload = invoke("reconcile", self.root, "--work-id", "dependent")
+        self.assertEqual(process.returncode, 1); self.assertTrue(any(c.startswith("DEPENDENCY-NOT-RECONCILED:") for c in payload["conflicts"]))
+
+    def test_targeted_reconcile_rejects_scope_and_adr_against_receipt(self) -> None:
+        owner = self._init_item(work_id="owner"); self._mark_complete(owner); self._set_scope(owner, ["src/api"]); self._commit_all(self.root)
+        process, _ = invoke("reconcile", self.root, "--work-id", "owner", "--apply", "--integration-branch", "main"); self.assertEqual(process.returncode, 0)
+        consumer = self._init_item(work_id="consumer", slug="consumer"); self._mark_complete(consumer); self._set_scope(consumer, ["src/api/x.py"]); self._set_adr_conflicts(consumer, ["owner/ADR-1"])
+        process, payload = invoke("reconcile", self.root, "--work-id", "consumer")
+        self.assertEqual(process.returncode, 1); self.assertTrue(any("SCOPE-OVERLAP" in c or "ADR-CONFLICT" in c for c in payload["conflicts"]))
+
+    def test_targeted_preview_is_read_only_and_parser_exposes_work_id(self) -> None:
+        item = self._init_item(work_id="preview"); self._mark_complete(item); before = snapshot(self.root)
+        process, payload = invoke("reconcile", self.root, "--work-id", "preview")
+        self.assertEqual((process.returncode, payload["verdict"]), (0, "PREVIEW")); self.assertEqual(before, snapshot(self.root))
+        module = load_workspace_module(); self.assertIn("work_id", vars(module.build_parser().parse_args(["reconcile", str(self.root)])))
+
+    def test_targeted_apply_blocks_legacy_global_and_full_apply_never_drops_receipts(self) -> None:
+        item = self._init_item(work_id="legacy"); self._mark_complete(item); self._commit_all(self.root)
+        (self.root / ".grill/global").mkdir(parents=True); (self.root / ".grill/global/ROADMAP.md").write_text("legacy\n"); (self.root / ".grill/global/AUDIT.md").write_text("legacy\n")
+        process, payload = invoke("reconcile", self.root, "--work-id", "legacy", "--apply", "--integration-branch", "main")
+        self.assertEqual((process.returncode, payload["code"]), (2, "GLOBAL-BASELINE-UNVERIFIED"))
+
+    def test_receipt_reapply_is_reused_without_mtime_churn(self) -> None:
+        item = self._init_item(work_id="reuse"); self._mark_complete(item); self._commit_all(self.root)
+        args = ("reconcile", self.root, "--work-id", "reuse", "--apply", "--integration-branch", "main")
+        first, p1 = invoke(*args); self.assertEqual(p1["verdict"], "APPLIED"); receipt = self.root / ".grill/global/receipts/reuse.json"; mtime = receipt.stat().st_mtime_ns
+        time.sleep(.02); second, p2 = invoke(*args); self.assertEqual((second.returncode, p2["verdict"]), (0, "REUSED")); self.assertEqual(receipt.stat().st_mtime_ns, mtime)
+
+    def test_targeted_concurrent_distinct_receipts_are_preserved(self) -> None:
+        first = self._init_item(work_id="race-a"); second = self._init_item(work_id="race-b", slug="race-b")
+        self._mark_complete(first); self._mark_complete(second); self._commit_all(self.root)
+        commands = [("reconcile", self.root, "--work-id", work_id, "--apply", "--integration-branch", "main") for work_id in ("race-a", "race-b")]
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            results = list(executor.map(lambda command: invoke(*command), commands))
+        self.assertTrue(all(process.returncode == 0 for process, _payload in results))
+        self.assertEqual({path.name for path in (self.root / ".grill/global/receipts").iterdir()}, {"race-a.json", "race-b.json"})
+        roadmap = (self.root / ".grill/global/ROADMAP.md").read_text(encoding="utf-8")
+        self.assertIn("race-a", roadmap); self.assertIn("race-b", roadmap)
+
+    def test_broken_receipts_symlink_is_rejected(self) -> None:
+        receipts = self.root / ".grill/global/receipts"; receipts.parent.mkdir(parents=True)
+        receipts.symlink_to("missing-receipts", target_is_directory=True)
+        process, payload = invoke("reconcile", self.root)
+        self.assertEqual((process.returncode, payload["code"]), (2, "SYMLINK-REJECTED"))
+
+    def test_targeted_apply_releases_lock_when_receipt_is_invalid(self) -> None:
+        item = self._init_item(work_id="receipt-lock"); self._mark_complete(item); self._commit_all(self.root)
+        receipts = self.root / ".grill/global/receipts"; receipts.mkdir(parents=True)
+        (receipts / "broken.json").write_text("{invalid", encoding="utf-8")
+        process, payload = invoke("reconcile", self.root, "--work-id", "receipt-lock", "--apply", "--integration-branch", "main")
+        self.assertEqual((process.returncode, payload["code"]), (2, "RECEIPT-INVALID"))
+        self.assertFalse((self.root / ".grill/locks/global-reconciliation.lock").exists())
+
+    def test_full_apply_blocks_before_dropping_existing_receipts(self) -> None:
+        item = self._init_item(work_id="full-safe"); self._mark_complete(item); self._commit_all(self.root)
+        process, _payload = invoke("reconcile", self.root, "--work-id", "full-safe", "--apply", "--integration-branch", "main")
+        self.assertEqual(process.returncode, 0)
+        receipt = self.root / ".grill/global/receipts/full-safe.json"; before = receipt.read_bytes()
+        process, payload = invoke("reconcile", self.root, "--apply", "--integration-branch", "main")
+        self.assertEqual((process.returncode, payload["code"]), (2, "RECEIPTS-WOULD-BE-DROPPED"))
+        self.assertEqual(before, receipt.read_bytes())
+
+    def test_full_apply_receipt_guard_runs_under_released_lock(self) -> None:
+        item = self._init_item(work_id="lock-safe"); self._mark_complete(item); self._commit_all(self.root)
+        first, _payload = invoke("reconcile", self.root, "--work-id", "lock-safe", "--apply", "--integration-branch", "main")
+        self.assertEqual(first.returncode, 0)
+        receipt = self.root / ".grill/global/receipts/lock-safe.json"; before = receipt.read_bytes()
+        process, payload = invoke("reconcile", self.root, "--apply", "--integration-branch", "main")
+        self.assertEqual((process.returncode, payload["code"]), (2, "RECEIPTS-WOULD-BE-DROPPED"))
+        self.assertEqual(before, receipt.read_bytes())
+        self.assertFalse((self.root / ".grill/locks/global-reconciliation.lock").exists())
+
     def test_reconcile_concurrent_apply_is_serialized(self) -> None:
         item = self._init_item(); self._mark_complete(item); self._commit_all(self.root)
         command = ("reconcile", self.root, "--apply", "--integration-branch", "main")

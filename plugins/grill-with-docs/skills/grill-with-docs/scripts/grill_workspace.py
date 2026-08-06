@@ -1135,6 +1135,54 @@ def global_documents(items: dict[str, ItemBundle], qualified: list[str], preview
     return roadmap, audit
 
 
+RECEIPT_SCHEMA = "grill-with-docs.reconciliation-receipt"
+RECEIPT_VERSION = 1
+
+
+def receipt_for(bundle: ItemBundle, constitution: dict[str, Any], scope: list[str], qualified: list[str]) -> dict[str, Any]:
+    immutable = validate_metadata(bundle.metadata, bundle.work_id)
+    return {"schema": RECEIPT_SCHEMA, "version": RECEIPT_VERSION, "work_id": bundle.work_id,
+            "fingerprint": bundle.fingerprint,
+            "identity": {"type": immutable["type"], "slug": immutable["slug"]},
+            "constitution": {"state": constitution.get("state"), "sha256": constitution.get("sha256")},
+            "scope": scope, "qualified_ids": qualified,
+            "depends_on_work": sorted(set(bundle.metadata.get("depends-on-work", []))),
+            "conflicts_with_adrs": sorted(set(bundle.metadata.get("conflicts-with-adrs", [])))}
+
+
+def read_receipts(root: Path) -> dict[str, dict[str, Any]]:
+    directory = root / ".grill" / "global" / "receipts"
+    reject_symlink_chain(root, directory, allow_missing=False)
+    if not directory.exists():
+        return {}
+    if not directory.is_dir() or directory.is_symlink():
+        raise CliFailure(EXIT_BLOCKED, "BLOCKED", "UNSAFE-RECEIPTS", str(directory))
+    result: dict[str, dict[str, Any]] = {}
+    for path in sorted(directory.iterdir()):
+        if path.is_symlink() or not path.is_file() or path.suffix != ".json":
+            raise CliFailure(EXIT_BLOCKED, "BLOCKED", "UNSAFE-RECEIPT", str(path))
+        try:
+            value = json.loads(safe_read(path, root=root, utf8=True))
+        except (json.JSONDecodeError, UnicodeError) as exc:
+            raise CliFailure(EXIT_BLOCKED, "BLOCKED", "RECEIPT-INVALID", str(path)) from exc
+        if (not isinstance(value, dict) or value.get("schema") != RECEIPT_SCHEMA
+                or value.get("version") != RECEIPT_VERSION
+                or not WORK_ID_RE.fullmatch(str(value.get("work_id", "")))
+                or path.name != f"{value['work_id']}.json"):
+            raise CliFailure(EXIT_BLOCKED, "BLOCKED", "RECEIPT-INVALID", str(path))
+        if any(key not in value for key in ("fingerprint", "identity", "constitution", "scope", "qualified_ids", "depends_on_work", "conflicts_with_adrs")):
+            raise CliFailure(EXIT_BLOCKED, "BLOCKED", "RECEIPT-INVALID", str(path))
+        if (not isinstance(value["fingerprint"], str) or not isinstance(value["identity"], dict)
+                or not isinstance(value["constitution"], dict) or not isinstance(value["scope"], list)
+                or not all(isinstance(v, str) for v in value["scope"])
+                or not isinstance(value["qualified_ids"], list) or not all(isinstance(v, str) for v in value["qualified_ids"])
+                or not isinstance(value["depends_on_work"], list) or not all(isinstance(v, str) for v in value["depends_on_work"])
+                or not isinstance(value["conflicts_with_adrs"], list) or not all(isinstance(v, str) for v in value["conflicts_with_adrs"])):
+            raise CliFailure(EXIT_BLOCKED, "BLOCKED", "RECEIPT-INVALID", str(path))
+        result[value["work_id"]] = value
+    return result
+
+
 def dirty_paths(root: Path) -> set[str]:
     output = run_git(root, "status", "--porcelain=v1", "--untracked-files=all", "-z", text=False)
     assert isinstance(output, bytes)
@@ -1156,7 +1204,7 @@ def dirty_paths(root: Path) -> set[str]:
     return paths
 
 
-def replace_global_directory(root: Path, roadmap: bytes, audit: bytes) -> None:
+def replace_global_directory(root: Path, roadmap: bytes, audit: bytes, receipts: dict[str, bytes] | None = None) -> None:
     grill = ensure_directory(root, ".grill")
     target = grill / "global"
     if target.is_symlink():
@@ -1166,6 +1214,10 @@ def replace_global_directory(root: Path, roadmap: bytes, audit: bytes) -> None:
     try:
         (staging / "ROADMAP.md").write_bytes(roadmap)
         (staging / "AUDIT.md").write_bytes(audit)
+        if receipts is not None:
+            (staging / "receipts").mkdir()
+            for name, data in sorted(receipts.items()):
+                (staging / "receipts" / name).write_bytes(data)
         if target.exists():
             rename_child(grill, target, backup)
         rename_child(grill, staging, target)
@@ -1179,52 +1231,142 @@ def replace_global_directory(root: Path, roadmap: bytes, audit: bytes) -> None:
         raise
 
 
-def reconcile_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
-    root = project_root(args.root)
+def reconciliation_bundles(root: Path, args: argparse.Namespace) -> list[ItemBundle]:
     bundles = local_items(root)
     for source in args.source_root:
         bundles.extend(local_items(project_root(source)))
     for ref in args.source_ref:
         bundles.extend(ref_items(root, ref))
-    items, conflicts, qualified = validate_reconciliation(root, bundles)
-    preview = {
-        "verdict": "NO-GO" if conflicts else "PREVIEW",
-        "code": "CONFLICTS" if conflicts else "OK",
-        "work_ids": sorted(items),
-        "qualified_ids": qualified,
-        "conflicts": conflicts,
-        "count": len(items),
-    }
+    return bundles
+
+
+def targeted_bundle(root: Path, args: argparse.Namespace, bundles: list[ItemBundle]) -> tuple[ItemBundle, dict[str, Any], list[str], list[str]]:
+    target_bundles = [bundle for bundle in bundles if bundle.work_id == args.work_id]
+    if not target_bundles:
+        raise CliFailure(EXIT_NO_GO, "NO-GO", "WORK-ITEM-MISSING", args.work_id)
+    if len({bundle.fingerprint for bundle in target_bundles}) != 1:
+        raise CliFailure(EXIT_NO_GO, "NO-GO", "DUPLICATE-WORK-ID", args.work_id)
+    target = target_bundles[0]
+    constitution, _text, _clauses = constitution_info(root)
+    immutable = validate_metadata(target.metadata, args.work_id)
+    recorded = immutable.get("constitution", {})
+    if recorded.get("state") != constitution.get("state") or recorded.get("sha256") != constitution.get("sha256"):
+        raise CliFailure(EXIT_NO_GO, "NO-GO", "CONSTITUTION-STALE", args.work_id)
+    validate_constitution_check(root, target.files, recorded)
+    state = json.loads(target.files.get("state.json", b"{}").decode("utf-8"))
+    if (state.get("status") != "complete" or state.get("milestone_status") != "completed"
+            or state.get("active_phase") is not None or state.get("audit_verdict") != "GO"):
+        raise CliFailure(EXIT_NO_GO, "NO-GO", "STATE-NOT-RECONCILABLE", args.work_id)
+    if not reconciliation_roadmap_is_terminal(target.files):
+        raise CliFailure(EXIT_NO_GO, "NO-GO", "ROADMAP-NOT-TERMINAL", args.work_id)
+    return target, constitution, normalized_scope(target.metadata, args.work_id), sorted(scan_qualified_ids(target))
+
+
+def reconcile_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
+    root = project_root(args.root)
+    bundles = reconciliation_bundles(root, args)
+    if not args.work_id:
+        held_lock = acquire_lock(root, "global-reconciliation", root / ".grill" / "global") if args.apply else None
+        try:
+            items, conflicts, qualified = validate_reconciliation(root, bundles)
+            preview = {"verdict": "NO-GO" if conflicts else "PREVIEW", "code": "CONFLICTS" if conflicts else "OK",
+                       "work_ids": sorted(items), "qualified_ids": qualified, "conflicts": conflicts, "count": len(items)}
+            existing = read_receipts(root)
+            return reconcile_apply(root, args, preview, items, qualified, None, existing, held_lock, False)
+        finally:
+            if held_lock is not None:
+                shutil.rmtree(held_lock, ignore_errors=True)
+
+    try:
+        target, constitution, scope, qualified = targeted_bundle(root, args, bundles)
+    except (KeyError, TypeError, json.JSONDecodeError, UnicodeError) as exc:
+        return {"verdict": "NO-GO", "code": "BUNDLE-INVALID", "work_id": args.work_id, "error": str(exc)}, EXIT_NO_GO
+    global_dir = root / ".grill" / "global"
+    held_lock = acquire_lock(root, "global-reconciliation", global_dir) if args.apply else None
+    try:
+        if held_lock is not None:
+            locked_bundles = reconciliation_bundles(root, args)
+            locked_target, locked_constitution, locked_scope, locked_qualified = targeted_bundle(root, args, locked_bundles)
+            if locked_target.fingerprint != target.fingerprint or len([b for b in locked_bundles if b.work_id == args.work_id]) != 1:
+                raise CliFailure(EXIT_BLOCKED, "BLOCKED", "TARGET-CHANGED-DURING-RECONCILIATION", args.work_id)
+            target, constitution, scope, qualified = locked_target, locked_constitution, locked_scope, locked_qualified
+        existing = read_receipts(root)
+        if not existing and global_dir.is_dir() and any((global_dir / name).is_file() for name in ("ROADMAP.md", "AUDIT.md")):
+            return {"verdict": "BLOCKED", "code": "GLOBAL-BASELINE-UNVERIFIED", "work_id": args.work_id}, EXIT_BLOCKED
+        conflicts: list[str] = []
+        for prior_id, receipt in sorted(existing.items()):
+            if prior_id == args.work_id:
+                continue
+            for left in scope:
+                for right in receipt.get("scope", []):
+                    if isinstance(right, str) and scopes_overlap(left, right):
+                        conflicts.append(f"SCOPE-OVERLAP:{args.work_id}:{left}<->{prior_id}:{right}")
+            for reference in target.metadata.get("conflicts-with-adrs", []):
+                if isinstance(reference, str) and reference in receipt.get("qualified_ids", []):
+                    conflicts.append(f"ADR-CONFLICT:{args.work_id}->{reference}")
+        dependencies = target.metadata.get("depends-on-work", [])
+        if not isinstance(dependencies, list) or not all(isinstance(value, str) for value in dependencies):
+            conflicts.append(f"DEPENDENCY-SCHEMA:{args.work_id}")
+        else:
+            for dependency in sorted(set(dependencies)):
+                if dependency == args.work_id:
+                    conflicts.append(f"DEPENDENCY-SELF:{args.work_id}")
+                elif dependency not in existing:
+                    conflicts.append(f"DEPENDENCY-NOT-RECONCILED:{args.work_id}->{dependency}")
+        preview = {"verdict": "NO-GO" if conflicts else "PREVIEW", "code": "CONFLICTS" if conflicts else "OK",
+                   "work_ids": [args.work_id], "qualified_ids": qualified, "conflicts": sorted(set(conflicts)), "count": 1}
+        receipt = receipt_for(target, constitution, scope, qualified)
+        return reconcile_apply(root, args, preview, {args.work_id: target}, qualified, receipt, existing, held_lock, False)
+    finally:
+        if held_lock is not None:
+            shutil.rmtree(held_lock, ignore_errors=True)
+
+
+def reconcile_apply(root: Path, args: argparse.Namespace, preview: dict[str, Any], items: dict[str, ItemBundle], qualified: list[str], receipt: dict[str, Any] | None, existing: dict[str, dict[str, Any]] | None = None, held_lock: Path | None = None, release_held_lock: bool = True) -> tuple[dict[str, Any], int]:
     if not args.apply:
-        return preview, EXIT_NO_GO if conflicts else EXIT_OK
+        return preview, EXIT_NO_GO if preview.get("conflicts") else EXIT_OK
     branch = git_optional(root, "branch", "--show-current")
     if not args.integration_branch or branch != args.integration_branch:
         return {**preview, "verdict": "BLOCKED", "code": "WRONG-INTEGRATION-BRANCH"}, EXIT_BLOCKED
-    if conflicts:
+    if preview.get("conflicts"):
         return preview, EXIT_NO_GO
-    roadmap, audit = global_documents(items, qualified, preview)
+    existing = existing if existing is not None else {}
+    if receipt is None and existing:
+        return {**preview, "verdict": "BLOCKED", "code": "RECEIPTS-WOULD-BE-DROPPED"}, EXIT_BLOCKED
+    if receipt is not None:
+        all_qualified = sorted(set(qualified) | {item for value in existing.values() for item in value.get("qualified_ids", [])})
+        roadmap_lines = ["# Global ROADMAP", "", "Generated deterministically from reconciled work items.", ""]
+        identities = {key: value.get("identity", {}) for key, value in existing.items()}
+        identities[receipt["work_id"]] = receipt["identity"]
+        for work_id in sorted(identities):
+            roadmap_lines.append(f"- **{work_id}** ({identities[work_id].get('type')}): {identities[work_id].get('slug')}")
+        roadmap_lines += ["", "## Qualified artifact IDs", ""] + [f"- `{value}`" for value in all_qualified]
+        roadmap = ("\n".join(roadmap_lines).rstrip() + "\n").encode()
+        audit = ("# Global Reconciliation Audit\n\n```json\n" + json.dumps({**preview, "work_ids": sorted(identities), "qualified_ids": all_qualified}, sort_keys=True, indent=2) + "\n```\n").encode()
+        payloads = {f"{key}.json": canonical(value) for key, value in existing.items()}
+        payloads[f"{receipt['work_id']}.json"] = canonical(receipt)
+    else:
+        roadmap, audit = global_documents(items, qualified, preview)
+        payloads = None
     global_dir = root / ".grill" / "global"
-    lock = acquire_lock(root, "global-reconciliation", global_dir)
+    lock = held_lock or acquire_lock(root, "global-reconciliation", global_dir)
     try:
-        if global_dir.is_dir() and not global_dir.is_symlink():
-            current_roadmap = (global_dir / "ROADMAP.md").read_bytes() if (global_dir / "ROADMAP.md").is_file() else None
-            current_audit = (global_dir / "AUDIT.md").read_bytes() if (global_dir / "AUDIT.md").is_file() else None
-            if current_roadmap == roadmap and current_audit == audit:
-                disallowed = dirty_paths(root) - MANAGED_GLOBAL
-                disallowed = {path for path in disallowed if not path.startswith(".grill/locks/global-reconciliation.lock/")}
-                if disallowed:
-                    return {**preview, "verdict": "BLOCKED", "code": "DIRTY-WORKTREE", "dirty": sorted(disallowed)}, EXIT_BLOCKED
-                return {**preview, "verdict": "REUSED", "code": "OK"}, EXIT_OK
-        dirty = {
-            path for path in dirty_paths(root)
-            if not path.startswith(".grill/locks/global-reconciliation.lock/") and path not in MANAGED_GLOBAL
-        }
+        managed = MANAGED_GLOBAL | ({".grill/global/receipts"} if payloads is not None else set())
+        current_roadmap = global_dir / "ROADMAP.md"
+        current_audit = global_dir / "AUDIT.md"
+        current_receipts = {p.name: p.read_bytes() for p in (global_dir / "receipts").glob("*.json")} if payloads is not None and (global_dir / "receipts").is_dir() else {}
+        if current_roadmap.is_file() and current_audit.is_file() and current_roadmap.read_bytes() == roadmap and current_audit.read_bytes() == audit and (payloads is None or current_receipts == payloads):
+            dirty = {path for path in dirty_paths(root) if path not in managed and not path.startswith(".grill/global/receipts/") and not path.startswith(".grill/locks/global-reconciliation.lock/")}
+            if dirty:
+                return {**preview, "verdict": "BLOCKED", "code": "DIRTY-WORKTREE", "dirty": sorted(dirty)}, EXIT_BLOCKED
+            return {**preview, "verdict": "REUSED", "code": "OK"}, EXIT_OK
+        dirty = {path for path in dirty_paths(root) if not path.startswith(".grill/locks/global-reconciliation.lock/") and not path.startswith(".grill/global/receipts/") and path not in managed}
         if dirty:
             return {**preview, "verdict": "BLOCKED", "code": "DIRTY-WORKTREE", "dirty": sorted(dirty)}, EXIT_BLOCKED
-        replace_global_directory(root, roadmap, audit)
+        replace_global_directory(root, roadmap, audit, payloads)
         return {**preview, "verdict": "APPLIED", "code": "OK"}, EXIT_OK
     finally:
-        if lock is not None:
+        if lock is not None and (held_lock is None or release_held_lock):
             shutil.rmtree(lock, ignore_errors=True)
 
 
@@ -1334,6 +1476,7 @@ def build_parser() -> JsonParser:
     reconcile_parser.add_argument("root")
     reconcile_parser.add_argument("--source-root", action="append", default=[])
     reconcile_parser.add_argument("--source-ref", action="append", default=[])
+    reconcile_parser.add_argument("--work-id")
     reconcile_parser.add_argument("--apply", action="store_true")
     reconcile_parser.add_argument("--integration-branch")
     hotfix_parser = subparsers.add_parser("hotfix")
