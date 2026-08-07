@@ -117,8 +117,10 @@ Preview é o padrão e não escreve:
 ```text
 python3 .../grill_workspace.py hotfix ROOT --slug SLUG --scope PATHS --reproduction REPRO --evidence EVIDENCE --correction-test TEST --rollback ROLLBACK --constitution-evidence EVIDENCE --test-command "python3 -m unittest tests/test_fix.py"
 python3 .../grill_workspace.py reconcile ROOT \
-  [--source-root OUTRA_WORKTREE] [--source-ref REF]
+  [--source-root OUTRA_WORKTREE] [--source-ref REF] [--work-id ID]
 ```
+
+`--work-id ID` faz reconciliação incremental fail-closed de um único alvo: irmãos pendentes ou conflitantes não bloqueiam, mas estado, Constituição, escopo, ADRs e dependências do alvo continuam obrigatórios. Preview não escreve. Com `--apply`, a projeção é acumulada em recibos determinísticos `.grill/global/receipts/ID.json`; reaplicação idêntica retorna `REUSED`. Um global legado sem recibos bloqueia com `GLOBAL-BASELINE-UNVERIFIED` (não há migração implícita).
 
 O reconciliador lê bundles completos sem checkout e detecta: `work_id` duplicado divergente, sobreposição de escopo, dependência ausente/cíclica, conflito ADR declarado, estado não concluído e hash constitucional stale. Só aceita milestone com `milestone_status=completed`, `state.status=complete`, `active_phase=null`, `audit_verdict=GO` e todas as fases do `execution-order` em `complete|superseded`. IDs são qualificados globalmente.
 

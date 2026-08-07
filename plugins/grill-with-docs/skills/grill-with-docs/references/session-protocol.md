@@ -99,6 +99,7 @@ Preview:
 - [ ] Não criar `.grill`, lock ou arquivo global.
 - [ ] Exigir `milestone_status=completed`, `state.status=complete`, `active_phase=null`, `audit_verdict=GO` e todas as fases do `execution-order` em `complete|superseded`.
 - [ ] Detectar IDs divergentes, escopo sobreposto, dependências ausentes/cíclicas, ADRs conflitantes e Constituição stale.
+- [ ] Em modo incremental, usar `--work-id ID`; validar somente o alvo contra receipts anteriores e rejeitar baseline global legado sem `receipts/` com `GLOBAL-BASELINE-UNVERIFIED`.
 - [ ] Qualificar IDs como `<work-id>/<ID>`.
 
 Apply:
@@ -109,6 +110,7 @@ Apply:
 - [ ] Gravar somente `.grill/global/ROADMAP.md` e `AUDIT.md`.
 - [ ] Segunda execução deve ser no-op byte-idêntico.
 - [ ] Nunca reescrever work items.
+- [ ] Persistir `.grill/global/receipts/<work-id>.json`; a aplicação incremental preserva recibos anteriores e retorna `REUSED` sem churn quando inalterada.
 
 ## Migração
 

@@ -1,4 +1,4 @@
-# grill-with-docs v2.1.3 — Delivery First
+# grill-with-docs v2.2.0 — Delivery First
 
 Plugin plan-only para entrevistar decisões arquiteturais sem colisão entre worktrees.
 
@@ -32,7 +32,7 @@ python3 "$CORE" audit "$PWD" --work-id <work-id>
 Após o `PLAN_ONLY_STOP`, faça o ship externamente. Uma fase entregue fica `complete`; uma fase legitimamente substituída fica `superseded`. Quando todas as fases estiverem em um desses estados e não houver BL/DQ material aberto, grave `milestone_status=completed`, `state.status=complete`, `active_phase=null` e `audit_verdict=GO`; a auditoria retorna `MILESTONE-COMPLETE`. Então gere o preview de reconciliação:
 
 ```bash
-python3 "$CORE" reconcile "$PWD" --source-root ../outra-worktree
+python3 "$CORE" reconcile "$PWD" --source-root ../outra-worktree --work-id <work-id>
 ```
 
 Aplicação da projeção global:
