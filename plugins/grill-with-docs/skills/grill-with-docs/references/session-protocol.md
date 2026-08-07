@@ -2,6 +2,11 @@
 
 Frases com **deve**, **nunca** e **somente** são normativas.
 
+## Decomposição modular v2.3.0
+
+Feature/fix novos usam `DELIVERY-MAP.md` com `decomposition-schema: v1`; hotfix permanece autocontido e não cria o mapa. MOD (module boundary), DU (delivery unit), `development-type` (enum fechado) e FASE (ordem) são dimensões distintas. O fluxo é `MAP_CAPABILITY→DISCOVER_MODULES→CLASSIFY_DUs→MAP_DEPENDENCIES→BUILD_PHASES→AUDIT→PLAN_ONLY_STOP`. A auditoria é read-only, valida equivalência por fase entre MAP/ROADMAP/handoff/PLAN-CONTEXT e não executa HOW. Itens 2.2.x permanecem legados; migração é explícita, preview-first, preservando bytes e sem inferência. Receipts antigos são dual-read como `legacy-unclassified`.
+
+
 ## Fluxo
 
 ```text
