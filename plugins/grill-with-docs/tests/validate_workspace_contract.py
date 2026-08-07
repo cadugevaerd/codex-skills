@@ -844,6 +844,18 @@ class WorkspaceV2Contract(unittest.TestCase):
         handoff = item / "handoffs/FASE-001-SPECIFY-HANDOFF.md"; h = handoff.read_text(encoding="utf-8"); handoff.write_text(h.replace("DU-001, DU-002, DU-003", "DU-001"), encoding="utf-8"); self._audit_v23(item, 1); handoff.write_text(h, encoding="utf-8")
         plan = item / "PLAN-CONTEXT.md"; p = plan.read_text(encoding="utf-8"); plan.write_text(p.replace("DU-001, DU-002, DU-003", "DU-001"), encoding="utf-8"); self._audit_v23(item, 1); plan.write_text(p, encoding="utf-8")
 
+    def test_reject_symlink_chain_accepts_macos_var_root_alias(self) -> None:
+        module = load_workspace_module()
+        if not (module.os.path.islink("/var") and module.os.readlink("/var") in {"private/var", "/private/var"}):
+            self.skipTest("host has no /var -> /private/var alias")
+        private_var = Path("/private/var")
+        if not private_var.is_dir():
+            self.skipTest("host has no /private/var directory")
+        with tempfile.TemporaryDirectory(dir=private_var / "tmp") as temporary:
+            root = Path(temporary).resolve()
+            lexical = Path("/var") / root.relative_to(private_var)
+            module.reject_symlink_chain(root, lexical / "new-receipt.json")
+
     def test_v23_receipt_legacy_dual_read_is_deterministic(self) -> None:
         item = self._init_item(work_id="receipt-legacy"); self._mark_complete(item); self._commit_all(self.root)
         process, payload = invoke("reconcile", self.root, "--work-id", "receipt-legacy", "--apply", "--integration-branch", "main")

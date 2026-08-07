@@ -117,12 +117,37 @@ def project_root(raw: str | Path) -> Path:
 
 
 def reject_symlink_chain(root: Path, path: Path, *, allow_missing: bool = True) -> None:
-    root = root.resolve()
-    try:
-        relative = path.relative_to(root)
-    except ValueError as exc:
-        raise CliFailure(EXIT_BLOCKED, "BLOCKED", "PATH-ESCAPE", str(path)) from exc
-    cursor = root
+    # Resolve only the trusted root.  The path under inspection must remain
+    # lexical so that every component can be checked before it is followed.
+    root_lexical = Path(os.path.abspath(root))
+    root_resolved = root_lexical.resolve()
+    path_lexical = Path(os.path.abspath(path))
+    relative: Path | None = None
+    cursor_root = root_lexical
+    for candidate_root in (root_lexical, root_resolved):
+        try:
+            relative = path_lexical.relative_to(candidate_root)
+            cursor_root = candidate_root
+            break
+        except ValueError:
+            continue
+    # macOS exposes /var as a symlink to /private/var.  Accept that alias
+    # only when the host actually presents it; do not realpath the evaluated
+    # path, which would hide an unsafe link in the chain.
+    if relative is None and os.path.islink("/var"):
+        try:
+            if os.readlink("/var") in {"private/var", "/private/var"}:
+                alias_root = Path("/var") / root_resolved.relative_to("/private/var")
+                try:
+                    relative = path_lexical.relative_to(alias_root)
+                    cursor_root = alias_root
+                except ValueError:
+                    pass
+        except (OSError, ValueError):
+            pass
+    if relative is None:
+        raise CliFailure(EXIT_BLOCKED, "BLOCKED", "PATH-ESCAPE", str(path))
+    cursor = cursor_root
     for part in relative.parts:
         if part in {"", ".", ".."}:
             raise CliFailure(EXIT_BLOCKED, "BLOCKED", "PATH-ESCAPE", str(path))
