@@ -1,4 +1,4 @@
-# grill-with-docs v2.2.1 — Delivery First
+# grill-with-docs v2.3.0 — Delivery First
 
 When artifacts live outside the checkout, invoke the auditor with
 `--artifact-root PATH --project-root ROOT`; `ROOT` is the authoritative
@@ -73,6 +73,10 @@ python3 "$CORE" migrate "$PWD" --type fix --slug migracao --apply
 | 3 | BLOCKED-CONSTITUTION |
 
 Consulte `skills/grill-with-docs/SKILL.md` e `references/session-protocol.md` para o protocolo normativo.
+
+## Decomposição modular v2.3.0
+
+`DELIVERY-MAP.md` é a fonte de verdade para MOD (module), DU (delivery unit), `development-type` (enum fechado) e FASE (ordem); eles não são sinônimos. O fluxo plan-only é `MAP_CAPABILITY→DISCOVER_MODULES→CLASSIFY_DUs→MAP_DEPENDENCIES→BUILD_PHASES→AUDIT→PLAN_ONLY_STOP`. Feature/fix novos habilitam `module-decomposition/v1`; hotfix não cria nem exige o mapa. A migração 2.2.x é explícita e preview-first, sem inferência e preservando bytes. Receipts legados são lidos como `legacy-unclassified`.
 
 ## Portabilidade e runtime
 

@@ -34,6 +34,8 @@ TECH_FIELD_NAMES = {
     "api interna",
 }
 PHASE_STATES = {"planned", "ready-for-specify", "blocked", "complete", "superseded"}
+MODULE_KINDS = {"domain", "platform", "cross-cutting"}
+DEVELOPMENT_TYPES = {"frontend", "backend", "mobile", "integration", "data", "ml-ai", "infra-iac", "platform-devops", "security", "observability-sre", "qa", "documentation"}
 BL_STATES = {"open", "resolved", "superseded"}
 DQ_STATES = {"open", "resolved", "deferred", "split", "blocked", "out-of-scope"}
 HOTFIX_REQUIRED = ("scope", "reproduction", "evidence", "correction-test", "rollback", "constitution-evidence")
@@ -129,6 +131,120 @@ def state_path_matches(root: Path, raw: object, expected: Path) -> bool:
         return False
 
 
+def validate_decomposition(root: Path, roadmap: Path | None, plan: Path | None, findings: list[str]) -> None:
+    """Validate the work-item-local decomposition without writing anything."""
+    path_findings: list[str] = []
+    metadata = managed_path(root, "WORK-ITEM.json", "WORK-ITEM", path_findings)
+    enabled = False
+    if metadata and metadata.is_file():
+        try:
+            value = json.loads(metadata.read_text(encoding="utf-8"))
+            capability = value.get("capability", {}) if isinstance(value, dict) else {}
+            enabled = isinstance(capability, dict) and capability.get("schema") == "v1"
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            path_findings.append("decomposition: WORK-ITEM capability inválida")
+    path = managed_path(root, "DELIVERY-MAP.md", "DELIVERY-MAP", path_findings)
+    findings.extend(item for item in path_findings if not item.startswith("required input missing:") or enabled)
+    if path is None or not path.is_file():
+        if enabled and path is not None: findings.append("decomposition: DELIVERY-MAP ausente")
+        return
+    try: text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError): findings.append("DELIVERY-MAP: leitura inválida"); return
+    schema = re.findall(r"(?m)^\s*decomposition-schema:\s*(\S+)\s*$", text)
+    if schema != ["v1"]:
+        if enabled or schema: findings.append("decomposition: schema inválido/ausente")
+        return
+    modules = re.findall(r"(?ms)^##\s+(MOD-\d{3})\b(.*?)(?=^##\s+MOD-|\Z)", text)
+    mids = [x[0] for x in modules]
+    if len(mids) != len(set(mids)): findings.append("decomposition: MOD duplicate")
+    if not modules:
+        findings.append("decomposition: nenhum MOD")
+        if not re.search(r"(?mi)^\s*modules:\s*none\s*$", text):
+            findings.append("decomposition: modules:none ausente")
+        elif not re.search(r"(?mi)^\s*modules-justification:\s*\S", text):
+            findings.append("decomposition: modules:none exige justificativa")
+    mod_graph: dict[str, list[str]] = {}; dus: dict[str, dict[str,str]] = {}; du_mod: dict[str,str] = {}
+    for mid, block in modules:
+        mf_block = block.split("### DU-", 1)[0]
+        mf = dict(re.findall(r"(?m)^-\s+([\w-]+):\s*(.*?)\s*$", mf_block))
+        for key in ("module-kind", "responsibility", "boundary", "depends-on"):
+            if not mf.get(key): findings.append(f"{mid}: campo obrigatório ausente {key}")
+        if mf.get("module-kind") not in MODULE_KINDS: findings.append(f"{mid}: module-kind inválido")
+        mod_graph[mid] = [x for x in csv(mf.get("depends-on")) if x != "none"]
+        for duid, dublock in re.findall(r"(?ms)^###\s+(DU-\d{3})\b(.*?)(?=^###\s+DU-|\Z)", block):
+            if duid in dus: findings.append(f"{duid}: DU duplicate")
+            df = dict(re.findall(r"(?m)^-\s+([\w-]+):\s*(.*?)\s*$", dublock)); dus[duid] = df; du_mod[duid] = mid
+            for key in ("development-type", "phase", "scope-in", "scope-out", "depends-on", "acceptance"):
+                if not df.get(key): findings.append(f"{duid}: campo obrigatório ausente {key}")
+            if df.get("development-type") not in DEVELOPMENT_TYPES: findings.append(f"{duid}: development-type inválido")
+            if not PHASE_ID.fullmatch(df.get("phase", "")): findings.append(f"{duid}: fase ausente/inválida")
+    def check_graph(graph: dict[str,list[str]], label: str) -> None:
+        visiting: set[str] = set(); visited: set[str] = set()
+        def visit(node: str) -> None:
+            if node in visiting: findings.append(f"decomposition: {label} dependency cycle"); return
+            if node in visited: return
+            visiting.add(node)
+            for dep in graph.get(node, []):
+                if dep not in graph: findings.append(f"{node}: dependency inexistente {dep}")
+                else: visit(dep)
+            visiting.remove(node); visited.add(node)
+        for node in sorted(graph): visit(node)
+    check_graph(mod_graph, "MOD"); check_graph({d:[x for x in csv(f.get("depends-on")) if x != "none"] for d,f in dus.items()}, "DU")
+    phases: dict[str,set[str]] = {}
+    if roadmap and roadmap.exists():
+        rtext = roadmap.read_text(encoding="utf-8")
+        for phase, block in split_blocks(rtext, "FASE"):
+            match = re.search(r"(?m)^-\s*delivery-units:\s*(.*)$", block)
+            phases[phase] = set(csv(match.group(1) if match else ""))
+        expected = {}
+        for du, df in dus.items(): expected.setdefault(df.get("phase"), set()).add(du)
+        if phases != expected: findings.append("decomposition: ROADMAP delivery-units divergence")
+    else: findings.append("decomposition: ROADMAP ausente")
+    for du, df in dus.items():
+        if df.get("phase") not in phases: findings.append(f"{du}: fase não declarada no ROADMAP")
+    for handoff in sorted(root.glob("handoffs/FASE-*-SPECIFY-HANDOFF.md")):
+        raw_handoff = handoff.relative_to(root).as_posix()
+        safe_handoff = managed_path(root, raw_handoff, "handoff", findings)
+        if safe_handoff is None or not safe_handoff.is_file():
+            continue
+        phase_match = re.search(r"FASE-\d{3}", handoff.name)
+        if not phase_match:
+            continue
+        phase = phase_match.group(0)
+        try:
+            htext = safe_handoff.read_text(encoding="utf-8")
+        except (OSError, UnicodeError):
+            findings.append(f"{handoff.name}: leitura inválida")
+            continue
+        ids = set(re.findall(r"\bDU-\d{3}\b", htext)); expected = phases.get(phase, set())
+        if ids != expected: findings.append(f"{handoff.name}: handoff decomposition divergence")
+        type_match = re.search(r"(?m)^-\s*development-type:\s*(.*)$", htext)
+        declared_types = set(csv(type_match.group(1) if type_match else ""))
+        expected_types = {dus[du].get("development-type") for du in expected if du in dus}
+        if declared_types != expected_types: findings.append(f"{handoff.name}: handoff development-type divergence")
+        if re.search(r"(?im)^#{2,6}\s+(stack|banco|framework|classes|componentes|implementação|api interna)", htext): findings.append(f"{handoff.name}: technical HOW prohibited")
+    if plan and plan.exists():
+        ptext = plan.read_text(encoding="utf-8")
+        plan_phases = dict(split_blocks(ptext, "FASE"))
+        plan_units_match = re.findall(r"(?m)^-\s*delivery-units:\s*(.*)$", ptext)
+        all_plan_ids = set().union(*(set(re.findall(r"\bDU-\d{3}\b", value)) for value in plan_units_match))
+        expected_plan_ids = set().union(*phases.values()) if phases else set()
+        if all_plan_ids != expected_plan_ids:
+            findings.append("PLAN-CONTEXT: decomposition delivery-unit divergence")
+        if set(plan_phases) != set(phases): findings.append("PLAN-CONTEXT: decomposition phase divergence")
+        for phase, expected in phases.items():
+            block = plan_phases.get(phase, "")
+            unit_match = re.search(r"(?m)^-\s*delivery-units:\s*(.*)$", block)
+            ids = set(re.findall(r"\bDU-\d{3}\b", unit_match.group(1) if unit_match else ""))
+            if ids != expected: findings.append(f"PLAN-CONTEXT {phase}: decomposition divergence")
+            type_match = re.search(r"(?m)^-\s*development-type:\s*(.*)$", block)
+            declared_types = set(csv(type_match.group(1) if type_match else ""))
+            expected_types = {dus[du].get("development-type") for du in expected if du in dus}
+            if declared_types != expected_types: findings.append(f"PLAN-CONTEXT {phase}: development-type divergence")
+            how = re.search(r"(?ims)^###\s+HOW\s*$\n(.*?)(?=^###\s+|\Z)", block)
+            if not how or not how.group(1).strip(): findings.append(f"PLAN-CONTEXT {phase}: HOW vazio")
+
+
 def audit(root_arg: Path, project_root_arg: Path | None = None) -> tuple[list[str], list[str], str | None, Path | None, bool]:
     root = root_arg.resolve()
     project_root = (project_root_arg or root_arg).resolve()
@@ -151,6 +267,7 @@ def audit(root_arg: Path, project_root_arg: Path | None = None) -> tuple[list[st
     frontier = managed_path(root, "DECISION-FRONTIER.md", "DECISION-FRONTIER", findings)
     round_log = managed_path(root, "ROUND-LOG.jsonl", "ROUND-LOG", findings)
     state_path = managed_path(root, "state.json", "state", findings)
+    validate_decomposition(root, roadmap, plan_context, findings)
 
     if constitution and constitution.is_file():
         text = constitution.read_text(encoding="utf-8")

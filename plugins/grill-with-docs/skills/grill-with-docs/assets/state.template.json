@@ -1,5 +1,6 @@
 {
   "version": "1.2.0",
+  "capability": {"name": "module-decomposition", "version": "v1", "schema": "v1"},
   "status": "in-progress",
   "milestone_status": "in-progress",
   "active_phase": "FASE-001",

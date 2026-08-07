@@ -787,6 +787,88 @@ class WorkspaceV2Contract(unittest.TestCase):
         tampered, tampered_payload = invoke("hotfix-go", self.root, "--work-id", "hotfix-failure")
         self.assertEqual((tampered.returncode, tampered_payload["code"]), (2, "HOTFIX-METADATA-TAMPERED"))
 
+    def test_v23_decomposition_persistence_and_hotfix_exclusion(self) -> None:
+        for kind, work_id in (("feature", "decomp-feature"), ("fix", "decomp-fix")):
+            item = self._init_item(work_id=work_id, kind=kind, slug=work_id)
+            self.assertTrue((item / "DELIVERY-MAP.md").is_file())
+            self.assertEqual(self._metadata(item)["capability"], {"name": "module-decomposition", "version": "v1", "schema": "v1"})
+        args = ("hotfix", self.root, "--slug", "incident", "--scope", "src/a.py", "--reproduction", "r", "--evidence", "e", "--correction-test", "t", "--rollback", "b", "--constitution-evidence", "not-applicable", "--test-command", python_test_command("pass"), "--work-id", "decomp-hotfix")
+        process, _ = invoke(*args)
+        self.assertEqual(process.returncode, 0)
+        hotfix = self.root / ".grill/work-items/decomp-hotfix"
+        self.assertFalse((hotfix / "DELIVERY-MAP.md").exists())
+        self.assertNotIn("capability", self._metadata(hotfix))
+
+    def _valid_v23_item(self, work_id: str = "matrix") -> Path:
+        item = self._init_item(work_id=work_id)
+        (item / "CONTEXT.md").write_text("# Context\n\n| Termo canônico | Definição |\n|---|---|\n| API | Contrato externo |\n", encoding="utf-8")
+        frontier = item / "DECISION-FRONTIER.md"
+        frontier.write_text(frontier.read_text(encoding="utf-8").replace("- state: open", "- state: resolved"), encoding="utf-8")
+        (item / "DELIVERY-MAP.md").write_text("""# DELIVERY-MAP\n\ndecomposition-schema: v1\n\n## MOD-001 — Web delivery\n- module-kind: cross-cutting\n- responsibility: Deliver the web contract\n- boundary: Browser and API boundary\n- depends-on: none\n\n### DU-001 — Frontend\n- development-type: frontend\n- phase: FASE-001\n- scope-in: Browser UI\n- scope-out: Backend internals\n- depends-on: none\n- acceptance: frontend contract\n\n### DU-002 — Backend\n- development-type: backend\n- phase: FASE-001\n- scope-in: HTTP API\n- scope-out: Browser rendering\n- depends-on: none\n- acceptance: backend contract\n\n### DU-003 — IaC\n- development-type: infra-iac\n- phase: FASE-001\n- scope-in: Deployment resources\n- scope-out: Product behavior\n- depends-on: none\n- acceptance: IaC contract\n""", encoding="utf-8")
+        (item / "ROADMAP.md").write_text((item / "ROADMAP.md").read_text(encoding="utf-8").replace("<!-- nome estável da fase -->", "Web delivery").replace("planned", "ready-for-specify").replace("<!-- resultado observável -->", "Ship the web contract").replace("<!-- incluído -->", "Web stack").replace("<!-- excluído -->", "Future work").replace("<!-- termos canônicos de CONTEXT.md -->", "API").replace("- delivery-units: DU-001", "- delivery-units: DU-001, DU-002, DU-003"), encoding="utf-8")
+        handoff = item / "handoffs/FASE-001-SPECIFY-HANDOFF.md"
+        handoff.write_text(handoff.read_text(encoding="utf-8").replace("<!-- nome -->", "Web delivery").replace("<!-- termos canônicos -->", "API").replace("- delivery-units: DU-001", "- delivery-units: DU-001, DU-002, DU-003").replace("- development-type: documentation", "- development-type: frontend, backend, infra-iac"), encoding="utf-8")
+        plan = item / "PLAN-CONTEXT.md"
+        plan.write_text(plan.read_text(encoding="utf-8").replace("<!-- nome -->", "Web delivery").replace("- delivery-units: DU-001", "- delivery-units: DU-001, DU-002, DU-003").replace("- development-type: documentation", "- development-type: frontend, backend, infra-iac").replace("<!-- decisões técnicas cumulativas, dependências, lock-in, riscos e restrições consumíveis pelo plan -->", "HOW: implement DU-001 frontend, DU-002 backend, and DU-003 infra-iac."), encoding="utf-8")
+        return item
+
+    def _audit_v23(self, item: Path, expected: int = 0) -> dict:
+        process, payload = invoke("audit", self.root, "--work-id", item.name)
+        self.assertEqual(process.returncode, expected, payload)
+        self.assertEqual(payload["verdict"], "GO" if expected == 0 else "NO-GO", payload)
+        return payload
+
+    def test_v23_auditor_read_only_and_persistent_matrix(self) -> None:
+        item = self._valid_v23_item()
+        before = snapshot(item)
+        self._audit_v23(item)
+        self.assertEqual(before, snapshot(item))
+        map_path = item / "DELIVERY-MAP.md"; original = map_path.read_text(encoding="utf-8")
+        cases = {
+            "unknown-development-type": original.replace("frontend", "unknown", 1),
+            "missing-mod-field": original.replace("- boundary: Browser and API boundary", "- absent: Browser and API boundary"),
+            "missing-du-field": original.replace("- acceptance: frontend contract", "- absent: frontend contract"),
+            "du-missing-dependency": original.replace("### DU-001 — Frontend\n- development-type: frontend\n- phase: FASE-001\n- scope-in: Browser UI\n- scope-out: Backend internals\n- depends-on: none", "### DU-001 — Frontend\n- development-type: frontend\n- phase: FASE-001\n- scope-in: Browser UI\n- scope-out: Backend internals\n- depends-on: DU-999"),
+            "du-cycle": original.replace("DU-001 — Frontend\n- development-type: frontend\n- phase: FASE-001\n- scope-in: Browser UI\n- scope-out: Backend internals\n- depends-on: none", "DU-001 — Frontend\n- development-type: frontend\n- phase: FASE-001\n- scope-in: Browser UI\n- scope-out: Backend internals\n- depends-on: DU-002").replace("DU-002 — Backend\n- development-type: backend\n- phase: FASE-001\n- scope-in: HTTP API\n- scope-out: Browser rendering\n- depends-on: none", "DU-002 — Backend\n- development-type: backend\n- phase: FASE-001\n- scope-in: HTTP API\n- scope-out: Browser rendering\n- depends-on: DU-001"),
+            "mod-cycle": original.replace("- depends-on: none", "- depends-on: MOD-002", 1) + "\n## MOD-002 — Platform\n- module-kind: platform\n- responsibility: duplicate\n- boundary: duplicate\n- depends-on: MOD-001\n",
+            "mod-missing-dependency": original.replace("- depends-on: none", "- depends-on: MOD-999", 1),
+            "orphan-du": original + "\n### DU-999 — Orphan\n- development-type: frontend\n- phase: FASE-001\n- scope-in: orphan\n- scope-out: orphan\n- depends-on: none\n- acceptance: orphan\n",
+            "invalid-module-kind": original.replace("module-kind: cross-cutting", "module-kind: invalid"),
+        }
+        for name, text in cases.items():
+            with self.subTest(name=name):
+                map_path.write_text(text, encoding="utf-8")
+                self._audit_v23(item, 1)
+        map_path.write_text(original, encoding="utf-8")
+        roadmap = item / "ROADMAP.md"; r = roadmap.read_text(encoding="utf-8"); roadmap.write_text(r.replace("DU-001, DU-002, DU-003", "DU-001"), encoding="utf-8"); self._audit_v23(item, 1); roadmap.write_text(r, encoding="utf-8")
+        handoff = item / "handoffs/FASE-001-SPECIFY-HANDOFF.md"; h = handoff.read_text(encoding="utf-8"); handoff.write_text(h.replace("DU-001, DU-002, DU-003", "DU-001"), encoding="utf-8"); self._audit_v23(item, 1); handoff.write_text(h, encoding="utf-8")
+        plan = item / "PLAN-CONTEXT.md"; p = plan.read_text(encoding="utf-8"); plan.write_text(p.replace("DU-001, DU-002, DU-003", "DU-001"), encoding="utf-8"); self._audit_v23(item, 1); plan.write_text(p, encoding="utf-8")
+
+    def test_reject_symlink_chain_accepts_macos_var_root_alias(self) -> None:
+        module = load_workspace_module()
+        if not (module.os.path.islink("/var") and module.os.readlink("/var") in {"private/var", "/private/var"}):
+            self.skipTest("host has no /var -> /private/var alias")
+        private_var = Path("/private/var")
+        if not private_var.is_dir():
+            self.skipTest("host has no /private/var directory")
+        with tempfile.TemporaryDirectory(dir=private_var / "tmp") as temporary:
+            root = Path(temporary).resolve()
+            lexical = Path("/var") / root.relative_to(private_var)
+            module.reject_symlink_chain(root, lexical / "new-receipt.json")
+
+    def test_v23_receipt_legacy_dual_read_is_deterministic(self) -> None:
+        item = self._init_item(work_id="receipt-legacy"); self._mark_complete(item); self._commit_all(self.root)
+        process, payload = invoke("reconcile", self.root, "--work-id", "receipt-legacy", "--apply", "--integration-branch", "main")
+        self.assertEqual((process.returncode, payload["verdict"]), (0, "APPLIED"))
+        receipt = self.root / ".grill/global/receipts/receipt-legacy.json"; value = json.loads(receipt.read_text())
+        for key in ("decomposition_schema", "modules", "modules_justification", "development_types", "delivery_units"): value.pop(key, None)
+        receipt.write_text(json.dumps(value))
+        module = load_workspace_module(); read = module.read_receipts(self.root)
+        self.assertEqual(read["receipt-legacy"]["modules"], "none")
+        self.assertEqual(read["receipt-legacy"]["modules_justification"], "legacy-unclassified")
+        value["modules"] = ["inferred"]; receipt.write_text(json.dumps(value))
+        with self.assertRaises(Exception): module.read_receipts(self.root)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

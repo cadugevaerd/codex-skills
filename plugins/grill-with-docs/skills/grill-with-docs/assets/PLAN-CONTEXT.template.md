@@ -4,6 +4,8 @@
 - phase: FASE-001
 - ADRs: none
 - BLs: none
+- delivery-units: DU-001
+- development-type: documentation
 
 ### HOW
 <!-- decisões técnicas cumulativas, dependências, lock-in, riscos e restrições consumíveis pelo plan -->

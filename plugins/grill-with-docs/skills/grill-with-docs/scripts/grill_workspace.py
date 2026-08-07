@@ -43,6 +43,7 @@ ROOT_FILES = (
     "PLAN-CONTEXT.md",
     "CONSTITUTION-CHECK.md",
     "AUDIT.md",
+    "DELIVERY-MAP.md",
 )
 LEGACY_FILES = tuple(name for name in ROOT_FILES if name != "CONSTITUTION-CHECK.md")
 MANAGED_GLOBAL = {".grill/global/ROADMAP.md", ".grill/global/AUDIT.md"}
@@ -116,12 +117,37 @@ def project_root(raw: str | Path) -> Path:
 
 
 def reject_symlink_chain(root: Path, path: Path, *, allow_missing: bool = True) -> None:
-    root = root.resolve()
-    try:
-        relative = path.relative_to(root)
-    except ValueError as exc:
-        raise CliFailure(EXIT_BLOCKED, "BLOCKED", "PATH-ESCAPE", str(path)) from exc
-    cursor = root
+    # Resolve only the trusted root.  The path under inspection must remain
+    # lexical so that every component can be checked before it is followed.
+    root_lexical = Path(os.path.abspath(root))
+    root_resolved = root_lexical.resolve()
+    path_lexical = Path(os.path.abspath(path))
+    relative: Path | None = None
+    cursor_root = root_lexical
+    for candidate_root in (root_lexical, root_resolved):
+        try:
+            relative = path_lexical.relative_to(candidate_root)
+            cursor_root = candidate_root
+            break
+        except ValueError:
+            continue
+    # macOS exposes /var as a symlink to /private/var.  Accept that alias
+    # only when the host actually presents it; do not realpath the evaluated
+    # path, which would hide an unsafe link in the chain.
+    if relative is None and os.path.islink("/var"):
+        try:
+            if os.readlink("/var") in {"private/var", "/private/var"}:
+                alias_root = Path("/var") / root_resolved.relative_to("/private/var")
+                try:
+                    relative = path_lexical.relative_to(alias_root)
+                    cursor_root = alias_root
+                except ValueError:
+                    pass
+        except (OSError, ValueError):
+            pass
+    if relative is None:
+        raise CliFailure(EXIT_BLOCKED, "BLOCKED", "PATH-ESCAPE", str(path))
+    cursor = cursor_root
     for part in relative.parts:
         if part in {"", ".", ".."}:
             raise CliFailure(EXIT_BLOCKED, "BLOCKED", "PATH-ESCAPE", str(path))
@@ -199,6 +225,7 @@ def read_asset(name: str) -> bytes:
         "ROUND-LOG.jsonl": "ROUND-LOG.template.jsonl",
         "PLAN-CONTEXT.md": "PLAN-CONTEXT.template.md",
         "AUDIT.md": "AUDIT.template.md",
+        "DELIVERY-MAP.md": "DELIVERY-MAP.template.md",
     }
     asset = ASSETS / mapping[name]
     return asset.read_bytes()
@@ -476,6 +503,8 @@ def metadata_document(immutable: dict[str, Any], files: dict[str, bytes], *, mig
         "conflicts-with-adrs": [],
         "initial_artifacts": {path: hash_bytes(data) for path, data in sorted(files.items())},
     }
+    if immutable.get("type") in {"feature", "fix"}:
+        result["capability"] = {"name": "module-decomposition", "version": "v1", "schema": "v1"}
     if migration:
         result["migration"] = migration
     return result
@@ -1139,15 +1168,31 @@ RECEIPT_SCHEMA = "grill-with-docs.reconciliation-receipt"
 RECEIPT_VERSION = 1
 
 
+def decomposition_summary(files: dict[str, bytes]) -> dict[str, Any]:
+    """Project only explicit v1 map data; legacy items remain unclassified."""
+    raw = files.get("DELIVERY-MAP.md")
+    if not raw:
+        return {"decomposition_schema": None, "modules": "none", "modules_justification": "legacy-unclassified", "development_types": [], "delivery_units": []}
+    try: text = raw.decode("utf-8")
+    except UnicodeDecodeError as exc: raise CliFailure(EXIT_BLOCKED, "BLOCKED", "DECOMPOSITION-INVALID", "invalid UTF-8") from exc
+    if not re.search(r"(?m)^\s*decomposition-schema:\s*v1\s*$", text):
+        return {"decomposition_schema": None, "modules": "none", "modules_justification": "legacy-unclassified", "development_types": [], "delivery_units": []}
+    modules = sorted(set(re.findall(r"(?m)^##\s+(MOD-\d{3})\b", text)))
+    units = sorted(set(re.findall(r"(?m)^###\s+(DU-\d{3})\b", text)))
+    types = sorted(set(re.findall(r"(?m)^-\s+development-type:\s*(\S+)\s*$", text)))
+    return {"decomposition_schema": "v1", "modules": modules, "development_types": types, "delivery_units": units}
+
+
 def receipt_for(bundle: ItemBundle, constitution: dict[str, Any], scope: list[str], qualified: list[str]) -> dict[str, Any]:
     immutable = validate_metadata(bundle.metadata, bundle.work_id)
+    decomposition = decomposition_summary(bundle.files)
     return {"schema": RECEIPT_SCHEMA, "version": RECEIPT_VERSION, "work_id": bundle.work_id,
             "fingerprint": bundle.fingerprint,
             "identity": {"type": immutable["type"], "slug": immutable["slug"]},
             "constitution": {"state": constitution.get("state"), "sha256": constitution.get("sha256")},
             "scope": scope, "qualified_ids": qualified,
             "depends_on_work": sorted(set(bundle.metadata.get("depends-on-work", []))),
-            "conflicts_with_adrs": sorted(set(bundle.metadata.get("conflicts-with-adrs", [])))}
+            "conflicts_with_adrs": sorted(set(bundle.metadata.get("conflicts-with-adrs", []))), **decomposition}
 
 
 def read_receipts(root: Path) -> dict[str, dict[str, Any]]:
@@ -1170,7 +1215,20 @@ def read_receipts(root: Path) -> dict[str, dict[str, Any]]:
                 or not WORK_ID_RE.fullmatch(str(value.get("work_id", "")))
                 or path.name != f"{value['work_id']}.json"):
             raise CliFailure(EXIT_BLOCKED, "BLOCKED", "RECEIPT-INVALID", str(path))
-        if any(key not in value for key in ("fingerprint", "identity", "constitution", "scope", "qualified_ids", "depends_on_work", "conflicts_with_adrs")):
+        required = ("fingerprint", "identity", "constitution", "scope", "qualified_ids", "depends_on_work", "conflicts_with_adrs")
+        if any(key not in value for key in required):
+            raise CliFailure(EXIT_BLOCKED, "BLOCKED", "RECEIPT-INVALID", str(path))
+        decomposition_keys = ("decomposition_schema", "modules", "development_types", "delivery_units")
+        if not any(key in value for key in decomposition_keys):
+            value.update({"decomposition_schema": None, "modules": "none", "modules_justification": "legacy-unclassified", "development_types": [], "delivery_units": []})
+        if value.get("decomposition_schema") not in (None, "v1"):
+            raise CliFailure(EXIT_BLOCKED, "BLOCKED", "RECEIPT-INVALID", str(path))
+        if value.get("decomposition_schema") == "v1":
+            if (not isinstance(value.get("modules"), list) or not all(isinstance(v, str) for v in value["modules"])
+                    or not isinstance(value.get("development_types"), list) or not all(isinstance(v, str) for v in value["development_types"])
+                    or not isinstance(value.get("delivery_units"), list) or not all(isinstance(v, str) for v in value["delivery_units"])):
+                raise CliFailure(EXIT_BLOCKED, "BLOCKED", "RECEIPT-INVALID", str(path))
+        elif value.get("modules") != "none" or value.get("modules_justification") not in (None, "legacy-unclassified"):
             raise CliFailure(EXIT_BLOCKED, "BLOCKED", "RECEIPT-INVALID", str(path))
         if (not isinstance(value["fingerprint"], str) or not isinstance(value["identity"], dict)
                 or not isinstance(value["constitution"], dict) or not isinstance(value["scope"], list)

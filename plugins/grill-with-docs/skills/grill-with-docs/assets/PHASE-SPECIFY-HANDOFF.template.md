@@ -8,6 +8,8 @@
 - BLs: none
 
 ## WHAT
+- delivery-units: DU-001
+- development-type: documentation
 <!-- resultado, atores, cenários, escopo e critérios; não incluir HOW -->
 
 ## WHY

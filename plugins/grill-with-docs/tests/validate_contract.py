@@ -268,7 +268,43 @@ class AuditorContract(unittest.TestCase):
         self.assertIn("selected-phase: FASE-001", first.stdout)
         self.assertIn("selected-handoff: handoffs/FASE-001-SPECIFY-HANDOFF.md", first.stdout)
 
-    def test_completed_milestone_has_explicit_terminal_verdict(self) -> None:
+    @unittest.skipUnless(SYMLINK_SUPPORTED, "symlinks unavailable")
+    def test_managed_decomposition_paths_reject_external_symlinks_without_mutation(self) -> None:
+        external = self.root.parent / "external-auditor-input.md"
+        external.write_text("external\n", encoding="utf-8")
+        for name in ("WORK-ITEM.json", "DELIVERY-MAP.md"):
+            target = self.root / name
+            if target.exists() or target.is_symlink():
+                target.unlink()
+            target.symlink_to(external)
+            before = external.read_bytes()
+            result = run_audit(self.root)
+            self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+            self.assertIn("NO-GO", result.stdout)
+            self.assertIn("symlink proibido", result.stdout)
+            self.assertEqual(before, external.read_bytes())
+            target.unlink()
+
+    @unittest.skipUnless(SYMLINK_SUPPORTED, "symlinks unavailable")
+    def test_handoff_symlink_and_broken_symlink_are_blocked_without_traceback(self) -> None:
+        handoff = self.root / "handoffs/FASE-001-SPECIFY-HANDOFF.md"
+        external = self.root.parent / "external-handoff.md"
+        original = handoff.read_bytes()
+        for target in (external, self.root.parent / "missing-handoff.md"):
+            if external.exists():
+                external.unlink()
+            if target.name != "missing-handoff.md":
+                target.write_text("external handoff\n", encoding="utf-8")
+            handoff.unlink()
+            handoff.symlink_to(target)
+            result = run_audit(self.root)
+            self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+            self.assertIn("NO-GO", result.stdout)
+            self.assertIn("symlink proibido", result.stdout)
+            self.assertNotIn("Traceback", result.stderr)
+            handoff.unlink()
+            handoff.write_bytes(original)
+
         mark_milestone_terminal(self.root, "complete")
         result = subprocess.run(
             [sys.executable, str(AUDITOR), str(self.root), "--json"],
