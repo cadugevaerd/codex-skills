@@ -11,7 +11,7 @@
         "path": "./plugins/grill-with-docs"
       },
       "description": "Entrega hotfixes por uma faixa rápida e verificável; reconciliação incremental por work item com receipts fail-closed.",
-      "version": "2.2.0",
+      "version": "2.2.1",
       "policy": {
         "installation": "AVAILABLE",
         "authentication": "ON_INSTALL"

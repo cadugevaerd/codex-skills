@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import importlib.util
 from pathlib import Path
 
 PLUGIN = Path(__file__).resolve().parents[1]
@@ -544,6 +545,43 @@ class AuditorContract(unittest.TestCase):
         result = subprocess.run([sys.executable, str(AUDITOR), str(artifact), "--project-root", str(project), "--json"], text=True, capture_output=True)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(json.loads(result.stdout)["verdict"], "GO")
+
+    def test_v2_external_artifacts_use_spec_kit_constitution_from_project_root(self) -> None:
+        artifact = self.root / "artifacts"
+        project = self.root / "project"
+        shutil.copytree(self.root, artifact, ignore=shutil.ignore_patterns("artifacts", "project", ".specify", "WORKFLOW.md"))
+        project.mkdir()
+        (project / ".specify/memory").mkdir(parents=True)
+        (project / ".specify/templates").mkdir(parents=True)
+        (project / ".specify/memory/constitution.md").write_text(
+            "version: 1.0.0\nratified: 2026-01-01\nlast-amended: 2026-01-01\n"
+            "governance: Architecture Council\n",
+            encoding="utf-8",
+        )
+        (project / ".specify/templates/constitution-template.md").write_text("template\n", encoding="utf-8")
+        (project / "WORKFLOW.md").write_text(WORKFLOW_TEMPLATE.read_text(encoding="utf-8"), encoding="utf-8")
+        state = json.loads((artifact / "state.json").read_text())
+        state["workflow"]["path"] = "WORKFLOW.md"
+        state["workflow"]["sha256"] = sha256(project / "WORKFLOW.md")
+        (artifact / "state.json").write_text(json.dumps(state))
+        result = subprocess.run(
+            [sys.executable, str(AUDITOR), str(artifact), "--project-root", str(project), "--json"],
+            text=True, capture_output=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["verdict"], "GO")
+        self.assertNotIn("required input missing: .specify/memory/constitution.md", result.stdout)
+
+    def test_field_accepts_indentation_and_slash_hyphen_keys(self) -> None:
+        spec = importlib.util.spec_from_file_location("audit_decisions", AUDITOR)
+        if spec is None or spec.loader is None:
+            self.fail("unable to load auditor module")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = module
+        spec.loader.exec_module(module)
+        parsed = module.fields("  - constitution/evidence-status: verified\n    - api-internal/v2-x: present\n")
+        self.assertEqual(parsed, {"constitution/evidence-status": "verified", "api-internal/v2-x": "present"})
 
     def test_v2_governance_hash_and_utf8_are_fail_closed(self) -> None:
         artifact = self.root / "artifacts"

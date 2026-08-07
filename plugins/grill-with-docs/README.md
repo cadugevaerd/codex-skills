@@ -1,4 +1,8 @@
-# grill-with-docs v2.2.0 — Delivery First
+# grill-with-docs v2.2.1 — Delivery First
+
+When artifacts live outside the checkout, invoke the auditor with
+`--artifact-root PATH --project-root ROOT`; `ROOT` is the authoritative
+project-wide root for `.specify/memory/constitution.md` and `WORKFLOW.md`.
 
 Plugin plan-only para entrevistar decisões arquiteturais sem colisão entre worktrees.
 
