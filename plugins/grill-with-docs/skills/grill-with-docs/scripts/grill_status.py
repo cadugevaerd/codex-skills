@@ -1,48 +1,133 @@
 #!/usr/bin/env python3
-"""Read-only deterministic status projection for Grill work items."""
+"""Read-only, deterministic status inventory for Grill work items."""
 from __future__ import annotations
-import argparse, hashlib, importlib.util, json, subprocess, sys
+
+import argparse
+import hashlib
+import importlib.util
+import json
+import subprocess
+import sys
 from pathlib import Path
-HERE=Path(__file__).resolve(); WORKSPACE=HERE.with_name('grill_workspace.py')
-_spec=importlib.util.spec_from_file_location('grill_workspace_status', WORKSPACE); assert _spec and _spec.loader
-_mod=importlib.util.module_from_spec(_spec); sys.modules[_spec.name]=_mod; _spec.loader.exec_module(_mod)
-SEQUENCE=["specify","plan","checklist","tasks","analyze","agent-assign","agent-execute","converge","verify","review","ship"]
-def git(root,*args):
- p=subprocess.run(['git','-C',str(root),*args],capture_output=True,text=True,check=False); return p.stdout.strip()
-def live(root):
- return {'branch':git(root,'branch','--show-current') or 'DETACHED','head':git(root,'rev-parse','--verify','HEAD'),'dirty':bool(git(root,'status','--porcelain=v1','--untracked-files=all'))}
-def one(root,item):
- raw=(item/'WORK-ITEM.json').read_bytes(); meta=json.loads(raw); imm=meta.get('immutable',{}); state={}
- try: state=json.loads((item/'state.json').read_text(encoding='utf-8'))
- except (OSError,UnicodeError,json.JSONDecodeError): state={}
- dev=state.get('development') if isinstance(state,dict) else None
- tracking='legacy-untracked' if not isinstance(dev,dict) else 'tracked'
- steps=dev.get('steps',{}) if isinstance(dev,dict) else {}
- current=dev.get('current_step','unknown') if isinstance(dev,dict) else 'unknown'
- completed=[x for x in SEQUENCE if steps.get(x)=='complete'] if isinstance(steps,dict) else []
- blocked=[x for x in SEQUENCE if steps.get(x)=='blocked'] if isinstance(steps,dict) else []
- return {'identity':{'work_id':imm.get('work_id',item.name),'type':imm.get('type'),'slug':imm.get('slug'),'fingerprint':hashlib.sha256(raw).hexdigest()},'locations':{'root':str(root),'work_item':str(item)},'recorded':{'branch':imm.get('branch'),'head':imm.get('head'),'base_commit':imm.get('base_commit')},'live':live(root),'planning':{'status':state.get('status'),'milestone':state.get('milestone_status'),'active_phase':state.get('active_phase'),'modules':None,'delivery_units':None,'development_types':None},'development':{'tracking':tracking,'current':current,'completed':completed,'blocked':blocked,'steps':steps},'governance':{'constitution':imm.get('constitution'),'check_sha256':hashlib.sha256((item/'CONSTITUTION-CHECK.md').read_bytes()).hexdigest() if (item/'CONSTITUTION-CHECK.md').is_file() else None,'audit':state.get('audit_verdict'),'reconciled':(root/'.grill/global/receipts'/f"{item.name}.json").is_file()},'next_gate':blocked[0] if blocked else (SEQUENCE[len(completed)] if len(completed)<len(SEQUENCE) else 'complete'),'findings':[]}
-def main(argv=None):
- ap=argparse.ArgumentParser(); ap.add_argument('root'); ap.add_argument('--work-id'); ap.add_argument('--current-worktree',action='store_true'); a=ap.parse_args(argv)
- root=Path(a.root).resolve(); items=[]
- if not root.is_dir(): raise SystemExit(2)
- candidates=[root/'.grill/work-items']
- if not a.current_worktree:
-  common=git(root,'rev-parse','--git-common-dir')
-  if common:
-   out=subprocess.run(['git','-C',str(root),'worktree','list','--porcelain'],capture_output=True,text=True,check=False).stdout
-   for line in out.splitlines():
-    if line.startswith('worktree '): candidates.append(Path(line[9:]) / '.grill/work-items')
- seen={}
- for directory in candidates:
-  if not directory.is_dir() or directory.is_symlink(): continue
-  for item in sorted(directory.iterdir()):
-   if not item.is_dir() or item.is_symlink() or (a.work_id and item.name!=a.work_id): continue
-   value=one(directory.parent.parent,item); key=value['identity']['work_id']; fp=value['identity']['fingerprint']
-   if key in seen and seen[key]['identity']['fingerprint']!=fp: value['findings']=['DUPLICATE-DIVERGENT']; value['next_gate']='BLOCKED'
-   seen[key]=value
- items=sorted(seen.values(),key=lambda x:x['identity']['work_id'])
- counts={'total':len(items),'in_progress':sum(bool(x['development']['current'] not in {'unknown','complete'} and not x['development']['blocked']) for x in items),'blocked':sum(bool(x['development']['blocked'] or 'BLOCKED' in x['findings']) for x in items),'completed':sum(x['next_gate']=='complete' for x in items)}
- print(json.dumps({'schema':'grill-status/v1','summary':counts,'items':items,'next_action':'iniciar' if not items else None},ensure_ascii=False,sort_keys=True,separators=(',',':')))
- return 0
-if __name__=='__main__': raise SystemExit(main())
+from typing import Any
+
+HERE = Path(__file__).resolve()
+spec = importlib.util.spec_from_file_location("grill_workspace_status", HERE.with_name("grill_workspace.py"))
+if spec is None or spec.loader is None:
+    raise ImportError("cannot load grill_workspace")
+workspace = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = workspace
+spec.loader.exec_module(workspace)
+
+SEQUENCE = ["specify", "plan", "checklist", "tasks", "analyze", "agent-assign", "agent-execute", "converge", "verify", "review", "ship"]
+STATES = {"pending", "in-progress", "complete", "blocked"}
+
+def git(root: Path, *args: str, raw: bool = False) -> str | bytes:
+    p = subprocess.run(["git", "-C", str(root), *args], capture_output=True, text=not raw, check=False)
+    return p.stdout if raw else p.stdout.strip()
+
+def live(root: Path) -> dict[str, Any]:
+    return {"branch": git(root, "branch", "--show-current") or "DETACHED", "head": git(root, "rev-parse", "--verify", "HEAD"), "dirty": bool(git(root, "status", "--porcelain=v1", "--untracked-files=all"))}
+
+def digest(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+def parse_json(bundle: Any, name: str) -> dict[str, Any]:
+    raw = bundle.files.get(name)
+    if raw is None:
+        raise workspace.CliFailure(workspace.EXIT_NO_GO, "NO-GO", "MALFORMED-STRUCTURE", name)
+    try:
+        value = json.loads(raw.decode("utf-8"))
+    except (UnicodeError, json.JSONDecodeError) as exc:
+        raise workspace.CliFailure(workspace.EXIT_NO_GO, "NO-GO", "MALFORMED-JSON", name) from exc
+    if not isinstance(value, dict):
+        raise workspace.CliFailure(workspace.EXIT_NO_GO, "NO-GO", "MALFORMED-STRUCTURE", name)
+    return value
+
+def phases_and_map(files: dict[str, bytes]) -> tuple[list[str], list[str], list[str], list[str]]:
+    def text(name: str) -> str:
+        raw = files.get(name, b"")
+        try: return raw.decode("utf-8")
+        except UnicodeError as exc: raise workspace.CliFailure(1, "NO-GO", "INVALID-UTF8", name) from exc
+    roadmap, delivery = text("ROADMAP.md"), text("DELIVERY-MAP.md")
+    phases = sorted(set(__import__("re").findall(r"(?m)^##\s+(FASE-\d{3})\b", roadmap)))
+    modules = sorted(set(__import__("re").findall(r"(?m)^##\s+(MOD-\d{3})\b", delivery)))
+    units = sorted(set(__import__("re").findall(r"(?m)^###\s+(DU-\d{3})\b", delivery)))
+    types = sorted(set(__import__("re").findall(r"(?m)^-\s+development-type:\s*(\S+)\s*$", delivery)))
+    return phases, modules, units, types
+
+def item_payload(root: Path, bundle: Any) -> dict[str, Any]:
+    immutable = workspace.validate_metadata(bundle.metadata, bundle.work_id)
+    state = parse_json(bundle, "state.json")
+    dev = state.get("development")
+    findings: list[str] = []
+    if dev is None:
+        tracking, current, completed, blocked, steps = "legacy-untracked", "unknown", [], [], {}
+    elif not isinstance(dev, dict) or dev.get("schema") != "grill-development/v1" or dev.get("sequence") != SEQUENCE or not isinstance(dev.get("steps"), dict):
+        tracking, current, completed, blocked, steps = "invalid", "unknown", [], [], dev.get("steps", {}) if isinstance(dev, dict) else {}
+        findings.append("INVALID-DEVELOPMENT-SCHEMA")
+    else:
+        tracking, steps = "tracked", dev["steps"]
+        current = dev.get("current_step")
+        completed = [s for s in SEQUENCE if steps.get(s) == "complete"]
+        blocked = [s for s in SEQUENCE if steps.get(s) == "blocked"]
+        if any(steps.get(s) not in STATES for s in SEQUENCE) or any(steps.get(s) == "complete" and any(steps.get(p) != "complete" for p in SEQUENCE[:SEQUENCE.index(s)]) for s in SEQUENCE):
+            findings.append("INVALID-DEVELOPMENT-SEQUENCE")
+    phases, modules, units, types = phases_and_map(bundle.files)
+    lv = live(root)
+    if immutable.get("branch") != lv["branch"] or immutable.get("head") != lv["head"]: findings.append("LIVE-VS-RECORDED")
+    constitution = immutable.get("constitution", {})
+    check = bundle.files.get("CONSTITUTION-CHECK.md")
+    audit = bundle.files.get("AUDIT.md")
+    receipt = root / ".grill" / "global" / "receipts" / f"{bundle.work_id}.json"
+    if receipt.is_symlink():
+        raise workspace.CliFailure(workspace.EXIT_BLOCKED, "BLOCKED", "SYMLINK-REJECTED", str(receipt))
+    item_location = {"worktree": str(root), "path": bundle.origin, "branch": lv["branch"], "head": lv["head"], "dirty": lv["dirty"], "current": False}
+    return {"work_id": bundle.work_id, "type": immutable["type"], "slug": immutable["slug"], "fingerprint": bundle.fingerprint, "locations": [item_location], "recorded": {"branch": immutable.get("branch"), "head": immutable.get("head"), "base_ref": immutable.get("base_ref"), "base_commit": immutable.get("base_commit")}, "planning": {"status": state.get("status"), "milestone_status": state.get("milestone_status"), "active_phase": state.get("active_phase"), "phase_state": state.get("phase_state"), "execution_order": phases, "phases": phases, "modules": modules, "delivery_units": units, "development_types": types}, "development": {"tracking": tracking, "current_step": current, "completed": completed, "blocked": blocked, "steps": steps}, "governance": {"constitution": {"state": constitution.get("state"), "path": constitution.get("path"), "hash": constitution.get("sha256")}, "check": {"state": "present" if check is not None else "missing", "hash": digest(check) if check is not None else None}, "audit": {"verdict": state.get("audit_verdict"), "hash": digest(audit) if audit is not None else None}, "reconciled": {"path": str(receipt) if receipt.is_file() else None, "hash": digest(receipt.read_bytes()) if receipt.is_file() else None}}, "blockers": blocked, "findings": sorted(findings), "next_gate": "BLOCKED" if findings or blocked else (SEQUENCE[len(completed)] if len(completed) < len(SEQUENCE) else "complete")}
+
+def worktree_roots(root: Path, current: bool) -> list[Path]:
+    if current: return [root]
+    def common_dir(tree: Path) -> Path:
+        value = Path(str(git(tree, "rev-parse", "--git-common-dir")))
+        return (tree / value).resolve() if not value.is_absolute() else value.resolve()
+    common = common_dir(root)
+    out = git(root, "worktree", "list", "--porcelain", "-z", raw=True)
+    assert isinstance(out, bytes)
+    roots: list[Path] = []
+    for record in out.split(b"\0"):
+        if record.startswith(b"worktree "):
+            candidate = Path(record[9:].decode("utf-8"))
+            if candidate.is_dir() and not candidate.is_symlink() and common_dir(candidate) == common: roots.append(candidate.resolve())
+    return sorted(set(roots))
+
+def build_status(root_arg: str | Path, work_id: str | None = None, current_worktree: bool = False) -> tuple[dict[str, Any], int]:
+    root = workspace.project_root(root_arg)
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for worktree in worktree_roots(root, current_worktree):
+        directory = worktree / ".grill" / "work-items"
+        if not directory.exists(): continue
+        workspace.reject_symlink_chain(worktree, directory, allow_missing=False)
+        for item in sorted(directory.iterdir()):
+            if not item.is_dir() or item.is_symlink() or (work_id and item.name != work_id): continue
+            bundle = workspace.read_local_bundle(worktree, item)
+            value = item_payload(worktree, bundle)
+            value["locations"][0]["current"] = worktree == root
+            grouped.setdefault(bundle.work_id, []).append(value)
+    if work_id and work_id not in grouped: return {"schema":"grill-status/v1","verdict":"NO-GO","code":"WORK-ITEM-MISSING","project_root":str(root),"summary":{"total":0,"in_progress":0,"blocked":0,"completed":0},"work_items":[],"next_action":"iniciar"}, 1
+    items=[]; global_findings=[]
+    for key, variants in sorted(grouped.items()):
+        fps={v["fingerprint"] for v in variants}
+        base=variants[0]
+        base["locations"]=[loc for v in variants for loc in v["locations"]]
+        if len(fps)>1: base["findings"]=sorted(set(base["findings"]+["DUPLICATE-WORK-ID"])); base["next_gate"]="BLOCKED"; global_findings.append("DUPLICATE-WORK-ID")
+        items.append(base)
+    summary={"total":len(items),"in_progress":sum(1 for x in items if x["next_gate"] not in {"BLOCKED","complete"}),"blocked":sum(1 for x in items if x["next_gate"]=="BLOCKED"),"completed":sum(1 for x in items if x["next_gate"]=="complete")}
+    code="DUPLICATE-WORK-ID" if global_findings else ("OK" if items else "EMPTY")
+    return {"schema":"grill-status/v1","verdict":"BLOCKED" if global_findings else "OK","code":code,"project_root":str(root),"summary":summary,"work_items":items,"next_action":"iniciar" if not items else ("resolver-bloqueios" if summary["blocked"] else "continuar")}, 2 if global_findings else 0
+
+def main(argv: list[str] | None = None) -> int:
+    parser=argparse.ArgumentParser(); parser.add_argument("root"); parser.add_argument("--work-id"); parser.add_argument("--current-worktree",action="store_true")
+    try: payload, code=build_status(*vars(parser.parse_args(argv)).values())
+    except workspace.CliFailure as exc: payload, code={"schema":"grill-status/v1","verdict":exc.verdict,"code":exc.code,"error":exc.message}, exc.exit_code
+    print(json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))); return code
+if __name__ == "__main__": raise SystemExit(main())

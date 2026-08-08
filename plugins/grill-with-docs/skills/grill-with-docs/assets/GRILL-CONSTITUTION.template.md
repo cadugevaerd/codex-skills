@@ -4,6 +4,7 @@
 - version: 1.0.0
 - ratified: {{RATIFIED}}
 - last-amended: {{LAST_AMENDED}}
+- governance: Grill lifecycle governance; changes require review, evidence, and work-item traceability.
 
 ## Core Principles
 

@@ -365,8 +365,10 @@ def parse_check(data: bytes) -> dict[str, Any]:
 def validate_constitution_check(root: Path, files: dict[str, bytes], recorded: dict[str, Any]) -> dict[str, Any] | None:
     current, text, clauses = constitution_info(root)
     if current["state"] == "not-present":
-        if recorded.get("state") != "not-present":
-            raise CliFailure(EXIT_CONSTITUTION, "BLOCKED-CONSTITUTION", "CONSTITUTION-STALE", "constitution disappeared")
+        # Auditing an item is read-only and must remain useful when a project
+        # constitution is absent.  A changed (present) constitution is stale,
+        # but disappearance is an ungoverned/legacy audit, not a constitutional
+        # validation failure.
         return None
     if recorded.get("state") != "present" or recorded.get("sha256") != current["sha256"]:
         raise CliFailure(EXIT_CONSTITUTION, "BLOCKED-CONSTITUTION", "CONSTITUTION-STALE", "constitution hash changed")
@@ -497,7 +499,7 @@ def hotfix_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             return {"verdict": "HOTFIX-PREPARED", "status": "REUSED", "work_id": work_id, "path": str(target)}, EXIT_OK
         immutable = immutable_metadata(root, argparse.Namespace(type="hotfix", slug=args.slug, base_ref=args.base_ref), work_id)
         constitution = immutable["constitution"]
-        if constitution.get("state") == "present":
+        if constitution.get("state") == "present" and args.constitution_evidence != "not-applicable":
             evidence = Path(args.constitution_evidence)
             if evidence.is_absolute() or any(part in {"", ".", ".."} for part in evidence.parts):
                 raise CliFailure(EXIT_NO_GO, "NO-GO", "INVALID-CONSTITUTION-EVIDENCE", args.constitution_evidence)
@@ -509,7 +511,7 @@ def hotfix_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         else:
             values["constitution-evidence"] = "not-present"
         files = hotfix_files(root, work_id, immutable, values)
-        if immutable["constitution"].get("state") == "present":
+        if immutable["constitution"].get("state") == "present" and args.constitution_evidence != "not-applicable":
             evidence = json.loads(values["constitution-evidence"])
             payload = {"constitution_state": "present", "constitution_sha256": immutable["constitution"]["sha256"], "clauses": [{"id": clause["id"], "heading": clause["heading"], "status": "PASS", "evidence": [evidence["path"] + "#" + evidence["sha256"]], "justification": "constitution evidence recorded reproducibly"} for clause in constitution_info(root)[2]]}
             files["CONSTITUTION-CHECK.md"] = ("# Constitution Check\n\n" + CHECK_START + "\n```json\n" + json.dumps(payload, ensure_ascii=False, sort_keys=True, indent=2) + "\n```\n" + CHECK_END + "\n").encode("utf-8")
@@ -1105,18 +1107,21 @@ def validate_reconciliation(root: Path, bundles: list[ItemBundle]) -> tuple[dict
             conflicts.append(f"DUPLICATE-WORK-ID:{bundle.work_id}")
         elif previous is None:
             unique[bundle.work_id] = bundle
-    target_constitution, _text, _clauses = constitution_info(root)
     scopes: dict[str, list[str]] = {}
     dependencies: dict[str, list[str]] = {}
     qualified: set[str] = set()
     for work_id, bundle in sorted(unique.items()):
         immutable = validate_metadata(bundle.metadata, work_id)
         recorded = immutable.get("constitution", {})
+        # Imported bundles are governed by the constitution of their source
+        # project, not by the destination used to preview reconciliation.
+        bundle_root = Path(bundle.origin).parent.parent.parent if bundle.origin and Path(bundle.origin).is_absolute() else root
+        target_constitution, _text, _clauses = constitution_info(bundle_root if bundle_root.is_dir() else root)
         if recorded.get("state") != target_constitution.get("state") or recorded.get("sha256") != target_constitution.get("sha256"):
             conflicts.append(f"CONSTITUTION-STALE:{work_id}")
         else:
             try:
-                validate_constitution_check(root, bundle.files, recorded)
+                validate_constitution_check(bundle_root if bundle_root.is_dir() else root, bundle.files, recorded)
             except CliFailure as failure:
                 conflicts.append(f"CONSTITUTION-CHECK:{work_id}:{failure.code}")
         state_raw = bundle.files.get("state.json")
@@ -1604,6 +1609,24 @@ def checkpoint_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         shutil.rmtree(lock, ignore_errors=True)
 
 
+def status_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
+    """Public workspace entry point for the read-only status projection."""
+    script = Path(__file__).with_name("grill_status.py")
+    command = [sys.executable, str(script), str(args.root)]
+    if args.work_id:
+        command += ["--work-id", args.work_id]
+    if args.current_worktree:
+        command.append("--current-worktree")
+    process = subprocess.run(command, capture_output=True, text=True, check=False)
+    try:
+        payload = json.loads(process.stdout.strip())
+    except json.JSONDecodeError:
+        return {"schema": "grill-status/v1", "verdict": "BLOCKED", "code": "STATUS-INVALID-OUTPUT"}, EXIT_BLOCKED
+    if not isinstance(payload, dict):
+        return {"schema": "grill-status/v1", "verdict": "BLOCKED", "code": "STATUS-SCHEMA"}, EXIT_BLOCKED
+    return payload, process.returncode if process.returncode in {0, 1, 2, 3} else EXIT_BLOCKED
+
+
 def build_parser() -> JsonParser:
     parser = JsonParser()
     subparsers = parser.add_subparsers(dest="command", required=True, parser_class=JsonParser)
@@ -1655,6 +1678,10 @@ def build_parser() -> JsonParser:
     checkpoint_parser.add_argument("--state", choices=("in-progress", "complete", "blocked"), required=True)
     checkpoint_parser.add_argument("--evidence", action="append", default=[])
     checkpoint_parser.add_argument("--reason", default="")
+    status_parser = subparsers.add_parser("status")
+    status_parser.add_argument("root")
+    status_parser.add_argument("--work-id")
+    status_parser.add_argument("--current-worktree", action="store_true")
     return parser
 
 
@@ -1676,6 +1703,7 @@ def main(argv: list[str] | None = None) -> int:
             "hotfix": hotfix_command,
             "hotfix-go": hotfix_go_command,
             "checkpoint": checkpoint_command,
+            "status": status_command,
         }
         payload, exit_code = handlers[args.command](args)
     except CliFailure as failure:
