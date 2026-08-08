@@ -16,6 +16,7 @@ import sys
 import tempfile
 import time
 import uuid
+from datetime import date
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, NoReturn
@@ -33,6 +34,7 @@ BL_RE = re.compile(r"\bBL-\d{4}\b")
 PHASE_RE = re.compile(r"\bFASE-\d{3}\b")
 ROUND_RE = re.compile(r"\bR-\d{4}\b")
 ASSETS = Path(__file__).resolve().parents[1] / "assets"
+CONSTITUTION_PATH = ".specify/memory/constitution.md"
 ROOT_FILES = (
     "CONTEXT.md",
     "DECISION-BACKLOG.md",
@@ -214,6 +216,36 @@ def atomic_write(root: Path, path: Path, data: bytes) -> bool:
         except OSError:
             pass
         raise
+
+
+def ensure_managed_constitution(root: Path) -> tuple[bool, str]:
+    path = root / CONSTITUTION_PATH
+    reject_symlink_chain(root, path)
+    if path.exists():
+        data = safe_read(path, root=root); assert isinstance(data, bytes)
+        validate_constitution_text(data.decode("utf-8"))
+        return False, hash_bytes(data)
+    template = (ASSETS / "GRILL-CONSTITUTION.template.md").read_text(encoding="utf-8")
+    today = date.today().isoformat()
+    data = template.replace("{{RATIFIED}}", today).replace("{{LAST_AMENDED}}", today).encode("utf-8")
+    validate_constitution_text(data.decode("utf-8"))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644)
+    except FileExistsError:
+        existing = safe_read(path, root=root); assert isinstance(existing, bytes)
+        existing.decode("utf-8")
+        return False, hash_bytes(existing)
+    with os.fdopen(fd, "wb") as handle:
+        handle.write(data); handle.flush(); os.fsync(handle.fileno())
+    check = safe_read(path, root=root); assert isinstance(check, bytes)
+    if check != data:
+        raise CliFailure(EXIT_BLOCKED, "BLOCKED", "CONSTITUTION-READBACK", str(path))
+    try:
+        dfd = os.open(path.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)); os.fsync(dfd); os.close(dfd)
+    except OSError:
+        pass
+    return True, hash_bytes(data)
 
 
 def read_asset(name: str) -> bytes:
@@ -816,6 +848,7 @@ def init_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             if immutable.get("type") != args.type or immutable.get("slug") != args.slug:
                 raise CliFailure(EXIT_BLOCKED, "BLOCKED", "IDENTITY-DIVERGENCE", work_id)
             return {"status": "REUSED", "work_id": work_id, "path": str(target), "fingerprint": bundle.fingerprint}, EXIT_OK
+        constitution_created, constitution_hash = ensure_managed_constitution(root)
         immutable = immutable_metadata(root, args, work_id)
         files = initial_files(root, work_id, immutable)
         metadata = metadata_document(immutable, files)
@@ -832,7 +865,8 @@ def init_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
                 raise CliFailure(EXIT_BLOCKED, "BLOCKED", "IDENTITY-DIVERGENCE", work_id)
             return {"status": "REUSED", "work_id": work_id, "path": str(target), "fingerprint": bundle.fingerprint}, EXIT_OK
         bundle = read_local_bundle(root, target)
-        return {"status": "CREATED", "work_id": work_id, "path": str(target), "fingerprint": bundle.fingerprint}, EXIT_OK
+        return {"status": "CREATED", "work_id": work_id, "path": str(target), "fingerprint": bundle.fingerprint,
+                "constitution": "CREATED" if constitution_created else "PRESERVED", "constitution_sha256": constitution_hash}, EXIT_OK
     finally:
         if lock is not None:
             shutil.rmtree(lock, ignore_errors=True)
@@ -1516,6 +1550,56 @@ def migrate_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             shutil.rmtree(lock, ignore_errors=True)
 
 
+def checkpoint_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
+    root = project_root(args.root)
+    if args.step not in ["specify", "plan", "checklist", "tasks", "analyze", "agent-assign", "agent-execute", "converge", "verify", "review", "ship"]:
+        raise CliFailure(EXIT_BLOCKED, "BLOCKED", "INVALID-STEP", args.step)
+    item = root / ".grill" / "work-items" / args.work_id
+    if not item.is_dir():
+        raise CliFailure(EXIT_NO_GO, "NO-GO", "WORK-ITEM-MISSING", args.work_id)
+    lock = acquire_lock(root, args.work_id, item)
+    try:
+        path = item / "state.json"; raw = safe_read(path, root=root, utf8=True); assert isinstance(raw, str)
+        state = json.loads(raw)
+        development = state.get("development")
+        if not isinstance(development, dict) or development.get("schema") != "grill-development/v1":
+            raise CliFailure(EXIT_BLOCKED, "BLOCKED", "LEGACY-UNTRACKED", args.work_id)
+        sequence = development.get("sequence"); steps = development.get("steps")
+        if sequence != ["specify", "plan", "checklist", "tasks", "analyze", "agent-assign", "agent-execute", "converge", "verify", "review", "ship"] or not isinstance(steps, dict):
+            raise CliFailure(EXIT_BLOCKED, "BLOCKED", "DEVELOPMENT-SCHEMA", args.work_id)
+        current = steps.get(args.step, "pending")
+        if current == args.state:
+            return {"verdict": "REUSED", "work_id": args.work_id, "step": args.step, "state": args.state}, EXIT_OK
+        index = sequence.index(args.step)
+        if args.state == "in-progress":
+            if current not in {"pending", "blocked"} or any(steps.get(s) != "complete" for s in sequence[:index]):
+                raise CliFailure(EXIT_BLOCKED, "BLOCKED", "INVALID-TRANSITION", args.step)
+        elif args.state == "complete":
+            if current != "in-progress" or any(steps.get(s) != "complete" for s in sequence[:index]):
+                raise CliFailure(EXIT_BLOCKED, "BLOCKED", "INVALID-TRANSITION", args.step)
+            if not args.evidence:
+                raise CliFailure(EXIT_BLOCKED, "BLOCKED", "EVIDENCE-REQUIRED", args.step)
+        elif args.state == "blocked":
+            if current != "in-progress" or not args.reason.strip():
+                raise CliFailure(EXIT_BLOCKED, "BLOCKED", "REASON-REQUIRED", args.step)
+        if args.state == "complete":
+            evidence = []
+            for value in args.evidence:
+                ep = Path(value)
+                if ep.is_absolute() or any(p in {"", ".", ".."} for p in ep.parts):
+                    raise CliFailure(EXIT_BLOCKED, "BLOCKED", "INVALID-EVIDENCE-PATH", value)
+                data = safe_read(root / ep, root=root); assert isinstance(data, bytes)
+                evidence.append({"path": ep.as_posix(), "sha256": hash_bytes(data)})
+        else:
+            evidence = []
+        steps[args.step] = args.state; development["current_step"] = args.step
+        development.setdefault("audit", []).append({"step": args.step, "state": args.state, "evidence": evidence, "reason": args.reason or ""})
+        atomic_write(root, path, (json.dumps(state, ensure_ascii=False, sort_keys=True, indent=2) + "\n").encode("utf-8"))
+        return {"verdict": "UPDATED", "work_id": args.work_id, "step": args.step, "state": args.state}, EXIT_OK
+    finally:
+        shutil.rmtree(lock, ignore_errors=True)
+
+
 def build_parser() -> JsonParser:
     parser = JsonParser()
     subparsers = parser.add_subparsers(dest="command", required=True, parser_class=JsonParser)
@@ -1560,6 +1644,13 @@ def build_parser() -> JsonParser:
     migrate_parser.add_argument("--work-id")
     migrate_parser.add_argument("--base-ref")
     migrate_parser.add_argument("--apply", action="store_true")
+    checkpoint_parser = subparsers.add_parser("checkpoint")
+    checkpoint_parser.add_argument("root")
+    checkpoint_parser.add_argument("--work-id", required=True)
+    checkpoint_parser.add_argument("--step", required=True)
+    checkpoint_parser.add_argument("--state", choices=("in-progress", "complete", "blocked"), required=True)
+    checkpoint_parser.add_argument("--evidence", action="append", default=[])
+    checkpoint_parser.add_argument("--reason", default="")
     return parser
 
 
@@ -1580,6 +1671,7 @@ def main(argv: list[str] | None = None) -> int:
             "migrate": migrate_command,
             "hotfix": hotfix_command,
             "hotfix-go": hotfix_go_command,
+            "checkpoint": checkpoint_command,
         }
         payload, exit_code = handlers[args.command](args)
     except CliFailure as failure:

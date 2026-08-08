@@ -205,10 +205,16 @@ def hook() -> int:
         except (OSError, UnicodeError):
             content, text = b"", ""
         if managed_version(text) == VERSION and compatible(text):
+            status_script = HERE.with_name("grill_status.py")
+            try:
+                result = subprocess.run([sys.executable, str(status_script), str(root), "--current-worktree"], capture_output=True, text=True, check=False, timeout=3)
+                status_line = result.stdout.strip() if result.returncode == 0 else "BLOCKED status"
+            except (OSError, subprocess.TimeoutExpired):
+                status_line = "BLOCKED status"
             message = (
-                f"Leia {path}; sha256={digest(content)}. Fluxo COMPLETO: ROADMAP/handoff → "
+                f"Leia {path}; sha256={digest(content)}. {status_line[:900]} Fluxo COMPLETO: ROADMAP/handoff → "
                 "specify → plan → checklist → tasks → analyze → agent-assign → agent-execute → "
-                "converge → verify → review → ship (A–E), sem PR."
+                "converge → verify → review → ship (11 etapas), sem PR. Use status/checkpoint."
             )
         else:
             message = f"WORKFLOW.md incompatível em {path}; invoque grill-with-docs para auditar."

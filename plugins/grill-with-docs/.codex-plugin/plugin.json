@@ -1,6 +1,6 @@
 {
   "name": "grill-with-docs",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "description": "Entrega hotfixes por uma faixa rápida e verificável; reconciliação incremental com receipts fail-closed.",
   "author": {
     "name": "Carlos Araujo",
@@ -29,6 +29,9 @@
     "category": "Development",
     "capabilities": [
       "Isolated Work Items",
+      "Constitution Bootstrap",
+      "Lifecycle Checkpoints",
+      "Deterministic Status",
       "Architecture Interview",
       "Constitution Gate",
       "Decision Audit",

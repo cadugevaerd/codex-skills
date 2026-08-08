@@ -1,6 +1,10 @@
-# grill-with-docs v2.3.0 — Delivery First
+# grill-with-docs v2.4.0 — Delivery First
 
-When artifacts live outside the checkout, invoke the auditor with
+## Lifecycle status and checkpoints
+
+`init ROOT` cria, somente quando ausente, uma Constituição Grill gerenciada e registra seu SHA-256; Constituição existente é preservada. O ciclo pode ser acompanhado sem mutação por `scripts/grill_status.py ROOT [--work-id ID] [--current-worktree]`. Avance uma etapa por vez com `grill_workspace.py checkpoint ROOT --work-id ID --step STEP --state in-progress|complete|blocked`; conclusão exige `--evidence PATH` e bloqueio exige `--reason`. A sequência é fixa e fail-closed.
+
+
 `--artifact-root PATH --project-root ROOT`; `ROOT` is the authoritative
 project-wide root for `.specify/memory/constitution.md` and `WORKFLOW.md`.
 
