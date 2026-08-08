@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Matriz pública do contrato grill_workspace.py status (somente interface CLI)."""
 from __future__ import annotations
-import concurrent.futures, hashlib, json, os, shutil, subprocess, sys, tempfile, unittest
+import concurrent.futures, hashlib, importlib.util, json, os, shutil, subprocess, sys, tempfile, unittest
+from unittest import mock
 from pathlib import Path
 
 PLUGIN=Path(__file__).resolve().parents[1]
@@ -96,4 +97,14 @@ class StatusPublicContract(unittest.TestCase):
         self.item(); receipts=self.r/".grill/global/receipts"; receipts.mkdir(parents=True,exist_ok=True); secret=Path(self.t.name)/"receipt-secret"; secret.write_text("SECRET"); (receipts/"work-a.json").symlink_to(secret); p,x=status(self.r); self.assertEqual(p.returncode,2); self.assertIn(x["code"],{"SYMLINK-REJECTED","UNSAFE-FILE"}); self.assertNotIn("SECRET",p.stdout)
     def test_constitution_external_symlink_is_rejected(self):
         self.item(); path=self.r/".specify/memory/constitution.md"; path.parent.mkdir(parents=True,exist_ok=True); secret=Path(self.t.name)/"constitution-secret"; secret.write_text("SECRET"); path.unlink(missing_ok=True); path.symlink_to(secret); p,x=status(self.r); self.assertEqual(p.returncode,3); self.assertIn(x["code"],{"SYMLINK-REJECTED","UNSAFE-FILE"}); self.assertNotIn("SECRET",p.stdout)
+    def test_broken_constitution_symlink_reports_security_cause(self):
+        self.item(); path=self.r/".specify/memory/constitution.md"; path.unlink(); path.symlink_to("missing-constitution")
+        p,x=status(self.r); self.assertEqual(p.returncode,3); self.assertEqual(x["code"],"SYMLINK-REJECTED"); self.assertEqual(p.stderr,"")
+    def test_bundle_reader_uses_descriptor_not_path_read_bytes(self):
+        item=self.item(); spec=importlib.util.spec_from_file_location("workspace_descriptor_contract",WS)
+        if spec is None or spec.loader is None: self.fail("unable to load workspace module")
+        module=importlib.util.module_from_spec(spec); sys.modules[spec.name]=module; spec.loader.exec_module(module)
+        with mock.patch.object(Path,"read_bytes",side_effect=AssertionError("unsafe Path.read_bytes")):
+            bundle=module.read_local_bundle(self.r,item)
+        self.assertEqual(bundle.work_id,"work-a"); self.assertIn("WORK-ITEM.json",bundle.files)
 if __name__=="__main__": unittest.main()

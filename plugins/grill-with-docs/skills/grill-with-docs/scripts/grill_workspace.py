@@ -387,6 +387,12 @@ def constitution_clauses(text: str) -> list[dict[str, str]]:
 
 def constitution_info(root: Path) -> tuple[dict[str, Any], str | None, list[dict[str, str]]]:
     path = root / ".specify" / "memory" / "constitution.md"
+    try:
+        reject_symlink_chain(root, path, allow_missing=True)
+    except CliFailure as failure:
+        raise CliFailure(EXIT_CONSTITUTION, "BLOCKED-CONSTITUTION", failure.code, failure.message) from failure
+    if path.is_symlink():
+        raise CliFailure(EXIT_CONSTITUTION, "BLOCKED-CONSTITUTION", "SYMLINK-REJECTED", str(path))
     if not path.exists():
         return {"state": "not-present", "path": None, "sha256": None}, None, []
     try:
@@ -878,7 +884,7 @@ def read_local_bundle(root: Path, item: Path) -> ItemBundle:
             raise CliFailure(EXIT_BLOCKED, "BLOCKED", "SYMLINK-REJECTED", str(path))
         if path.is_file():
             relative = path.relative_to(item).as_posix()
-            files[relative] = path.read_bytes()
+            files[relative] = safe_read_regular_fd(root, path)
     return bundle_from_files(item.name, files, str(item))
 
 
@@ -892,7 +898,7 @@ def read_external_bundle(item: Path) -> ItemBundle:
         if path.is_symlink():
             raise CliFailure(EXIT_BLOCKED, "BLOCKED", "SYMLINK-REJECTED", str(path))
         if path.is_file():
-            files[path.relative_to(absolute).as_posix()] = path.read_bytes()
+            files[path.relative_to(absolute).as_posix()] = safe_read_regular_fd(absolute, path)
     raw = files.get("WORK-ITEM.json")
     if raw is None:
         raise CliFailure(EXIT_NO_GO, "NO-GO", "WORK-ITEM-MISSING", str(absolute))
