@@ -257,7 +257,7 @@ def hook() -> int:
         if len(rendered) > 2048:
             output["hookSpecificOutput"]["additionalContext"] = marker
             rendered = json.dumps(output, ensure_ascii=False, sort_keys=True)
-    print(rendered)
+    sys.stdout.write(rendered)
     return 0
 
 

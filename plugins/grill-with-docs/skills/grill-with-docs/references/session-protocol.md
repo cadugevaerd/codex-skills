@@ -41,7 +41,7 @@ ship externo → state complete/GO → reconcile preview → apply na integraç�
 - [ ] Validar paths sem traversal/symlink e preservar conteúdo humano.
 - [ ] Confirmar que `.grill/global/` não foi alterado pelo init.
 
-Falha de identidade, integridade, path, lock ou materialização é `BLOCKED`. Falha constitucional é `BLOCKED-CONSTITUTION`. A ausência da Constituição, isoladamente, não bloqueia.
+Falha de identidade, integridade, path, lock ou materialização é `BLOCKED`. Falha constitucional é `BLOCKED-CONSTITUTION`. Antes de `init`, a ausência indica bootstrap pendente; após `init`, ausência, check `PENDING`, hash divergente ou conteúdo inválido bloqueiam o gate constitucional até correção explícita.
 
 ## Entradas e controle
 

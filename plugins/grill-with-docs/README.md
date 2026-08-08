@@ -60,7 +60,7 @@ python3 "$CORE" migrate "$PWD" --type fix --slug migracao --apply
 
 - Um bundle completo por work item em `.grill/work-items/<work-id>/`.
 - `WORKFLOW.md` e a Constituição são project-wide.
-- Constituição ausente é `not-present`; presente é read-only e inviolável.
+- Antes de `init`, a ausência da Constituição é um bootstrap pendente; `init` cria o arquivo gerenciado sem sobrescrever conteúdo existente e, depois disso, a Constituição é read-only e inviolável.
 - `CONSTITUTION-CHECK.md` exige cobertura por cláusula, evidência e justificativa.
 - Auditoria, hooks e reconcile preview são read-only; reconcile só ocorre depois de `PLAN_ONLY_STOP` e do ship externo, com milestone terminal `MILESTONE-COMPLETE`.
 - O global é projeção determinística; nunca é fonte de verdade.

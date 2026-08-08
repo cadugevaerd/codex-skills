@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Contract smoke matrix for the persistent eleven-step checkpoint ledger."""
-import json, subprocess, sys, tempfile, unittest
+import concurrent.futures, json, os, subprocess, sys, tempfile, unittest
 from pathlib import Path
 SCRIPT=Path(__file__).resolve().parents[1]/'skills/grill-with-docs/scripts/grill_workspace.py'
 TEMPLATE=Path(__file__).resolve().parents[1]/'skills/grill-with-docs/assets/WORKFLOW.template.md'
@@ -65,4 +65,37 @@ class CheckpointContract(unittest.TestCase):
   self.call('specify','in-progress'); p=self.call('specify','complete',evidence=['e']); self.assertEqual(json.loads(p.stdout)['evidence'][0]['sha256'],__import__('hashlib').sha256(b'e').hexdigest())
  def test_missing_work_item_exact(self):
   p=run('checkpoint',self.r,'--work-id','none','--step','specify','--state','in-progress'); self.assertEqual(json.loads(p.stdout)['code'],'WORK-ITEM-MISSING')
+ def test_direct_evidence_symlink_is_blocked_without_state_change(self):
+  self.call('specify','in-progress'); state=self.r/'.grill/work-items/wx/state.json'; before=(state.read_bytes(),state.stat().st_mtime_ns)
+  outside=Path(self.t.name)/'outside-evidence'; outside.write_text('secret'); (self.r/'e-link').symlink_to(outside)
+  p=self.call('specify','complete',evidence=['e-link']); self.assertEqual((p.returncode,json.loads(p.stdout)['code']),(2,'EVIDENCE-SYMLINK')); self.assertEqual(before,(state.read_bytes(),state.stat().st_mtime_ns)); self.assertNotIn('secret',p.stdout)
+ def test_broken_evidence_symlink_is_blocked(self):
+  self.call('specify','in-progress'); (self.r/'broken').symlink_to('missing'); p=self.call('specify','complete',evidence=['broken']); self.assertEqual((p.returncode,json.loads(p.stdout)['code']),(2,'EVIDENCE-SYMLINK'))
+ def test_ancestor_evidence_symlink_is_blocked(self):
+  self.call('specify','in-progress'); outside=Path(self.t.name)/'outside-dir'; outside.mkdir(); (outside/'proof').write_text('secret'); (self.r/'linked-dir').symlink_to(outside,target_is_directory=True)
+  p=self.call('specify','complete',evidence=['linked-dir/proof']); self.assertEqual(p.returncode,2); self.assertEqual(json.loads(p.stdout)['code'],'SYMLINK-REJECTED'); self.assertNotIn('secret',p.stdout)
+ def test_concurrent_identical_transition_serializes(self):
+  def invoke(_): return self.call('specify','in-progress')
+  with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool: results=list(pool.map(invoke,range(2)))
+  payloads=[json.loads(p.stdout) for p in results]; self.assertEqual(sorted(p['verdict'] for p in payloads),['REUSED','UPDATED'])
+  state=json.loads((self.r/'.grill/work-items/wx/state.json').read_text()); self.assertEqual(len(state['development']['audit']),1); self.assertFalse((self.r/'.grill/work-items/wx.lock').exists())
+ def test_concurrent_divergent_transition_is_deterministic(self):
+  def invoke(reason): return self.call('specify','in-progress',reason=reason)
+  with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool: results=list(pool.map(invoke,['one','two']))
+  pairs=sorted((p.returncode,json.loads(p.stdout)['verdict']) for p in results); self.assertEqual(pairs,[(0,'UPDATED'),(2,'BLOCKED')])
+  state=json.loads((self.r/'.grill/work-items/wx/state.json').read_text()); self.assertEqual(len(state['development']['audit']),1)
+ def test_evidence_content_change_causes_state_divergence(self):
+  self.call('specify','in-progress'); self.call('specify','complete',evidence=['e'],reason='done'); (self.r/'e').write_text('changed')
+  p=self.call('specify','complete',evidence=['e'],reason='done'); self.assertEqual((p.returncode,json.loads(p.stdout)['code']),(2,'STATE-DIVERGENCE'))
+ def test_legacy_explicit_specify_initialization_succeeds_without_inference(self):
+  path=self.r/'.grill/work-items/wx/state.json'; path.write_text('{}')
+  p=run('checkpoint',self.r,'--work-id','wx','--step','specify','--state','in-progress','--initialize-legacy','--from-step','specify','--evidence','e','--reason','explicit-decision')
+  self.assertEqual(p.returncode,0,p.stdout); state=json.loads(path.read_text()); self.assertEqual(state['development']['steps']['specify'],'in-progress'); self.assertTrue(all(state['development']['steps'][s]=='pending' for s in STEPS[1:])); self.assertEqual(len(state['development']['audit']),1)
+ def test_legacy_posterior_initialization_is_unsafe(self):
+  path=self.r/'.grill/work-items/wx/state.json'; path.write_text('{}'); before=path.read_bytes()
+  p=run('checkpoint',self.r,'--work-id','wx','--step','plan','--state','in-progress','--initialize-legacy','--from-step','plan','--evidence','e','--reason','explicit-decision')
+  self.assertEqual((p.returncode,json.loads(p.stdout)['code']),(2,'LEGACY-INITIALIZATION-UNSAFE')); self.assertEqual(before,path.read_bytes())
+ def test_state_symlink_is_blocked_without_external_read(self):
+  state=self.r/'.grill/work-items/wx/state.json'; outside=Path(self.t.name)/'external-state'; outside.write_text('TOP-SECRET'); state.unlink(); state.symlink_to(outside)
+  p=self.call('specify','in-progress'); self.assertEqual(p.returncode,2); self.assertNotIn('TOP-SECRET',p.stdout); self.assertEqual(outside.read_text(),'TOP-SECRET')
 if __name__=='__main__': unittest.main()

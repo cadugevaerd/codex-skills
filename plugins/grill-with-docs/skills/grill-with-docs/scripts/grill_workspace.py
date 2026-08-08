@@ -245,38 +245,96 @@ def atomic_write(root: Path, path: Path, data: bytes) -> bool:
 
 
 def ensure_managed_constitution(root: Path) -> tuple[bool, str]:
+    """Create the managed Constitution once without following path races."""
     path = root / CONSTITUTION_PATH
-    reject_symlink_chain(root, path)
-    if path.exists():
-        data = safe_read(path, root=root); assert isinstance(data, bytes)
-        try:
-            text = data.decode("utf-8")
-        except UnicodeError as exc:
-            raise CliFailure(EXIT_CONSTITUTION, "BLOCKED-CONSTITUTION", "CONSTITUTION-INVALID-UTF8", str(path)) from exc
-        validate_constitution_text(text)
-        return False, hash_bytes(data)
     template = (ASSETS / "GRILL-CONSTITUTION.template.md").read_text(encoding="utf-8")
     today = date.today().isoformat()
     data = template.replace("{{RATIFIED}}", today).replace("{{LAST_AMENDED}}", today).encode("utf-8")
     validate_constitution_text(data.decode("utf-8"))
-    path.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644)
-    except FileExistsError:
-        existing = safe_read(path, root=root); assert isinstance(existing, bytes)
-        text = existing.decode("utf-8")
+    constitution_clauses(data.decode("utf-8"))
+
+    def validate_existing(existing: bytes) -> tuple[bool, str]:
+        try:
+            text = existing.decode("utf-8")
+        except UnicodeError as exc:
+            raise CliFailure(EXIT_CONSTITUTION, "BLOCKED-CONSTITUTION", "CONSTITUTION-INVALID-UTF8", str(path)) from exc
         validate_constitution_text(text)
         constitution_clauses(text)
         return False, hash_bytes(existing)
-    with os.fdopen(fd, "wb") as handle:
-        handle.write(data); handle.flush(); os.fsync(handle.fileno())
-    check = safe_read(path, root=root); assert isinstance(check, bytes)
+
+    def read_descriptor(fd: int) -> bytes:
+        chunks: list[bytes] = []
+        while True:
+            chunk = os.read(fd, 1024 * 1024)
+            if not chunk:
+                return b"".join(chunks)
+            chunks.append(chunk)
+
+    nofollow = getattr(os, "O_NOFOLLOW", 0)
+    directory = getattr(os, "O_DIRECTORY", 0)
+    supports_openat = os.open in getattr(os, "supports_dir_fd", set()) and os.mkdir in getattr(os, "supports_dir_fd", set())
+    if supports_openat:
+        descriptors: list[int] = []
+        try:
+            current = os.open(root, os.O_RDONLY | directory | nofollow)
+            descriptors.append(current)
+            for component in (".specify", "memory"):
+                try:
+                    os.mkdir(component, 0o755, dir_fd=current)
+                except FileExistsError:
+                    pass
+                child = os.open(component, os.O_RDONLY | directory | nofollow, dir_fd=current)
+                descriptors.append(child)
+                current = child
+            try:
+                created_fd = os.open("constitution.md", os.O_WRONLY | os.O_CREAT | os.O_EXCL | nofollow, 0o644, dir_fd=current)
+            except FileExistsError:
+                existing_fd = os.open("constitution.md", os.O_RDONLY | nofollow, dir_fd=current)
+                try:
+                    return validate_existing(read_descriptor(existing_fd))
+                finally:
+                    os.close(existing_fd)
+            with os.fdopen(created_fd, "wb") as handle:
+                handle.write(data)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.fsync(current)
+            readback_fd = os.open("constitution.md", os.O_RDONLY | nofollow, dir_fd=current)
+            try:
+                check = read_descriptor(readback_fd)
+            finally:
+                os.close(readback_fd)
+            if check != data:
+                raise CliFailure(EXIT_BLOCKED, "BLOCKED", "CONSTITUTION-READBACK", str(path))
+            return True, hash_bytes(data)
+        except OSError as exc:
+            raise CliFailure(EXIT_BLOCKED, "BLOCKED", "UNSAFE-DIRECTORY", type(exc).__name__) from exc
+        finally:
+            for descriptor in reversed(descriptors):
+                try:
+                    os.close(descriptor)
+                except OSError:
+                    pass
+
+    # Portable fallback. Component validation and optional O_NOFOLLOW retain
+    # the same structured fail-closed contract on runtimes without openat.
+    ensure_directory(root, ".specify/memory")
+    reject_symlink_chain(root, path)
+    try:
+        created_fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | nofollow, 0o644)
+    except FileExistsError:
+        existing = safe_read(path, root=root)
+        assert isinstance(existing, bytes)
+        return validate_existing(existing)
+    with os.fdopen(created_fd, "wb") as handle:
+        handle.write(data)
+        handle.flush()
+        os.fsync(handle.fileno())
+    reject_symlink_chain(root, path, allow_missing=False)
+    check = safe_read(path, root=root)
+    assert isinstance(check, bytes)
     if check != data:
         raise CliFailure(EXIT_BLOCKED, "BLOCKED", "CONSTITUTION-READBACK", str(path))
-    try:
-        dfd = os.open(path.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)); os.fsync(dfd); os.close(dfd)
-    except OSError:
-        pass
     return True, hash_bytes(data)
 
 
@@ -1626,7 +1684,7 @@ def checkpoint_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             if args.from_step is None or not args.evidence or not args.reason.strip():
                 raise CliFailure(EXIT_BLOCKED, "BLOCKED", "LEGACY-INITIALIZATION-REQUIRES-DECISION-EVIDENCE", args.work_id)
             development = {"schema":"grill-development/v1", "sequence":SEQUENCE[:], "current_step":args.step,
-                           "steps":{step:("in-progress" if step == args.step else "pending") for step in SEQUENCE}, "audit":[]}
+                           "steps":{step:"pending" for step in SEQUENCE}, "audit":[]}
             state["development"] = development
             args.state = "in-progress"
         sequence = development.get("sequence"); steps = development.get("steps")

@@ -68,7 +68,7 @@ Arquivos de controle, fora da lista de oito entradas: `WORK-ITEM.json`, `CONSTIT
 
 ## Gate constitucional
 
-Se não existir Constituição, registre `not-present` sem inventar princípios. Se existir:
+Se a Constituição estiver ausente antes de `init`, trate como bootstrap pendente. O `init` cria a Constituição gerenciada sem clobber; depois disso, ausência, hash divergente ou conteúdo inválido bloqueiam o fluxo. Para uma Constituição existente:
 
 1. leia somente `.specify/memory/constitution.md` em UTF-8;
 2. registre SHA-256 no metadata e em `CONSTITUTION-CHECK.md`;
