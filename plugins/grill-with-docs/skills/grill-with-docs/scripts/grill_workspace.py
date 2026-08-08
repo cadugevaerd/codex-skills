@@ -11,11 +11,13 @@ import re
 import shlex
 import shutil
 import socket
+import stat
 import subprocess
 import sys
 import tempfile
 import time
 import uuid
+from datetime import date
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, NoReturn
@@ -33,6 +35,7 @@ BL_RE = re.compile(r"\bBL-\d{4}\b")
 PHASE_RE = re.compile(r"\bFASE-\d{3}\b")
 ROUND_RE = re.compile(r"\bR-\d{4}\b")
 ASSETS = Path(__file__).resolve().parents[1] / "assets"
+CONSTITUTION_PATH = ".specify/memory/constitution.md"
 ROOT_FILES = (
     "CONTEXT.md",
     "DECISION-BACKLOG.md",
@@ -180,17 +183,42 @@ def ensure_directory(root: Path, relative: str) -> Path:
 
 
 def safe_read(path: Path, *, root: Path | None = None, utf8: bool = False) -> bytes | str:
-    if root is not None:
-        reject_symlink_chain(root, path, allow_missing=False)
-    if path.is_symlink() or not path.is_file():
-        raise CliFailure(EXIT_BLOCKED, "BLOCKED", "UNSAFE-FILE", str(path))
     try:
-        data = path.read_bytes()
+        data = safe_read_regular_fd(root or path.parent, path)
         return data.decode("utf-8") if utf8 else data
     except UnicodeError as exc:
         raise CliFailure(EXIT_NO_GO, "NO-GO", "INVALID-UTF8", str(path)) from exc
     except OSError as exc:
         raise CliFailure(EXIT_NO_GO, "NO-GO", "FILESYSTEM", type(exc).__name__) from exc
+
+
+def safe_read_regular_fd(root: Path, path: Path) -> bytes:
+    """Read one regular file through an O_NOFOLLOW descriptor.
+
+    The lexical chain check is deliberately repeated immediately before open;
+    fstat then makes the object being hashed the object actually read.
+    """
+    reject_symlink_chain(root, path, allow_missing=False)
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        fd = os.open(path, flags)
+    except FileNotFoundError as exc:
+        raise CliFailure(EXIT_BLOCKED, "BLOCKED", "EVIDENCE-MISSING", str(path)) from exc
+    except OSError as exc:
+        code = "SYMLINK-REJECTED" if exc.errno in {errno.ELOOP, errno.EMLINK} else "UNSAFE-FILE"
+        raise CliFailure(EXIT_BLOCKED, "BLOCKED", code, str(path)) from exc
+    try:
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode):
+            raise CliFailure(EXIT_BLOCKED, "BLOCKED", "EVIDENCE-NOT-REGULAR", str(path))
+        chunks = []
+        while True:
+            chunk = os.read(fd, 1024 * 1024)
+            if not chunk: break
+            chunks.append(chunk)
+        return b"".join(chunks)
+    finally:
+        os.close(fd)
 
 
 def atomic_write(root: Path, path: Path, data: bytes) -> bool:
@@ -214,6 +242,100 @@ def atomic_write(root: Path, path: Path, data: bytes) -> bool:
         except OSError:
             pass
         raise
+
+
+def ensure_managed_constitution(root: Path) -> tuple[bool, str]:
+    """Create the managed Constitution once without following path races."""
+    path = root / CONSTITUTION_PATH
+    template = (ASSETS / "GRILL-CONSTITUTION.template.md").read_text(encoding="utf-8")
+    today = date.today().isoformat()
+    data = template.replace("{{RATIFIED}}", today).replace("{{LAST_AMENDED}}", today).encode("utf-8")
+    validate_constitution_text(data.decode("utf-8"))
+    constitution_clauses(data.decode("utf-8"))
+
+    def validate_existing(existing: bytes) -> tuple[bool, str]:
+        try:
+            text = existing.decode("utf-8")
+        except UnicodeError as exc:
+            raise CliFailure(EXIT_CONSTITUTION, "BLOCKED-CONSTITUTION", "CONSTITUTION-INVALID-UTF8", str(path)) from exc
+        validate_constitution_text(text)
+        constitution_clauses(text)
+        return False, hash_bytes(existing)
+
+    def read_descriptor(fd: int) -> bytes:
+        chunks: list[bytes] = []
+        while True:
+            chunk = os.read(fd, 1024 * 1024)
+            if not chunk:
+                return b"".join(chunks)
+            chunks.append(chunk)
+
+    nofollow = getattr(os, "O_NOFOLLOW", 0)
+    directory = getattr(os, "O_DIRECTORY", 0)
+    supports_openat = os.open in getattr(os, "supports_dir_fd", set()) and os.mkdir in getattr(os, "supports_dir_fd", set())
+    if supports_openat:
+        descriptors: list[int] = []
+        try:
+            current = os.open(root, os.O_RDONLY | directory | nofollow)
+            descriptors.append(current)
+            for component in (".specify", "memory"):
+                try:
+                    os.mkdir(component, 0o755, dir_fd=current)
+                except FileExistsError:
+                    pass
+                child = os.open(component, os.O_RDONLY | directory | nofollow, dir_fd=current)
+                descriptors.append(child)
+                current = child
+            try:
+                created_fd = os.open("constitution.md", os.O_WRONLY | os.O_CREAT | os.O_EXCL | nofollow, 0o644, dir_fd=current)
+            except FileExistsError:
+                existing_fd = os.open("constitution.md", os.O_RDONLY | nofollow, dir_fd=current)
+                try:
+                    return validate_existing(read_descriptor(existing_fd))
+                finally:
+                    os.close(existing_fd)
+            with os.fdopen(created_fd, "wb") as handle:
+                handle.write(data)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.fsync(current)
+            readback_fd = os.open("constitution.md", os.O_RDONLY | nofollow, dir_fd=current)
+            try:
+                check = read_descriptor(readback_fd)
+            finally:
+                os.close(readback_fd)
+            if check != data:
+                raise CliFailure(EXIT_BLOCKED, "BLOCKED", "CONSTITUTION-READBACK", str(path))
+            return True, hash_bytes(data)
+        except OSError as exc:
+            raise CliFailure(EXIT_BLOCKED, "BLOCKED", "UNSAFE-DIRECTORY", type(exc).__name__) from exc
+        finally:
+            for descriptor in reversed(descriptors):
+                try:
+                    os.close(descriptor)
+                except OSError:
+                    pass
+
+    # Portable fallback. Component validation and optional O_NOFOLLOW retain
+    # the same structured fail-closed contract on runtimes without openat.
+    ensure_directory(root, ".specify/memory")
+    reject_symlink_chain(root, path)
+    try:
+        created_fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | nofollow, 0o644)
+    except FileExistsError:
+        existing = safe_read(path, root=root)
+        assert isinstance(existing, bytes)
+        return validate_existing(existing)
+    with os.fdopen(created_fd, "wb") as handle:
+        handle.write(data)
+        handle.flush()
+        os.fsync(handle.fileno())
+    reject_symlink_chain(root, path, allow_missing=False)
+    check = safe_read(path, root=root)
+    assert isinstance(check, bytes)
+    if check != data:
+        raise CliFailure(EXIT_BLOCKED, "BLOCKED", "CONSTITUTION-READBACK", str(path))
+    return True, hash_bytes(data)
 
 
 def read_asset(name: str) -> bytes:
@@ -265,6 +387,12 @@ def constitution_clauses(text: str) -> list[dict[str, str]]:
 
 def constitution_info(root: Path) -> tuple[dict[str, Any], str | None, list[dict[str, str]]]:
     path = root / ".specify" / "memory" / "constitution.md"
+    try:
+        reject_symlink_chain(root, path, allow_missing=True)
+    except CliFailure as failure:
+        raise CliFailure(EXIT_CONSTITUTION, "BLOCKED-CONSTITUTION", failure.code, failure.message) from failure
+    if path.is_symlink():
+        raise CliFailure(EXIT_CONSTITUTION, "BLOCKED-CONSTITUTION", "SYMLINK-REJECTED", str(path))
     if not path.exists():
         return {"state": "not-present", "path": None, "sha256": None}, None, []
     try:
@@ -329,8 +457,10 @@ def parse_check(data: bytes) -> dict[str, Any]:
 def validate_constitution_check(root: Path, files: dict[str, bytes], recorded: dict[str, Any]) -> dict[str, Any] | None:
     current, text, clauses = constitution_info(root)
     if current["state"] == "not-present":
-        if recorded.get("state") != "not-present":
-            raise CliFailure(EXIT_CONSTITUTION, "BLOCKED-CONSTITUTION", "CONSTITUTION-STALE", "constitution disappeared")
+        # Auditing an item is read-only and must remain useful when a project
+        # constitution is absent.  A changed (present) constitution is stale,
+        # but disappearance is an ungoverned/legacy audit, not a constitutional
+        # validation failure.
         return None
     if recorded.get("state") != "present" or recorded.get("sha256") != current["sha256"]:
         raise CliFailure(EXIT_CONSTITUTION, "BLOCKED-CONSTITUTION", "CONSTITUTION-STALE", "constitution hash changed")
@@ -461,7 +591,7 @@ def hotfix_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             return {"verdict": "HOTFIX-PREPARED", "status": "REUSED", "work_id": work_id, "path": str(target)}, EXIT_OK
         immutable = immutable_metadata(root, argparse.Namespace(type="hotfix", slug=args.slug, base_ref=args.base_ref), work_id)
         constitution = immutable["constitution"]
-        if constitution.get("state") == "present":
+        if constitution.get("state") == "present" and args.constitution_evidence != "not-applicable":
             evidence = Path(args.constitution_evidence)
             if evidence.is_absolute() or any(part in {"", ".", ".."} for part in evidence.parts):
                 raise CliFailure(EXIT_NO_GO, "NO-GO", "INVALID-CONSTITUTION-EVIDENCE", args.constitution_evidence)
@@ -473,7 +603,7 @@ def hotfix_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         else:
             values["constitution-evidence"] = "not-present"
         files = hotfix_files(root, work_id, immutable, values)
-        if immutable["constitution"].get("state") == "present":
+        if immutable["constitution"].get("state") == "present" and args.constitution_evidence != "not-applicable":
             evidence = json.loads(values["constitution-evidence"])
             payload = {"constitution_state": "present", "constitution_sha256": immutable["constitution"]["sha256"], "clauses": [{"id": clause["id"], "heading": clause["heading"], "status": "PASS", "evidence": [evidence["path"] + "#" + evidence["sha256"]], "justification": "constitution evidence recorded reproducibly"} for clause in constitution_info(root)[2]]}
             files["CONSTITUTION-CHECK.md"] = ("# Constitution Check\n\n" + CHECK_START + "\n```json\n" + json.dumps(payload, ensure_ascii=False, sort_keys=True, indent=2) + "\n```\n" + CHECK_END + "\n").encode("utf-8")
@@ -754,7 +884,7 @@ def read_local_bundle(root: Path, item: Path) -> ItemBundle:
             raise CliFailure(EXIT_BLOCKED, "BLOCKED", "SYMLINK-REJECTED", str(path))
         if path.is_file():
             relative = path.relative_to(item).as_posix()
-            files[relative] = path.read_bytes()
+            files[relative] = safe_read_regular_fd(root, path)
     return bundle_from_files(item.name, files, str(item))
 
 
@@ -768,7 +898,7 @@ def read_external_bundle(item: Path) -> ItemBundle:
         if path.is_symlink():
             raise CliFailure(EXIT_BLOCKED, "BLOCKED", "SYMLINK-REJECTED", str(path))
         if path.is_file():
-            files[path.relative_to(absolute).as_posix()] = path.read_bytes()
+            files[path.relative_to(absolute).as_posix()] = safe_read_regular_fd(absolute, path)
     raw = files.get("WORK-ITEM.json")
     if raw is None:
         raise CliFailure(EXIT_NO_GO, "NO-GO", "WORK-ITEM-MISSING", str(absolute))
@@ -816,6 +946,7 @@ def init_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             if immutable.get("type") != args.type or immutable.get("slug") != args.slug:
                 raise CliFailure(EXIT_BLOCKED, "BLOCKED", "IDENTITY-DIVERGENCE", work_id)
             return {"status": "REUSED", "work_id": work_id, "path": str(target), "fingerprint": bundle.fingerprint}, EXIT_OK
+        constitution_created, constitution_hash = ensure_managed_constitution(root)
         immutable = immutable_metadata(root, args, work_id)
         files = initial_files(root, work_id, immutable)
         metadata = metadata_document(immutable, files)
@@ -832,7 +963,8 @@ def init_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
                 raise CliFailure(EXIT_BLOCKED, "BLOCKED", "IDENTITY-DIVERGENCE", work_id)
             return {"status": "REUSED", "work_id": work_id, "path": str(target), "fingerprint": bundle.fingerprint}, EXIT_OK
         bundle = read_local_bundle(root, target)
-        return {"status": "CREATED", "work_id": work_id, "path": str(target), "fingerprint": bundle.fingerprint}, EXIT_OK
+        return {"status": "CREATED", "work_id": work_id, "path": str(target), "fingerprint": bundle.fingerprint,
+                "constitution": "CREATED" if constitution_created else "PRESERVED", "constitution_sha256": constitution_hash}, EXIT_OK
     finally:
         if lock is not None:
             shutil.rmtree(lock, ignore_errors=True)
@@ -1067,18 +1199,21 @@ def validate_reconciliation(root: Path, bundles: list[ItemBundle]) -> tuple[dict
             conflicts.append(f"DUPLICATE-WORK-ID:{bundle.work_id}")
         elif previous is None:
             unique[bundle.work_id] = bundle
-    target_constitution, _text, _clauses = constitution_info(root)
     scopes: dict[str, list[str]] = {}
     dependencies: dict[str, list[str]] = {}
     qualified: set[str] = set()
     for work_id, bundle in sorted(unique.items()):
         immutable = validate_metadata(bundle.metadata, work_id)
         recorded = immutable.get("constitution", {})
+        # Imported bundles are governed by the constitution of their source
+        # project, not by the destination used to preview reconciliation.
+        bundle_root = Path(bundle.origin).parent.parent.parent if bundle.origin and Path(bundle.origin).is_absolute() else root
+        target_constitution, _text, _clauses = constitution_info(bundle_root if bundle_root.is_dir() else root)
         if recorded.get("state") != target_constitution.get("state") or recorded.get("sha256") != target_constitution.get("sha256"):
             conflicts.append(f"CONSTITUTION-STALE:{work_id}")
         else:
             try:
-                validate_constitution_check(root, bundle.files, recorded)
+                validate_constitution_check(bundle_root if bundle_root.is_dir() else root, bundle.files, recorded)
             except CliFailure as failure:
                 conflicts.append(f"CONSTITUTION-CHECK:{work_id}:{failure.code}")
         state_raw = bundle.files.get("state.json")
@@ -1516,6 +1651,125 @@ def migrate_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             shutil.rmtree(lock, ignore_errors=True)
 
 
+SEQUENCE = ["specify", "plan", "checklist", "tasks", "analyze", "agent-assign", "agent-execute", "converge", "verify", "review", "ship"]
+
+
+def checkpoint_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
+    root = project_root(args.root)
+    if args.step not in SEQUENCE:
+        raise CliFailure(EXIT_BLOCKED, "BLOCKED", "INVALID-STEP", args.step)
+    if not WORK_ID_RE.fullmatch(args.work_id):
+        raise CliFailure(EXIT_BLOCKED, "BLOCKED", "INVALID-WORK-ID", args.work_id)
+    item = root / ".grill" / "work-items" / args.work_id
+    if item.is_symlink():
+        raise CliFailure(EXIT_BLOCKED, "BLOCKED", "WORK-ITEM-SYMLINK", args.work_id)
+    if not item.is_dir():
+        raise CliFailure(EXIT_NO_GO, "NO-GO", "WORK-ITEM-MISSING", args.work_id)
+    global_dir = root / ".grill" / "global"
+    def snapshot_global() -> dict[str, tuple[bytes, int]]:
+        if not global_dir.exists():
+            return {}
+        return {str(p.relative_to(global_dir)): (p.read_bytes(), p.stat().st_mtime_ns)
+                for p in global_dir.rglob("*") if p.is_file() and not p.is_symlink()}
+    global_before = snapshot_global()
+    lock = acquire_lock(root, args.work_id, item)
+    try:
+        path = item / "state.json"; raw = safe_read(path, root=root, utf8=True); assert isinstance(raw, str)
+        try:
+            state = json.loads(raw)
+        except (UnicodeDecodeError, json.JSONDecodeError, TypeError) as exc:
+            raise CliFailure(EXIT_BLOCKED, "BLOCKED", "INVALID-STATE", args.work_id) from exc
+        if not isinstance(state, dict):
+            raise CliFailure(EXIT_BLOCKED, "BLOCKED", "INVALID-STATE", args.work_id)
+        development = state.get("development")
+        if not isinstance(development, dict) or development.get("schema") != "grill-development/v1":
+            if not args.initialize_legacy:
+                raise CliFailure(EXIT_BLOCKED, "BLOCKED", "LEGACY-UNTRACKED", args.work_id)
+            if args.from_step is not None and (args.from_step != "specify" or args.step != "specify"):
+                raise CliFailure(EXIT_BLOCKED, "BLOCKED", "LEGACY-INITIALIZATION-UNSAFE", args.work_id)
+            if args.from_step is None or not args.evidence or not args.reason.strip():
+                raise CliFailure(EXIT_BLOCKED, "BLOCKED", "LEGACY-INITIALIZATION-REQUIRES-DECISION-EVIDENCE", args.work_id)
+            development = {"schema":"grill-development/v1", "sequence":SEQUENCE[:], "current_step":args.step,
+                           "steps":{step:"pending" for step in SEQUENCE}, "audit":[]}
+            state["development"] = development
+            args.state = "in-progress"
+        sequence = development.get("sequence"); steps = development.get("steps")
+        if sequence != SEQUENCE or not isinstance(steps, dict):
+            raise CliFailure(EXIT_BLOCKED, "BLOCKED", "DEVELOPMENT-SCHEMA", args.work_id)
+        current = steps.get(args.step, "pending")
+        evidence = []
+        for value in args.evidence:
+            ep = Path(value)
+            if ep.is_absolute() or any(p in {"", ".", ".."} for p in ep.parts):
+                raise CliFailure(EXIT_BLOCKED, "BLOCKED", "INVALID-EVIDENCE-PATH", value)
+            evidence_path = root / ep
+            if evidence_path.is_symlink():
+                raise CliFailure(EXIT_BLOCKED, "BLOCKED", "EVIDENCE-SYMLINK", value)
+            reject_symlink_chain(root, evidence_path, allow_missing=True)
+            if not evidence_path.exists():
+                raise CliFailure(EXIT_BLOCKED, "BLOCKED", "EVIDENCE-MISSING", value)
+            if not evidence_path.is_file():
+                raise CliFailure(EXIT_BLOCKED, "BLOCKED", "EVIDENCE-NOT-REGULAR", value)
+            try:
+                data = safe_read_regular_fd(root, evidence_path)
+            except CliFailure as exc:
+                if exc.code in {"SYMLINK-REJECTED", "UNSAFE-FILE"}:
+                    raise CliFailure(EXIT_BLOCKED, "BLOCKED", "EVIDENCE-SYMLINK", value) from exc
+                raise
+            evidence.append({"path": ep.as_posix(), "sha256": hash_bytes(data)})
+        reason = args.reason.strip()
+        payload = {"step": args.step, "state": args.state, "evidence": evidence, "reason": reason}
+        audit = development.setdefault("audit", [])
+        if current == args.state:
+            if audit and audit[-1] == payload:
+                return {"verdict":"REUSED", "work_id":args.work_id, **payload, "current_step":development.get("current_step")}, EXIT_OK
+            raise CliFailure(EXIT_BLOCKED, "BLOCKED", "STATE-DIVERGENCE", args.step)
+        index = sequence.index(args.step)
+        if args.state == "in-progress":
+            if current not in {"pending", "blocked"} or any(steps.get(s) != "complete" for s in sequence[:index]):
+                raise CliFailure(EXIT_BLOCKED, "BLOCKED", "INVALID-TRANSITION", args.step)
+        elif args.state == "complete":
+            if not evidence:
+                raise CliFailure(EXIT_BLOCKED, "BLOCKED", "EVIDENCE-REQUIRED", args.step)
+            if current != "in-progress" or any(steps.get(s) != "complete" for s in sequence[:index]):
+                raise CliFailure(EXIT_BLOCKED, "BLOCKED", "INVALID-TRANSITION", args.step)
+            if args.step == "ship" and not (steps.get("verify") == steps.get("review") == "complete"):
+                raise CliFailure(EXIT_BLOCKED, "BLOCKED", "SHIP-GATE", args.step)
+        elif args.state == "blocked":
+            if current != "in-progress" or not reason:
+                raise CliFailure(EXIT_BLOCKED, "BLOCKED", "REASON-REQUIRED", args.step)
+        steps[args.step] = args.state; audit.append(payload)
+        development["current_step"] = next((s for s in sequence if steps.get(s) != "complete"), "complete")
+        atomic_write(root, path, (json.dumps(state, ensure_ascii=False, sort_keys=True, indent=2) + "\n").encode())
+        return {"verdict":"UPDATED", "work_id":args.work_id, **payload, "current_step":development["current_step"]}, EXIT_OK
+    finally:
+        shutil.rmtree(lock, ignore_errors=True)
+        if snapshot_global() != global_before:
+            raise CliFailure(EXIT_BLOCKED, "BLOCKED", "GLOBAL-MUTATION", args.work_id)
+
+
+
+def status_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
+    """Public workspace entry point for the read-only status projection."""
+    script = Path(__file__).with_name("grill_status.py")
+    command = [sys.executable, str(script), str(args.root)]
+    if args.work_id:
+        command += ["--work-id", args.work_id]
+    if args.current_worktree:
+        command.append("--current-worktree")
+    try:
+        process = subprocess.run(command, capture_output=True, text=True, check=False, timeout=5)
+    except subprocess.TimeoutExpired:
+        return {"schema": "grill-status/v1", "verdict": "BLOCKED", "code": "STATUS-TIMEOUT", "next_action": "resolver-bloqueios"}, EXIT_BLOCKED
+    try:
+        payload = json.loads(process.stdout.strip())
+    except json.JSONDecodeError:
+        return {"schema": "grill-status/v1", "verdict": "BLOCKED", "code": "STATUS-INVALID-OUTPUT"}, EXIT_BLOCKED
+    if not isinstance(payload, dict):
+        return {"schema": "grill-status/v1", "verdict": "BLOCKED", "code": "STATUS-SCHEMA"}, EXIT_BLOCKED
+    return payload, process.returncode if process.returncode in {0, 1, 2, 3} else EXIT_BLOCKED
+
+
 def build_parser() -> JsonParser:
     parser = JsonParser()
     subparsers = parser.add_subparsers(dest="command", required=True, parser_class=JsonParser)
@@ -1560,6 +1814,19 @@ def build_parser() -> JsonParser:
     migrate_parser.add_argument("--work-id")
     migrate_parser.add_argument("--base-ref")
     migrate_parser.add_argument("--apply", action="store_true")
+    checkpoint_parser = subparsers.add_parser("checkpoint")
+    checkpoint_parser.add_argument("root")
+    checkpoint_parser.add_argument("--work-id", required=True)
+    checkpoint_parser.add_argument("--step", required=True)
+    checkpoint_parser.add_argument("--state", choices=("in-progress", "complete", "blocked"), required=True)
+    checkpoint_parser.add_argument("--evidence", action="append", default=[])
+    checkpoint_parser.add_argument("--reason", default="")
+    checkpoint_parser.add_argument("--initialize-legacy", action="store_true")
+    checkpoint_parser.add_argument("--from-step")
+    status_parser = subparsers.add_parser("status")
+    status_parser.add_argument("root")
+    status_parser.add_argument("--work-id")
+    status_parser.add_argument("--current-worktree", action="store_true")
     return parser
 
 
@@ -1580,6 +1847,8 @@ def main(argv: list[str] | None = None) -> int:
             "migrate": migrate_command,
             "hotfix": hotfix_command,
             "hotfix-go": hotfix_go_command,
+            "checkpoint": checkpoint_command,
+            "status": status_command,
         }
         payload, exit_code = handlers[args.command](args)
     except CliFailure as failure:

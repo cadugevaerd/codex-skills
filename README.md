@@ -83,9 +83,11 @@ O `/prompt-only-agent` coleta apenas as decisões essenciais, uma pergunta por v
 /grill-with-docs retomar work-id=<id>
 /grill-with-docs auditar work-id=<id>
 /grill-with-docs conciliar
+/grill-with-docs status ROOT
+/grill-with-docs checkpoint ROOT --work-id ID --step specify --state in-progress
 ```
 
-Cada feature, fix ou hotfix usa branch/worktree dedicada e artefatos em `.grill/work-items/<work-id>/`. `WORKFLOW.md` e a Constituição permanecem project-wide. A Constituição é opcional; quando presente, é read-only e cada cláusula exige evidência e justificativa, sem waiver por ADR. `grill_workspace.py` fornece `init`, `audit`, `reconcile` e `migrate`; reconcile preview não escreve, e apply gera somente `.grill/global/ROADMAP.md` e `AUDIT.md` em branch de integração limpa. IDs locais são qualificados como `<work-id>/<ID>`. O fluxo termina em `PLAN_ONLY_STOP` antes de implementação.
+Cada feature, fix ou hotfix usa branch/worktree dedicada e artefatos em `.grill/work-items/<work-id>/`. `WORKFLOW.md` e a Constituição permanecem project-wide; `init` cria a Constituição gerenciada somente quando ausente e preserva bytes humanos existentes. `grill_workspace.py` fornece `init`, `checkpoint`, `audit`, `reconcile` e `migrate`; `grill_status.py` é read-only.
 
 
 ```text

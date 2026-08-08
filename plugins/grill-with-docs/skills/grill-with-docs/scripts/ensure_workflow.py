@@ -175,6 +175,51 @@ def ensure(root_argument: str) -> int:
         return 2
 
 
+def human_status(payload: dict, root: Path) -> str:
+    items = payload.get("work_items")
+    if not isinstance(items, list):
+        return "BLOCKED status: payload work_items inválido"
+    count = len(items)
+    if count == 0:
+        return f"Itens: 0; inicialização necessária. Comando: grill_workspace.py init {root}"
+    if count > 1:
+        brief = ", ".join(f"{i.get('work_id','?')}:{(i.get('locations') or [{}])[0].get('branch','?')}" for i in items[:4] if isinstance(i, dict))
+        return f"Itens: {count}; múltiplos work-items ({brief}); use --work-id."
+    item = items[0] if isinstance(items[0], dict) else {}
+    loc = (item.get("locations") or [{}])[0]
+    planning = item.get("planning") or {}; development = item.get("development") or {}
+    blockers = item.get("blockers") or item.get("findings") or []
+    blockers = ", ".join(map(str, blockers[:3])) if isinstance(blockers, list) else str(blockers)
+    completed = development.get("completed") if isinstance(development.get("completed"), list) else []
+    return (f"Itens: 1; id={item.get('work_id','?')}; branch={loc.get('branch','?')}; head={str(loc.get('head','?'))[:12]}; "
+            f"fase={planning.get('active_phase','?')}; DU/type={','.join(planning.get('delivery_units',[]) or []) or item.get('type','?')}; "
+            f"etapa={development.get('current_step','?')}; concluídas={len(completed)}/11; próximo gate={item.get('next_gate','?')}; "
+            f"blockers={blockers or 'nenhum'}. Comando: grill_workspace.py status {root}")
+
+
+def render_hook_output(event: str, message: str) -> str:
+    """Render one bounded hook JSON object without writing it."""
+    output = {
+        "status": "OK",
+        "hookSpecificOutput": {
+            "hookEventName": event,
+            "additionalContext": message,
+        },
+    }
+    rendered = json.dumps(output, ensure_ascii=False, sort_keys=True)
+    if len(rendered) > 2048:
+        marker = "[TRUNCATED]"
+        context = message
+        while len(rendered) > 2048 and context:
+            context = context[: max(0, len(context) - 128)]
+            output["hookSpecificOutput"]["additionalContext"] = context.rstrip() + marker
+            rendered = json.dumps(output, ensure_ascii=False, sort_keys=True)
+        if len(rendered) > 2048:
+            output["hookSpecificOutput"]["additionalContext"] = marker
+            rendered = json.dumps(output, ensure_ascii=False, sort_keys=True)
+    return rendered
+
+
 def hook() -> int:
     try:
         payload = json.load(sys.stdin)
@@ -205,22 +250,19 @@ def hook() -> int:
         except (OSError, UnicodeError):
             content, text = b"", ""
         if managed_version(text) == VERSION and compatible(text):
-            message = (
-                f"Leia {path}; sha256={digest(content)}. Fluxo COMPLETO: ROADMAP/handoff → "
-                "specify → plan → checklist → tasks → analyze → agent-assign → agent-execute → "
-                "converge → verify → review → ship (A–E), sem PR."
-            )
+            try:
+                status_script = HERE.with_name("grill_workspace.py")
+                result = subprocess.run([sys.executable, str(status_script), "status", str(root), "--current-worktree"], capture_output=True, text=True, check=False, timeout=3)
+                status_payload = json.loads(result.stdout.strip()) if result.stdout.strip() else {"verdict":"BLOCKED"}
+                status_line = human_status(status_payload, root) if isinstance(status_payload, dict) else "BLOCKED status"
+            except (OSError, subprocess.TimeoutExpired, json.JSONDecodeError):
+                status_line = "BLOCKED status"
+            message = (f"Leia {path}; sha256={digest(content)}. {status_line} "
+                       "Fluxo: specify → plan → checklist → tasks → analyze → agent-assign → agent-execute → converge → verify → review → ship.")
         else:
             message = f"WORKFLOW.md incompatível em {path}; invoque grill-with-docs para auditar."
 
-    output = {
-        "status": "OK",
-        "hookSpecificOutput": {
-            "hookEventName": event,
-            "additionalContext": message,
-        },
-    }
-    print(json.dumps(output, ensure_ascii=False, sort_keys=True))
+    sys.stdout.write(render_hook_output(event, message))
     return 0
 
 
