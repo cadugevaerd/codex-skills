@@ -1,10 +1,14 @@
-# Protocolo de sessão v2
+# Protocolo de sessão v2.4.0
 
-Frases com **deve**, **nunca** e **somente** são normativas.
+Frases com **deve**, **nunca** e **somente** são normativas. A inicialização é bootstrap only: depois de criado, o workflow e a Constituição são read-only.
 
-## Decomposição modular v2.3.0
+## Fluxo e checkpoints
 
-Feature/fix novos usam `DELIVERY-MAP.md` com `decomposition-schema: v1`; hotfix permanece autocontido e não cria o mapa. MOD (module boundary), DU (delivery unit), `development-type` (enum fechado) e FASE (ordem) são dimensões distintas. O fluxo é `MAP_CAPABILITY→DISCOVER_MODULES→CLASSIFY_DUs→MAP_DEPENDENCIES→BUILD_PHASES→AUDIT→PLAN_ONLY_STOP`. A auditoria é read-only, valida equivalência por fase entre MAP/ROADMAP/handoff/PLAN-CONTEXT e não executa HOW. Itens 2.2.x permanecem legados; migração é explícita, preview-first, preservando bytes e sem inferência. Receipts antigos são dual-read como `legacy-unclassified`.
+`grill_workspace.py init` cria a Constituição gerenciada somente quando ausente, sem clobber, com fsync/readback; arquivo existente preserva bytes. Ausência não é `not-present`: é bootstrap pendente e deve ser resolvida no init. Symlink, ancestor symlink, UTF-8 inválido ou corrida insegura falham fechado.
+
+Após init, avance somente pela matriz persistente de 11 passos: `specify → plan → checklist → tasks → analyze → agent-assign → agent-execute → converge → verify → review → ship`. Use `grill_workspace.py checkpoint ROOT --work-id ID --step STEP --state in-progress|complete|blocked [--evidence PATH] [--reason TEXT]`. Não há saltos; `complete` exige evidência regular segura com SHA-256, `blocked` exige razão, retry parte de blocked e `ship` exige verify+review completos. Eventos idênticos retornam `REUSED`; divergência retorna `STATE-DIVERGENCE`. Legado retorna `LEGACY-UNTRACKED` e só pode ser inicializado explicitamente com `--initialize-legacy --from-step STEP`, decisão e evidência.
+
+`grill_workspace.py status ROOT` é a única interface pública de status; hooks apenas projetam resumo humano e não escrevem/rede.
 
 
 ## Fluxo

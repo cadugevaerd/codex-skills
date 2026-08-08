@@ -1559,52 +1559,66 @@ def migrate_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             shutil.rmtree(lock, ignore_errors=True)
 
 
+SEQUENCE = ["specify", "plan", "checklist", "tasks", "analyze", "agent-assign", "agent-execute", "converge", "verify", "review", "ship"]
+
+
 def checkpoint_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     root = project_root(args.root)
-    if args.step not in ["specify", "plan", "checklist", "tasks", "analyze", "agent-assign", "agent-execute", "converge", "verify", "review", "ship"]:
+    if args.step not in SEQUENCE:
         raise CliFailure(EXIT_BLOCKED, "BLOCKED", "INVALID-STEP", args.step)
+    if not WORK_ID_RE.fullmatch(args.work_id):
+        raise CliFailure(EXIT_BLOCKED, "BLOCKED", "INVALID-WORK-ID", args.work_id)
     item = root / ".grill" / "work-items" / args.work_id
     if not item.is_dir():
         raise CliFailure(EXIT_NO_GO, "NO-GO", "WORK-ITEM-MISSING", args.work_id)
     lock = acquire_lock(root, args.work_id, item)
     try:
         path = item / "state.json"; raw = safe_read(path, root=root, utf8=True); assert isinstance(raw, str)
-        state = json.loads(raw)
-        development = state.get("development")
+        state = json.loads(raw); development = state.get("development")
         if not isinstance(development, dict) or development.get("schema") != "grill-development/v1":
-            raise CliFailure(EXIT_BLOCKED, "BLOCKED", "LEGACY-UNTRACKED", args.work_id)
+            if not args.initialize_legacy:
+                raise CliFailure(EXIT_BLOCKED, "BLOCKED", "LEGACY-UNTRACKED", args.work_id)
+            if args.from_step != args.step or not args.evidence or not args.reason.strip():
+                raise CliFailure(EXIT_BLOCKED, "BLOCKED", "LEGACY-INITIALIZATION-REQUIRES-DECISION-EVIDENCE", args.work_id)
+            development = {"schema":"grill-development/v1", "sequence":SEQUENCE[:], "current_step":args.step,
+                           "steps":{step:("in-progress" if step == args.step else "pending") for step in SEQUENCE}, "audit":[]}
+            state["development"] = development
+            args.state = "in-progress"
         sequence = development.get("sequence"); steps = development.get("steps")
-        if sequence != ["specify", "plan", "checklist", "tasks", "analyze", "agent-assign", "agent-execute", "converge", "verify", "review", "ship"] or not isinstance(steps, dict):
+        if sequence != SEQUENCE or not isinstance(steps, dict):
             raise CliFailure(EXIT_BLOCKED, "BLOCKED", "DEVELOPMENT-SCHEMA", args.work_id)
         current = steps.get(args.step, "pending")
+        evidence = []
+        for value in args.evidence:
+            ep = Path(value)
+            if ep.is_absolute() or any(p in {"", ".", ".."} for p in ep.parts):
+                raise CliFailure(EXIT_BLOCKED, "BLOCKED", "INVALID-EVIDENCE-PATH", value)
+            data = safe_read(root / ep, root=root)
+            assert isinstance(data, bytes)
+            evidence.append({"path": ep.as_posix(), "sha256": hash_bytes(data)})
+        reason = args.reason.strip()
+        payload = {"step": args.step, "state": args.state, "evidence": evidence, "reason": reason}
+        audit = development.setdefault("audit", [])
         if current == args.state:
-            return {"verdict": "REUSED", "work_id": args.work_id, "step": args.step, "state": args.state}, EXIT_OK
+            if audit and audit[-1] == payload:
+                return {"verdict":"REUSED", "work_id":args.work_id, **payload}, EXIT_OK
+            raise CliFailure(EXIT_BLOCKED, "BLOCKED", "STATE-DIVERGENCE", args.step)
         index = sequence.index(args.step)
         if args.state == "in-progress":
             if current not in {"pending", "blocked"} or any(steps.get(s) != "complete" for s in sequence[:index]):
                 raise CliFailure(EXIT_BLOCKED, "BLOCKED", "INVALID-TRANSITION", args.step)
         elif args.state == "complete":
-            if current != "in-progress" or any(steps.get(s) != "complete" for s in sequence[:index]):
-                raise CliFailure(EXIT_BLOCKED, "BLOCKED", "INVALID-TRANSITION", args.step)
-            if not args.evidence:
-                raise CliFailure(EXIT_BLOCKED, "BLOCKED", "EVIDENCE-REQUIRED", args.step)
+            if current != "in-progress" or any(steps.get(s) != "complete" for s in sequence[:index]) or not evidence:
+                raise CliFailure(EXIT_BLOCKED, "BLOCKED", "INVALID-TRANSITION" if evidence else "EVIDENCE-REQUIRED", args.step)
+            if args.step == "ship" and not (steps.get("verify") == steps.get("review") == "complete"):
+                raise CliFailure(EXIT_BLOCKED, "BLOCKED", "SHIP-GATE", args.step)
         elif args.state == "blocked":
-            if current != "in-progress" or not args.reason.strip():
+            if current != "in-progress" or not reason:
                 raise CliFailure(EXIT_BLOCKED, "BLOCKED", "REASON-REQUIRED", args.step)
-        if args.state == "complete":
-            evidence = []
-            for value in args.evidence:
-                ep = Path(value)
-                if ep.is_absolute() or any(p in {"", ".", ".."} for p in ep.parts):
-                    raise CliFailure(EXIT_BLOCKED, "BLOCKED", "INVALID-EVIDENCE-PATH", value)
-                data = safe_read(root / ep, root=root); assert isinstance(data, bytes)
-                evidence.append({"path": ep.as_posix(), "sha256": hash_bytes(data)})
-        else:
-            evidence = []
-        steps[args.step] = args.state; development["current_step"] = args.step
-        development.setdefault("audit", []).append({"step": args.step, "state": args.state, "evidence": evidence, "reason": args.reason or ""})
-        atomic_write(root, path, (json.dumps(state, ensure_ascii=False, sort_keys=True, indent=2) + "\n").encode("utf-8"))
-        return {"verdict": "UPDATED", "work_id": args.work_id, "step": args.step, "state": args.state}, EXIT_OK
+        steps[args.step] = args.state; audit.append(payload)
+        development["current_step"] = next((s for s in sequence if steps.get(s) != "complete"), sequence[-1])
+        atomic_write(root, path, (json.dumps(state, ensure_ascii=False, sort_keys=True, indent=2) + "\n").encode())
+        return {"verdict":"UPDATED", "work_id":args.work_id, **payload, "current_step":development["current_step"]}, EXIT_OK
     finally:
         shutil.rmtree(lock, ignore_errors=True)
 
@@ -1678,6 +1692,8 @@ def build_parser() -> JsonParser:
     checkpoint_parser.add_argument("--state", choices=("in-progress", "complete", "blocked"), required=True)
     checkpoint_parser.add_argument("--evidence", action="append", default=[])
     checkpoint_parser.add_argument("--reason", default="")
+    checkpoint_parser.add_argument("--initialize-legacy", action="store_true")
+    checkpoint_parser.add_argument("--from-step")
     status_parser = subparsers.add_parser("status")
     status_parser.add_argument("root")
     status_parser.add_argument("--work-id")

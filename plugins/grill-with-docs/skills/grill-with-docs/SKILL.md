@@ -18,7 +18,7 @@ worktree C ──> .grill/work-items/<work-id-C>/ ─┘
 1. Nunca grave artefatos decisórios no root legado durante um trabalho novo.
 2. Nunca escreva no diretório de outro `work_id`.
 3. `WORKFLOW.md` e `.specify/memory/constitution.md` são project-wide.
-4. A Constituição é opcional. Ausente significa `not-present`; presente é read-only e norma máxima.
+4. A Constituição é criada no-clobber somente pelo bootstrap `init`; depois é read-only. Ausência no init é bootstrap pendente, não `not-present`.
 5. Nenhum ADR, decisão local ou reconciliação pode dispensar, enfraquecer ou violar a Constituição.
 6. Hooks são read-only e nunca criam work items automaticamente.
 7. Hotfix-fast é uma exceção operacional fechada: exige escopo, reprodução/evidência, teste de correção, rollback e evidência constitucional; não depende de ROADMAP, BL, DQ ou reconciliação para ser seguro.

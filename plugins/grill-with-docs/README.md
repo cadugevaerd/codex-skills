@@ -2,7 +2,7 @@
 
 ## Lifecycle status and checkpoints
 
-`init ROOT` cria, somente quando ausente, uma Constituição Grill gerenciada e registra seu SHA-256; Constituição existente é preservada. O ciclo pode ser acompanhado sem mutação por `scripts/grill_status.py ROOT [--work-id ID] [--current-worktree]`. Avance uma etapa por vez com `grill_workspace.py checkpoint ROOT --work-id ID --step STEP --state in-progress|complete|blocked`; conclusão exige `--evidence PATH` e bloqueio exige `--reason`. A sequência é fixa e fail-closed.
+`init ROOT` cria, somente quando ausente, uma Constituição Grill gerenciada e registra seu SHA-256; Constituição existente é preservada. O ciclo pode ser acompanhado por `grill_workspace.py status ROOT [--work-id ID] [--current-worktree]`. Avance uma etapa por vez com `grill_workspace.py checkpoint ROOT --work-id ID --step STEP --state in-progress|complete|blocked`; conclusão exige `--evidence PATH` e bloqueio exige `--reason`. A sequência é fixa e fail-closed.
 
 
 `--artifact-root PATH --project-root ROOT`; `ROOT` is the authoritative

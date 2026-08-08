@@ -175,6 +175,19 @@ def ensure(root_argument: str) -> int:
         return 2
 
 
+def human_status(payload: dict, root: Path) -> str:
+    items = payload.get("items") or payload.get("work_items") or []
+    count = len(items) if isinstance(items, list) else 0
+    branch = payload.get("branch", "?"); head = str(payload.get("head", "?"))[:12]
+    phase = payload.get("phase") or payload.get("active_phase") or "?"
+    du = payload.get("development_type") or payload.get("type") or "?"
+    step = payload.get("current_step") or "?"
+    blockers = payload.get("blockers") or payload.get("findings") or []
+    if isinstance(blockers, list): blockers = ", ".join(map(str, blockers[:3])) or "nenhum"
+    next_gate = payload.get("next_gate") or "checkpoint"
+    return f"Itens: {count}; branch={branch}; head={head}; fase={phase}; DU/type={du}; etapa={step}/11; próximo gate={next_gate}; blockers={blockers}. Comando: grill_workspace.py status {root}"
+
+
 def hook() -> int:
     try:
         payload = json.load(sys.stdin)
@@ -205,17 +218,15 @@ def hook() -> int:
         except (OSError, UnicodeError):
             content, text = b"", ""
         if managed_version(text) == VERSION and compatible(text):
-            status_script = HERE.with_name("grill_status.py")
             try:
-                result = subprocess.run([sys.executable, str(status_script), str(root), "--current-worktree"], capture_output=True, text=True, check=False, timeout=3)
-                status_line = result.stdout.strip() if result.returncode == 0 else "BLOCKED status"
-            except (OSError, subprocess.TimeoutExpired):
+                status_script = HERE.with_name("grill_workspace.py")
+                result = subprocess.run([sys.executable, str(status_script), "status", str(root), "--current-worktree"], capture_output=True, text=True, check=False, timeout=3)
+                status_payload = json.loads(result.stdout.strip()) if result.stdout.strip() else {"verdict":"BLOCKED"}
+                status_line = human_status(status_payload, root) if isinstance(status_payload, dict) else "BLOCKED status"
+            except (OSError, subprocess.TimeoutExpired, json.JSONDecodeError):
                 status_line = "BLOCKED status"
-            message = (
-                f"Leia {path}; sha256={digest(content)}. {status_line[:900]} Fluxo COMPLETO: ROADMAP/handoff → "
-                "specify → plan → checklist → tasks → analyze → agent-assign → agent-execute → "
-                "converge → verify → review → ship (11 etapas), sem PR. Use status/checkpoint."
-            )
+            message = (f"Leia {path}; sha256={digest(content)}. {status_line} "
+                       "Fluxo: specify → plan → checklist → tasks → analyze → agent-assign → agent-execute → converge → verify → review → ship.")
         else:
             message = f"WORKFLOW.md incompatível em {path}; invoque grill-with-docs para auditar."
 
@@ -226,7 +237,18 @@ def hook() -> int:
             "additionalContext": message,
         },
     }
-    print(json.dumps(output, ensure_ascii=False, sort_keys=True))
+    rendered = json.dumps(output, ensure_ascii=False, sort_keys=True)
+    if len(rendered) > 2048:
+        marker = "[TRUNCATED]"
+        context = message
+        while len(rendered) > 2048 and context:
+            context = context[: max(0, len(context) - 128)]
+            output["hookSpecificOutput"]["additionalContext"] = context.rstrip() + marker
+            rendered = json.dumps(output, ensure_ascii=False, sort_keys=True)
+        if len(rendered) > 2048:
+            output["hookSpecificOutput"]["additionalContext"] = marker
+            rendered = json.dumps(output, ensure_ascii=False, sort_keys=True)
+    print(rendered)
     return 0
 
 
