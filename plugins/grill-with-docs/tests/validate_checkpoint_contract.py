@@ -22,7 +22,7 @@ class CheckpointContract(unittest.TestCase):
   for s in STEPS:
    self.assertEqual(self.call(s,'in-progress').returncode,0,s)
    self.assertEqual(self.call(s,'complete',evidence=['e']).returncode,0,s)
-  d=json.loads((self.r/'.grill/work-items/wx/state.json').read_text()); self.assertTrue(all(d['development']['steps'][s]=='complete' for s in STEPS)); self.assertEqual(d['development']['current_step'],'ship')
+  d=json.loads((self.r/'.grill/work-items/wx/state.json').read_text()); self.assertTrue(all(d['development']['steps'][s]=='complete' for s in STEPS)); self.assertEqual(d['development']['current_step'],'complete')
  def test_skip_and_evidence_and_block_reason(self):
   self.assertNotEqual(self.call('plan','in-progress').returncode,0); self.assertNotEqual(self.call('specify','complete').returncode,0); self.assertNotEqual(self.call('specify','blocked').returncode,0)
   self.assertEqual(self.call('specify','in-progress').returncode,0); self.assertEqual(self.call('specify','blocked',reason='wait').returncode,0); self.assertEqual(self.call('specify','in-progress').returncode,0)
@@ -46,7 +46,7 @@ class CheckpointContract(unittest.TestCase):
  def test_state_unchanged_on_evidence_rejection(self): before=(self.r/'.grill/work-items/wx/state.json').read_bytes(); self.call('specify','in-progress'); before=(self.r/'.grill/work-items/wx/state.json').read_bytes(); self.call('specify','complete',evidence=['missing']); self.assertEqual(before,(self.r/'.grill/work-items/wx/state.json').read_bytes())
  def test_complete_terminal_current_step(self):
   for s in STEPS: self.call(s,'in-progress'); self.call(s,'complete',evidence=['e'])
-  self.assertEqual(json.loads((self.r/'.grill/work-items/wx/state.json').read_text())['development']['current_step'],'ship')
+  self.assertEqual(json.loads((self.r/'.grill/work-items/wx/state.json').read_text())['development']['current_step'],'complete')
  def test_output_contract_all_calls(self):
   p=self.call('specify','in-progress'); self.assertEqual(p.stderr,''); self.assertEqual(len(p.stdout.splitlines()),1); self.assertIsInstance(json.loads(p.stdout),dict)
 if __name__=='__main__': unittest.main()

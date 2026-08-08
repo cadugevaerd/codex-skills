@@ -11,7 +11,9 @@ STATUS=PLUGIN/"skills/grill-with-docs/scripts/grill_status.py"
 def cli(script,*args):
     return subprocess.run([sys.executable,str(script),*(str(x) for x in args)],text=True,capture_output=True,env={**os.environ,"PYTHONDONTWRITEBYTECODE":"1"})
 def status(root,*args):
-    p=cli(STATUS,root,*args)
+    # Exercise the public CORE entry point; direct grill_status invocation
+    # would bypass status governance and timeout handling.
+    p=cli(WS,"status",root,*args)
     assert len(p.stdout.splitlines())==1,(p.stdout,p.stderr)
     return p,json.loads(p.stdout)
 class StatusPublicContract(unittest.TestCase):
@@ -25,7 +27,10 @@ class StatusPublicContract(unittest.TestCase):
     def item(self, wid="work-a", root=None):
         root=root or self.r; p=cli(WS,"init",root,"--type","feature","--slug","alpha","--work-id",wid); self.assertEqual(p.returncode,0,p.stderr); return root/".grill/work-items"/wid
     def test_zero_items(self):
-        p,x=status(self.r); self.assertEqual(p.returncode,0); self.assertEqual({x[k] for k in ("schema","verdict","code","next_action")},{x[k] for k in ("schema","verdict","code","next_action")}); self.assertEqual(x["summary"]["total"],0)
+        p,x=status(self.r); self.assertEqual(p.returncode,0)
+        self.assertEqual(x["schema"],"grill-status/v1"); self.assertEqual(x["verdict"],"OK")
+        self.assertEqual(x["code"],"EMPTY"); self.assertEqual(x["next_action"],"iniciar")
+        self.assertEqual(x["summary"],{"total":0,"in_progress":0,"blocked":0,"completed":0})
     def test_one_item_top_level_and_item_schema(self):
         self.item(); p,x=status(self.r); self.assertEqual(p.returncode,0); self.assertEqual(set(x),{"schema","verdict","code","project_root","summary","work_items","next_action"}); item=x["work_items"][0]
         for k in ("work_id","type","slug","fingerprint","locations","recorded","planning","development","governance","blockers","findings","next_gate"): self.assertIn(k,item)

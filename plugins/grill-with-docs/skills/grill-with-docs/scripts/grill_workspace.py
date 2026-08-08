@@ -11,6 +11,7 @@ import re
 import shlex
 import shutil
 import socket
+import stat
 import subprocess
 import sys
 import tempfile
@@ -182,17 +183,42 @@ def ensure_directory(root: Path, relative: str) -> Path:
 
 
 def safe_read(path: Path, *, root: Path | None = None, utf8: bool = False) -> bytes | str:
-    if root is not None:
-        reject_symlink_chain(root, path, allow_missing=False)
-    if path.is_symlink() or not path.is_file():
-        raise CliFailure(EXIT_BLOCKED, "BLOCKED", "UNSAFE-FILE", str(path))
     try:
-        data = path.read_bytes()
+        data = safe_read_regular_fd(root or path.parent, path)
         return data.decode("utf-8") if utf8 else data
     except UnicodeError as exc:
         raise CliFailure(EXIT_NO_GO, "NO-GO", "INVALID-UTF8", str(path)) from exc
     except OSError as exc:
         raise CliFailure(EXIT_NO_GO, "NO-GO", "FILESYSTEM", type(exc).__name__) from exc
+
+
+def safe_read_regular_fd(root: Path, path: Path) -> bytes:
+    """Read one regular file through an O_NOFOLLOW descriptor.
+
+    The lexical chain check is deliberately repeated immediately before open;
+    fstat then makes the object being hashed the object actually read.
+    """
+    reject_symlink_chain(root, path, allow_missing=False)
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        fd = os.open(path, flags)
+    except FileNotFoundError as exc:
+        raise CliFailure(EXIT_BLOCKED, "BLOCKED", "EVIDENCE-MISSING", str(path)) from exc
+    except OSError as exc:
+        code = "SYMLINK-REJECTED" if exc.errno in {errno.ELOOP, errno.EMLINK} else "UNSAFE-FILE"
+        raise CliFailure(EXIT_BLOCKED, "BLOCKED", code, str(path)) from exc
+    try:
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode):
+            raise CliFailure(EXIT_BLOCKED, "BLOCKED", "EVIDENCE-NOT-REGULAR", str(path))
+        chunks = []
+        while True:
+            chunk = os.read(fd, 1024 * 1024)
+            if not chunk: break
+            chunks.append(chunk)
+        return b"".join(chunks)
+    finally:
+        os.close(fd)
 
 
 def atomic_write(root: Path, path: Path, data: bytes) -> bool:
@@ -238,7 +264,9 @@ def ensure_managed_constitution(root: Path) -> tuple[bool, str]:
         fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644)
     except FileExistsError:
         existing = safe_read(path, root=root); assert isinstance(existing, bytes)
-        existing.decode("utf-8")
+        text = existing.decode("utf-8")
+        validate_constitution_text(text)
+        constitution_clauses(text)
         return False, hash_bytes(existing)
     with os.fdopen(fd, "wb") as handle:
         handle.write(data); handle.flush(); os.fsync(handle.fileno())
@@ -1626,7 +1654,7 @@ def checkpoint_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             if current != "in-progress" or not reason:
                 raise CliFailure(EXIT_BLOCKED, "BLOCKED", "REASON-REQUIRED", args.step)
         steps[args.step] = args.state; audit.append(payload)
-        development["current_step"] = next((s for s in sequence if steps.get(s) != "complete"), sequence[-1])
+        development["current_step"] = next((s for s in sequence if steps.get(s) != "complete"), "complete")
         atomic_write(root, path, (json.dumps(state, ensure_ascii=False, sort_keys=True, indent=2) + "\n").encode())
         return {"verdict":"UPDATED", "work_id":args.work_id, **payload, "current_step":development["current_step"]}, EXIT_OK
     finally:
@@ -1641,7 +1669,10 @@ def status_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         command += ["--work-id", args.work_id]
     if args.current_worktree:
         command.append("--current-worktree")
-    process = subprocess.run(command, capture_output=True, text=True, check=False)
+    try:
+        process = subprocess.run(command, capture_output=True, text=True, check=False, timeout=5)
+    except subprocess.TimeoutExpired:
+        return {"schema": "grill-status/v1", "verdict": "BLOCKED", "code": "STATUS-TIMEOUT", "next_action": "resolver-bloqueios"}, EXIT_BLOCKED
     try:
         payload = json.loads(process.stdout.strip())
     except json.JSONDecodeError:
