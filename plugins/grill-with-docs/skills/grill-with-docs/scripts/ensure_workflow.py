@@ -197,6 +197,29 @@ def human_status(payload: dict, root: Path) -> str:
             f"blockers={blockers or 'nenhum'}. Comando: grill_workspace.py status {root}")
 
 
+def render_hook_output(event: str, message: str) -> str:
+    """Render one bounded hook JSON object without writing it."""
+    output = {
+        "status": "OK",
+        "hookSpecificOutput": {
+            "hookEventName": event,
+            "additionalContext": message,
+        },
+    }
+    rendered = json.dumps(output, ensure_ascii=False, sort_keys=True)
+    if len(rendered) > 2048:
+        marker = "[TRUNCATED]"
+        context = message
+        while len(rendered) > 2048 and context:
+            context = context[: max(0, len(context) - 128)]
+            output["hookSpecificOutput"]["additionalContext"] = context.rstrip() + marker
+            rendered = json.dumps(output, ensure_ascii=False, sort_keys=True)
+        if len(rendered) > 2048:
+            output["hookSpecificOutput"]["additionalContext"] = marker
+            rendered = json.dumps(output, ensure_ascii=False, sort_keys=True)
+    return rendered
+
+
 def hook() -> int:
     try:
         payload = json.load(sys.stdin)
@@ -239,25 +262,7 @@ def hook() -> int:
         else:
             message = f"WORKFLOW.md incompatível em {path}; invoque grill-with-docs para auditar."
 
-    output = {
-        "status": "OK",
-        "hookSpecificOutput": {
-            "hookEventName": event,
-            "additionalContext": message,
-        },
-    }
-    rendered = json.dumps(output, ensure_ascii=False, sort_keys=True)
-    if len(rendered) > 2048:
-        marker = "[TRUNCATED]"
-        context = message
-        while len(rendered) > 2048 and context:
-            context = context[: max(0, len(context) - 128)]
-            output["hookSpecificOutput"]["additionalContext"] = context.rstrip() + marker
-            rendered = json.dumps(output, ensure_ascii=False, sort_keys=True)
-        if len(rendered) > 2048:
-            output["hookSpecificOutput"]["additionalContext"] = marker
-            rendered = json.dumps(output, ensure_ascii=False, sort_keys=True)
-    sys.stdout.write(rendered)
+    sys.stdout.write(render_hook_output(event, message))
     return 0
 
 

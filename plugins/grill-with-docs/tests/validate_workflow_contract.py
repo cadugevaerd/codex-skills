@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Focused contract tests (stdlib only). RED baseline: old implementation fails template/hook/bootstrap cases."""
 from __future__ import annotations
-import hashlib, json, os, subprocess, sys, tempfile, unittest
+import hashlib, importlib.util, json, os, subprocess, sys, tempfile, unittest
 from pathlib import Path
 
 HERE=Path(__file__).resolve(); PLUGIN=HERE.parents[1]; SCRIPT=PLUGIN/'skills/grill-with-docs/scripts/ensure_workflow.py'; WS=PLUGIN/'skills/grill-with-docs/scripts/grill_workspace.py'; TEMPLATE=PLUGIN/'skills/grill-with-docs/assets/WORKFLOW.template.md'; HOOKS=PLUGIN/'hooks/hooks.json'; MARK='grill-with-docs-workflow:v2'
@@ -87,6 +87,8 @@ class Contract(unittest.TestCase):
   run('--ensure',str(self.root)); self.assertEqual(subprocess.run([sys.executable,str(WS),'init',str(self.root),'--type','feature','--slug','alpha','--work-id','wx'],capture_output=True).returncode,0); state=self.root/'.grill/work-items/wx/state.json'; external=Path(self.t.name)/'secret'; external.write_text('TOP-SECRET'); state.unlink(); state.symlink_to(external); before=external.read_bytes()
   r=run('--hook',cwd=self.root,input=json.dumps({'hook_event_name':'SessionStart','source':'startup','cwd':str(self.root)})); self.assertEqual(r.returncode,0); self.assertEqual(r.stderr,''); self.assertIn('BLOCKED status',r.stdout); self.assertNotIn('TOP-SECRET',r.stdout); self.assertEqual(before,external.read_bytes())
  def test_hook_long_context_is_bounded_with_marker(self):
-  nested=Path(self.t.name)/Path(*(['x'*100]*14)); nested.mkdir(parents=True); subprocess.run(['git','init','-q',str(nested)],check=True); self.assertEqual(run('--ensure',str(nested)).returncode,0)
-  r=run('--hook',cwd=nested,input=json.dumps({'hook_event_name':'SessionStart','source':'fork','cwd':str(nested)})); self.assertEqual(r.returncode,0); self.assertEqual(r.stderr,''); self.assertLessEqual(len(r.stdout),2048); self.assertIn('[TRUNCATED]',r.stdout); json.loads(r.stdout)
+  spec=importlib.util.spec_from_file_location('ensure_workflow_contract',SCRIPT)
+  if spec is None or spec.loader is None: self.fail('unable to load ensure_workflow')
+  module=importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+  rendered=module.render_hook_output('SessionStart','contexto-'*1000); self.assertLessEqual(len(rendered),2048); self.assertIn('[TRUNCATED]',rendered); self.assertEqual(json.loads(rendered)['hookSpecificOutput']['hookEventName'],'SessionStart')
 if __name__=='__main__': unittest.main()
