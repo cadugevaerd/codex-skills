@@ -16,6 +16,7 @@ import time
 import unittest
 from unittest import mock
 from pathlib import Path
+from datetime import date
 
 PLUGIN = Path(__file__).resolve().parents[1]
 SCRIPT = PLUGIN / "skills/grill-with-docs/scripts/grill_workspace.py"
@@ -117,7 +118,11 @@ class WorkspaceV2Contract(unittest.TestCase):
         process, payload = invoke("init", root, "--type", kind, "--slug", slug, "--work-id", work_id)
         self.assertEqual(process.returncode, 0, (payload, process.stderr))
         self.assertEqual(payload["status"], "CREATED")
-        return root / ".grill" / "work-items" / work_id
+        item = root / ".grill" / "work-items" / work_id
+        # Normal lifecycle fixtures represent an already reviewed work item;
+        # dedicated constitutional tests deliberately overwrite this receipt.
+        self._approve_check(item)
+        return item
 
     def _metadata(self, item: Path) -> dict:
         return json.loads((item / "WORK-ITEM.json").read_text(encoding="utf-8"))
@@ -310,6 +315,8 @@ class WorkspaceV2Contract(unittest.TestCase):
 
     def test_audit_without_constitution_is_read_only_and_uses_real_auditor(self) -> None:
         item = self._init_item()
+        constitution = self.root / ".specify/memory/constitution.md"
+        constitution.unlink()
         before = snapshot(item)
         process, payload = invoke("audit", self.root, "--work-id", "work-a")
         self.assertIn(process.returncode, {0, 1, 2})

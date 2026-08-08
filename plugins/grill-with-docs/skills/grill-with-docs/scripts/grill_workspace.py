@@ -223,7 +223,11 @@ def ensure_managed_constitution(root: Path) -> tuple[bool, str]:
     reject_symlink_chain(root, path)
     if path.exists():
         data = safe_read(path, root=root); assert isinstance(data, bytes)
-        validate_constitution_text(data.decode("utf-8"))
+        try:
+            text = data.decode("utf-8")
+        except UnicodeError as exc:
+            raise CliFailure(EXIT_CONSTITUTION, "BLOCKED-CONSTITUTION", "CONSTITUTION-INVALID-UTF8", str(path)) from exc
+        validate_constitution_text(text)
         return False, hash_bytes(data)
     template = (ASSETS / "GRILL-CONSTITUTION.template.md").read_text(encoding="utf-8")
     today = date.today().isoformat()
