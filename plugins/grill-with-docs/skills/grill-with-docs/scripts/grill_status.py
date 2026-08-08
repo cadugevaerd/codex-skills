@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import hashlib
 import importlib.util
 import json
@@ -38,8 +39,12 @@ def parse_json(bundle: Any, name: str) -> dict[str, Any]:
     if raw is None:
         raise workspace.CliFailure(workspace.EXIT_NO_GO, "NO-GO", "MALFORMED-STRUCTURE", name)
     try:
-        value = json.loads(raw.decode("utf-8"))
-    except (UnicodeError, json.JSONDecodeError) as exc:
+        text = raw.decode("utf-8")
+    except UnicodeError as exc:
+        raise workspace.CliFailure(workspace.EXIT_NO_GO, "NO-GO", "INVALID-UTF8", name) from exc
+    try:
+        value = json.loads(text)
+    except json.JSONDecodeError as exc:
         raise workspace.CliFailure(workspace.EXIT_NO_GO, "NO-GO", "MALFORMED-JSON", name) from exc
     if not isinstance(value, dict):
         raise workspace.CliFailure(workspace.EXIT_NO_GO, "NO-GO", "MALFORMED-STRUCTURE", name)
@@ -80,15 +85,30 @@ def item_payload(root: Path, bundle: Any) -> dict[str, Any]:
     phases, phase_states, modules, units, types = phases_and_map(bundle.files)
     lv = live(root)
     if immutable.get("branch") != lv["branch"] or immutable.get("head") != lv["head"]: findings.append("LIVE-VS-RECORDED")
-    constitution = immutable.get("constitution", {})
-    check = bundle.files.get("CONSTITUTION-CHECK.md")
-    audit = bundle.files.get("AUDIT.md")
+    # Re-read all governance evidence through the same no-follow reader used by
+    # writes.  The bundle walk is not sufficient: a symlink can be introduced
+    # between discovery and this projection, and root-level constitution files
+    # are outside the item bundle.
+    constitution, constitution_text, _ = workspace.constitution_info(root)
+    if immutable.get("constitution", {}).get("sha256") != constitution.get("sha256"):
+        findings.append("CONSTITUTION-HASH-MISMATCH")
+    check_path = bundle.origin and Path(bundle.origin) / "CONSTITUTION-CHECK.md"
+    audit_path = bundle.origin and Path(bundle.origin) / "AUDIT.md"
+    check = workspace.safe_read(check_path, root=root) if check_path and check_path.exists() else None
+    audit = workspace.safe_read(audit_path, root=root) if audit_path and audit_path.exists() else None
+    if check is not None:
+        try:
+            workspace.parse_check(check)
+        except workspace.CliFailure as exc:
+            raise workspace.CliFailure(workspace.EXIT_CONSTITUTION, "BLOCKED-CONSTITUTION", exc.code, exc.message) from exc
     receipt = root / ".grill" / "global" / "receipts" / f"{bundle.work_id}.json"
-    if receipt.is_symlink():
-        raise workspace.CliFailure(workspace.EXIT_BLOCKED, "BLOCKED", "SYMLINK-REJECTED", str(receipt))
+    receipt_bytes = None
+    if receipt.exists() or receipt.is_symlink():
+        receipt_bytes = workspace.safe_read(receipt, root=root)
     item_location = {"worktree": str(root), "path": bundle.origin, "branch": lv["branch"], "head": lv["head"], "dirty": lv["dirty"], "current": False}
     active = state.get("active_phase")
-    return {"work_id": bundle.work_id, "type": immutable["type"], "slug": immutable["slug"], "fingerprint": bundle.fingerprint, "locations": [item_location], "recorded": {"branch": immutable.get("branch"), "head": immutable.get("head"), "base_ref": immutable.get("base_ref"), "base_commit": immutable.get("base_commit")}, "planning": {"status": state.get("status"), "milestone_status": state.get("milestone_status"), "active_phase": active, "phase_state": phase_states.get(active, state.get("phase_state")), "execution_order": phases, "phases": phase_states, "modules": modules, "delivery_units": units, "development_types": types}, "development": {"tracking": tracking, "current_step": current, "completed": completed, "blocked": blocked, "steps": steps}, "governance": {"constitution": {"state": constitution.get("state"), "path": constitution.get("path"), "hash": constitution.get("sha256")}, "check": {"state": "present" if check is not None else "missing", "hash": digest(check) if check is not None else None}, "audit": {"verdict": state.get("audit_verdict"), "hash": digest(audit) if audit is not None else None}, "reconciled": {"path": str(receipt) if receipt.is_file() else None, "hash": digest(receipt.read_bytes()) if receipt.is_file() else None}}, "blockers": blocked, "findings": sorted(findings), "next_gate": "BLOCKED" if findings or blocked else (SEQUENCE[len(completed)] if len(completed) < len(SEQUENCE) else "complete")}
+    snapshot = {name: {"size": len(data), "mtime_ns": (Path(bundle.origin) / name).stat().st_mtime_ns} for name, data in sorted(bundle.files.items())}
+    return {"work_id": bundle.work_id, "type": immutable["type"], "slug": immutable["slug"], "fingerprint": bundle.fingerprint, "locations": [item_location], "snapshot": snapshot, "recorded": {"branch": immutable.get("branch"), "head": immutable.get("head"), "base_ref": immutable.get("base_ref"), "base_commit": immutable.get("base_commit")}, "planning": {"status": state.get("status"), "milestone_status": state.get("milestone_status"), "active_phase": active, "phase_state": phase_states.get(active, state.get("phase_state")), "execution_order": phases, "phases": phase_states, "modules": modules, "delivery_units": units, "development_types": types}, "development": {"tracking": tracking, "current_step": current, "completed": completed, "blocked": blocked, "steps": steps}, "governance": {"constitution": {"state": constitution.get("state"), "path": constitution.get("path"), "hash": constitution.get("sha256")}, "check": {"state": "present" if check is not None else "missing", "hash": digest(check) if check is not None else None}, "audit": {"verdict": state.get("audit_verdict"), "hash": digest(audit) if audit is not None else None}, "reconciled": {"path": str(receipt) if receipt_bytes is not None else None, "hash": digest(receipt_bytes) if receipt_bytes is not None else None}}, "blockers": blocked, "findings": sorted(findings), "next_gate": "BLOCKED" if findings or blocked else (SEQUENCE[len(completed)] if len(completed) < len(SEQUENCE) else "complete")}
 
 def worktree_roots(root: Path, current: bool) -> list[Path]:
     if current: return [root]
@@ -112,8 +132,10 @@ def build_status(root_arg: str | Path, work_id: str | None = None, current_workt
         directory = worktree / ".grill" / "work-items"
         if not directory.exists(): continue
         workspace.reject_symlink_chain(worktree, directory, allow_missing=False)
-        for item in sorted(directory.iterdir()):
-            if not item.is_dir() or item.is_symlink() or (work_id and item.name != work_id): continue
+        for item in sorted(directory.iterdir(), key=lambda p: p.name):
+            if item.is_symlink():
+                raise workspace.CliFailure(workspace.EXIT_BLOCKED, "BLOCKED", "SYMLINK-REJECTED", str(item))
+            if not item.is_dir() or (work_id and item.name != work_id): continue
             bundle = workspace.read_local_bundle(worktree, item)
             value = item_payload(worktree, bundle)
             value["locations"][0]["current"] = worktree == root
@@ -124,7 +146,10 @@ def build_status(root_arg: str | Path, work_id: str | None = None, current_workt
         fps={v["fingerprint"] for v in variants}
         base=variants[0]
         base["locations"]=[loc for v in variants for loc in v["locations"]]
-        if len(fps)>1: base["findings"]=sorted(set(base["findings"]+["DUPLICATE-WORK-ID"])); base["next_gate"]="BLOCKED"; global_findings.append("DUPLICATE-WORK-ID")
+        base["locations"] = sorted(base["locations"], key=lambda x: (x["worktree"], x["path"]))
+        if len(fps)>1:
+            base["variants"] = sorted((copy.deepcopy(v) for v in variants), key=lambda x: (x["fingerprint"], x["locations"][0]["worktree"]))
+            base["findings"]=sorted(set(base["findings"]+["DUPLICATE-WORK-ID"])); base["next_gate"]="BLOCKED"; global_findings.append("DUPLICATE-WORK-ID")
         items.append(base)
     summary={"total":len(items),"in_progress":sum(1 for x in items if x["next_gate"] not in {"BLOCKED","complete"}),"blocked":sum(1 for x in items if x["next_gate"]=="BLOCKED"),"completed":sum(1 for x in items if x["next_gate"]=="complete")}
     item_findings = sorted({f for x in items for f in x["findings"]})
