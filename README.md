@@ -22,6 +22,7 @@ plugin individual.
 | `qa-planner` | Analisa requisitos e diff da branch, define estratégia e cria `QA.md` rastreável para outra IA executar — sem rodar testes. |
 | `whatsapp-business-platform` | Projeta e opera integrações oficiais Meta: Cloud API, Technology Provider, Embedded Signup v4, Coexistence App+API, múltiplas WABAs/números, webhooks e tokens. |
 | `caveman-stable` | Mantém respostas Codex curtas, diretas e estáveis, com reinjeção após início, retomada, limpeza e compactação. |
+| `quality-security-gate` | Analisa e acompanha o Gate de Qualidade e Segurança por projeto; classifica risco, registra pendências e persiste o status em `.quality-gate/`. |
 
 ## Instalacao local
 
@@ -44,6 +45,7 @@ codex plugin add prompt-only-agent@codex-skills
 codex plugin add qa-planner@codex-skills
 codex plugin add whatsapp-business-platform@codex-skills
 codex plugin add caveman-stable@codex-skills
+codex plugin add quality-security-gate@codex-skills
 ```
 
 Após instalar `caveman-stable`, abra `/hooks`, revise e confie o hook antes da primeira sessão. Sem essa confiança explícita, o `SessionStart` permanece inativo. Consulte [`plugins/caveman-stable/README.md`](plugins/caveman-stable/README.md).
@@ -94,6 +96,15 @@ O plugin realiza as três primeiras etapas de QA — análise de requisitos,
 planejamento e cenários — e grava um `QA.md` rastreável no local adequado do
 repositório-alvo. Ele encerra sem executar testes; outra IA usa o plano e registra
 evidências reais em `QA-RESULTS.md`.
+
+## Uso do quality-security-gate
+
+```text
+/quality-security-gate analyze --root /caminho/do/projeto
+/quality-security-gate status --root /caminho/do/projeto
+```
+
+`analyze` lê `AGENTS.md`/`CLAUDE.md`, classifica o risco P1/P2/P3 e atualiza o estado auditável do projeto em `.quality-gate/`. `status` é somente leitura: mostra drift, pendências, bloqueadores e o próximo módulo. O plugin não altera CI, secrets, branch rules ou código.
 
 ## Uso do code-debug
 

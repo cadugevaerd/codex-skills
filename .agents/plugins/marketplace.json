@@ -189,6 +189,20 @@
         "authentication": "ON_INSTALL"
       },
       "category": "Development"
+    },
+    {
+      "name": "quality-security-gate",
+      "source": {
+        "source": "local",
+        "path": "./plugins/quality-security-gate"
+      },
+      "description": "Audita e acompanha localmente o Gate de Qualidade e Segurança com análise determinística, nível de risco e status persistido por projeto.",
+      "version": "0.1.0",
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Development"
     }
   ]
 }
