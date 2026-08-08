@@ -6,6 +6,7 @@ import argparse
 import hashlib
 import importlib.util
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -44,17 +45,20 @@ def parse_json(bundle: Any, name: str) -> dict[str, Any]:
         raise workspace.CliFailure(workspace.EXIT_NO_GO, "NO-GO", "MALFORMED-STRUCTURE", name)
     return value
 
-def phases_and_map(files: dict[str, bytes]) -> tuple[list[str], list[str], list[str], list[str]]:
+def phases_and_map(files: dict[str, bytes]) -> tuple[list[str], dict[str, str], list[str], list[str], list[str]]:
     def text(name: str) -> str:
         raw = files.get(name, b"")
         try: return raw.decode("utf-8")
         except UnicodeError as exc: raise workspace.CliFailure(1, "NO-GO", "INVALID-UTF8", name) from exc
     roadmap, delivery = text("ROADMAP.md"), text("DELIVERY-MAP.md")
-    phases = sorted(set(__import__("re").findall(r"(?m)^##\s+(FASE-\d{3})\b", roadmap)))
-    modules = sorted(set(__import__("re").findall(r"(?m)^##\s+(MOD-\d{3})\b", delivery)))
-    units = sorted(set(__import__("re").findall(r"(?m)^###\s+(DU-\d{3})\b", delivery)))
-    types = sorted(set(__import__("re").findall(r"(?m)^-\s+development-type:\s*(\S+)\s*$", delivery)))
-    return phases, modules, units, types
+    phases = re.findall(r"(?m)^##\s+(FASE-\d{3})\b", roadmap)
+    execution = re.search(r"(?m)^-\s+execution-order:\s*(.+)$", roadmap)
+    ordered = [x for x in re.split(r"[ ,]+", execution.group(1)) if re.fullmatch(r"FASE-\d{3}", x)] if execution else phases
+    phase_state = {m.group(1): m.group(2) for m in re.finditer(r"(?ms)^##\s+(FASE-\d{3})\b.*?^-\s+state:\s*(\S+)", roadmap)}
+    modules = sorted(set(re.findall(r"(?m)^##\s+(MOD-\d{3})\b", delivery)))
+    units = sorted(set(re.findall(r"(?m)^###\s+(DU-\d{3})\b", delivery)))
+    types = sorted(set(re.findall(r"(?m)^-\s+development-type:\s*(\S+)\s*$", delivery)))
+    return ordered, phase_state, modules, units, types
 
 def item_payload(root: Path, bundle: Any) -> dict[str, Any]:
     immutable = workspace.validate_metadata(bundle.metadata, bundle.work_id)
@@ -73,7 +77,7 @@ def item_payload(root: Path, bundle: Any) -> dict[str, Any]:
         blocked = [s for s in SEQUENCE if steps.get(s) == "blocked"]
         if any(steps.get(s) not in STATES for s in SEQUENCE) or any(steps.get(s) == "complete" and any(steps.get(p) != "complete" for p in SEQUENCE[:SEQUENCE.index(s)]) for s in SEQUENCE):
             findings.append("INVALID-DEVELOPMENT-SEQUENCE")
-    phases, modules, units, types = phases_and_map(bundle.files)
+    phases, phase_states, modules, units, types = phases_and_map(bundle.files)
     lv = live(root)
     if immutable.get("branch") != lv["branch"] or immutable.get("head") != lv["head"]: findings.append("LIVE-VS-RECORDED")
     constitution = immutable.get("constitution", {})
@@ -83,7 +87,8 @@ def item_payload(root: Path, bundle: Any) -> dict[str, Any]:
     if receipt.is_symlink():
         raise workspace.CliFailure(workspace.EXIT_BLOCKED, "BLOCKED", "SYMLINK-REJECTED", str(receipt))
     item_location = {"worktree": str(root), "path": bundle.origin, "branch": lv["branch"], "head": lv["head"], "dirty": lv["dirty"], "current": False}
-    return {"work_id": bundle.work_id, "type": immutable["type"], "slug": immutable["slug"], "fingerprint": bundle.fingerprint, "locations": [item_location], "recorded": {"branch": immutable.get("branch"), "head": immutable.get("head"), "base_ref": immutable.get("base_ref"), "base_commit": immutable.get("base_commit")}, "planning": {"status": state.get("status"), "milestone_status": state.get("milestone_status"), "active_phase": state.get("active_phase"), "phase_state": state.get("phase_state"), "execution_order": phases, "phases": phases, "modules": modules, "delivery_units": units, "development_types": types}, "development": {"tracking": tracking, "current_step": current, "completed": completed, "blocked": blocked, "steps": steps}, "governance": {"constitution": {"state": constitution.get("state"), "path": constitution.get("path"), "hash": constitution.get("sha256")}, "check": {"state": "present" if check is not None else "missing", "hash": digest(check) if check is not None else None}, "audit": {"verdict": state.get("audit_verdict"), "hash": digest(audit) if audit is not None else None}, "reconciled": {"path": str(receipt) if receipt.is_file() else None, "hash": digest(receipt.read_bytes()) if receipt.is_file() else None}}, "blockers": blocked, "findings": sorted(findings), "next_gate": "BLOCKED" if findings or blocked else (SEQUENCE[len(completed)] if len(completed) < len(SEQUENCE) else "complete")}
+    active = state.get("active_phase")
+    return {"work_id": bundle.work_id, "type": immutable["type"], "slug": immutable["slug"], "fingerprint": bundle.fingerprint, "locations": [item_location], "recorded": {"branch": immutable.get("branch"), "head": immutable.get("head"), "base_ref": immutable.get("base_ref"), "base_commit": immutable.get("base_commit")}, "planning": {"status": state.get("status"), "milestone_status": state.get("milestone_status"), "active_phase": active, "phase_state": phase_states.get(active, state.get("phase_state")), "execution_order": phases, "phases": phase_states, "modules": modules, "delivery_units": units, "development_types": types}, "development": {"tracking": tracking, "current_step": current, "completed": completed, "blocked": blocked, "steps": steps}, "governance": {"constitution": {"state": constitution.get("state"), "path": constitution.get("path"), "hash": constitution.get("sha256")}, "check": {"state": "present" if check is not None else "missing", "hash": digest(check) if check is not None else None}, "audit": {"verdict": state.get("audit_verdict"), "hash": digest(audit) if audit is not None else None}, "reconciled": {"path": str(receipt) if receipt.is_file() else None, "hash": digest(receipt.read_bytes()) if receipt.is_file() else None}}, "blockers": blocked, "findings": sorted(findings), "next_gate": "BLOCKED" if findings or blocked else (SEQUENCE[len(completed)] if len(completed) < len(SEQUENCE) else "complete")}
 
 def worktree_roots(root: Path, current: bool) -> list[Path]:
     if current: return [root]
@@ -122,7 +127,9 @@ def build_status(root_arg: str | Path, work_id: str | None = None, current_workt
         if len(fps)>1: base["findings"]=sorted(set(base["findings"]+["DUPLICATE-WORK-ID"])); base["next_gate"]="BLOCKED"; global_findings.append("DUPLICATE-WORK-ID")
         items.append(base)
     summary={"total":len(items),"in_progress":sum(1 for x in items if x["next_gate"] not in {"BLOCKED","complete"}),"blocked":sum(1 for x in items if x["next_gate"]=="BLOCKED"),"completed":sum(1 for x in items if x["next_gate"]=="complete")}
-    code="DUPLICATE-WORK-ID" if global_findings else ("OK" if items else "EMPTY")
+    item_findings = sorted({f for x in items for f in x["findings"]})
+    global_findings.extend(item_findings)
+    code=global_findings[0] if global_findings else ("OK" if items else "EMPTY")
     return {"schema":"grill-status/v1","verdict":"BLOCKED" if global_findings else "OK","code":code,"project_root":str(root),"summary":summary,"work_items":items,"next_action":"iniciar" if not items else ("resolver-bloqueios" if summary["blocked"] else "continuar")}, 2 if global_findings else 0
 
 def main(argv: list[str] | None = None) -> int:
