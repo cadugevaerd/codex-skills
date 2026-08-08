@@ -1,6 +1,6 @@
 # Protocolo de sessão v2.4.0
 
-Frases com **deve**, **nunca** e **somente** são normativas. A inicialização é bootstrap only: depois de criado, o workflow e a Constituição são read-only.
+Frases com **deve**, **nunca** e **somente** são normativas. A inicialização cria o workflow/Constituição quando ausentes; depois do init, os artefatos são read-only.
 
 ## Fluxo e checkpoints
 
@@ -35,9 +35,9 @@ ship externo → state complete/GO → reconcile preview → apply na integraç�
 - [ ] Fixar o `work_id` retornado e usar somente `.grill/work-items/<work-id>/`.
 - [ ] Confirmar `WORK-ITEM.json`, metadata imutável e hash canônico.
 - [ ] Reler `WORKFLOW.md` project-wide e seu hash.
-- [ ] Tratar a Constituição como `not-present` se ausente.
+- [ ] Se a Constituição estiver ausente, executar init explícito; após init, somente leitura.
 - [ ] Se presente, validar UTF-8, placeholders, hash e cobertura exata em `CONSTITUTION-CHECK.md`.
-- [ ] Nunca criar, emendar, dispensar ou enfraquecer a Constituição.
+- [ ] Nunca emendar, dispensar ou enfraquecer a Constituição após init.
 - [ ] Validar paths sem traversal/symlink e preservar conteúdo humano.
 - [ ] Confirmar que `.grill/global/` não foi alterado pelo init.
 
@@ -47,7 +47,7 @@ Falha de identidade, integridade, path, lock ou materialização é `BLOCKED`. F
 
 Project-wide:
 
-- `.specify/memory/constitution.md` — opcional, read-only;
+- `.specify/memory/constitution.md` — criada pelo init quando ausente; depois, read-only;
 - `WORKFLOW.md`.
 
 Work-item local:

@@ -1593,7 +1593,15 @@ def checkpoint_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             ep = Path(value)
             if ep.is_absolute() or any(p in {"", ".", ".."} for p in ep.parts):
                 raise CliFailure(EXIT_BLOCKED, "BLOCKED", "INVALID-EVIDENCE-PATH", value)
-            data = safe_read(root / ep, root=root)
+            evidence_path = root / ep
+            if evidence_path.is_symlink():
+                raise CliFailure(EXIT_BLOCKED, "BLOCKED", "EVIDENCE-SYMLINK", value)
+            reject_symlink_chain(root, evidence_path, allow_missing=True)
+            if not evidence_path.exists():
+                raise CliFailure(EXIT_BLOCKED, "BLOCKED", "EVIDENCE-MISSING", value)
+            if not evidence_path.is_file():
+                raise CliFailure(EXIT_BLOCKED, "BLOCKED", "EVIDENCE-NOT-REGULAR", value)
+            data = safe_read(evidence_path, root=root)
             assert isinstance(data, bytes)
             evidence.append({"path": ep.as_posix(), "sha256": hash_bytes(data)})
         reason = args.reason.strip()
@@ -1608,8 +1616,10 @@ def checkpoint_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             if current not in {"pending", "blocked"} or any(steps.get(s) != "complete" for s in sequence[:index]):
                 raise CliFailure(EXIT_BLOCKED, "BLOCKED", "INVALID-TRANSITION", args.step)
         elif args.state == "complete":
-            if current != "in-progress" or any(steps.get(s) != "complete" for s in sequence[:index]) or not evidence:
-                raise CliFailure(EXIT_BLOCKED, "BLOCKED", "INVALID-TRANSITION" if evidence else "EVIDENCE-REQUIRED", args.step)
+            if not evidence:
+                raise CliFailure(EXIT_BLOCKED, "BLOCKED", "EVIDENCE-REQUIRED", args.step)
+            if current != "in-progress" or any(steps.get(s) != "complete" for s in sequence[:index]):
+                raise CliFailure(EXIT_BLOCKED, "BLOCKED", "INVALID-TRANSITION", args.step)
             if args.step == "ship" and not (steps.get("verify") == steps.get("review") == "complete"):
                 raise CliFailure(EXIT_BLOCKED, "BLOCKED", "SHIP-GATE", args.step)
         elif args.state == "blocked":

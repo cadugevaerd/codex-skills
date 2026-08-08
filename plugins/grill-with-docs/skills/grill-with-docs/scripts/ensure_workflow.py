@@ -176,16 +176,25 @@ def ensure(root_argument: str) -> int:
 
 
 def human_status(payload: dict, root: Path) -> str:
-    items = payload.get("items") or payload.get("work_items") or []
-    count = len(items) if isinstance(items, list) else 0
-    branch = payload.get("branch", "?"); head = str(payload.get("head", "?"))[:12]
-    phase = payload.get("phase") or payload.get("active_phase") or "?"
-    du = payload.get("development_type") or payload.get("type") or "?"
-    step = payload.get("current_step") or "?"
-    blockers = payload.get("blockers") or payload.get("findings") or []
-    if isinstance(blockers, list): blockers = ", ".join(map(str, blockers[:3])) or "nenhum"
-    next_gate = payload.get("next_gate") or "checkpoint"
-    return f"Itens: {count}; branch={branch}; head={head}; fase={phase}; DU/type={du}; etapa={step}/11; próximo gate={next_gate}; blockers={blockers}. Comando: grill_workspace.py status {root}"
+    items = payload.get("work_items")
+    if not isinstance(items, list):
+        return "BLOCKED status: payload work_items inválido"
+    count = len(items)
+    if count == 0:
+        return f"Itens: 0; inicialização necessária. Comando: grill_workspace.py init {root}"
+    if count > 1:
+        brief = ", ".join(f"{i.get('work_id','?')}:{(i.get('locations') or [{}])[0].get('branch','?')}" for i in items[:4] if isinstance(i, dict))
+        return f"Itens: {count}; múltiplos work-items ({brief}); use --work-id."
+    item = items[0] if isinstance(items[0], dict) else {}
+    loc = (item.get("locations") or [{}])[0]
+    planning = item.get("planning") or {}; development = item.get("development") or {}
+    blockers = item.get("blockers") or item.get("findings") or []
+    blockers = ", ".join(map(str, blockers[:3])) if isinstance(blockers, list) else str(blockers)
+    completed = development.get("completed") if isinstance(development.get("completed"), list) else []
+    return (f"Itens: 1; id={item.get('work_id','?')}; branch={loc.get('branch','?')}; head={str(loc.get('head','?'))[:12]}; "
+            f"fase={planning.get('active_phase','?')}; DU/type={','.join(planning.get('delivery_units',[]) or []) or item.get('type','?')}; "
+            f"etapa={development.get('current_step','?')}; concluídas={len(completed)}/11; próximo gate={item.get('next_gate','?')}; "
+            f"blockers={blockers or 'nenhum'}. Comando: grill_workspace.py status {root}")
 
 
 def hook() -> int:

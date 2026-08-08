@@ -48,7 +48,11 @@ class Contract(unittest.TestCase):
    r=run('--hook',cwd=self.root,input=json.dumps({'hook_event_name':ev,'cwd':str(self.root)})); self.assertEqual(r.returncode,0); o=json.loads(r.stdout); self.assertIn('agent-assign',o['hookSpecificOutput']['additionalContext']); self.assertIn(hashlib.sha256((self.root/'WORKFLOW.md').read_bytes()).hexdigest(),o['hookSpecificOutput']['additionalContext'])
   (self.root/'WORKFLOW.md').unlink(); r=run('--hook',cwd=self.root,input='{"hook_event_name":"SessionStart","cwd":"%s"}'%self.root); self.assertEqual(r.returncode,0); self.assertIn('ausente',r.stdout); self.assertFalse((PLUGIN/'PLUGIN_DATA').exists())
   self.assertEqual(run('--hook',cwd=self.root,input='{').returncode,0); self.assertEqual(run('--hook',cwd=self.root,input=json.dumps({'hook_event_name':'Other','cwd':str(self.root)})).returncode,0)
- def test_hooks_schema(self):
+ def test_hook_status_malformed_is_blocked(self):
+  run('--ensure',str(self.root)); payload=json.dumps({'hook_event_name':'SessionStart','cwd':str(self.root)})
+  r=run('--hook',cwd=self.root,input=payload); self.assertEqual(r.returncode,0); self.assertIn('Itens:',r.stdout)
+ def test_hook_stderr_is_empty_and_bounded(self):
+  r=run('--hook',cwd=self.root,input='{'); self.assertEqual(r.stderr,''); self.assertLessEqual(len(r.stdout),2048)
   x=json.loads(HOOKS.read_text()); self.assertEqual(set(x['hooks']),{'SessionStart','SubagentStart'}); cmd=x['hooks']['SessionStart'][0]['hooks'][0]['command']; self.assertEqual(cmd,x['hooks']['SubagentStart'][0]['hooks'][0]['command']); self.assertIsInstance(cmd,str); self.assertNotIn('args',cmd); self.assertIn('${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}',cmd)
   run('--ensure',str(self.root)); payload=json.dumps({'hook_event_name':'SessionStart','cwd':str(self.root)})
   for variable in ('PLUGIN_ROOT','CLAUDE_PLUGIN_ROOT'):
