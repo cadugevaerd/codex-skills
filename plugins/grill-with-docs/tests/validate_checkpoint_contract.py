@@ -49,4 +49,20 @@ class CheckpointContract(unittest.TestCase):
   self.assertEqual(json.loads((self.r/'.grill/work-items/wx/state.json').read_text())['development']['current_step'],'complete')
  def test_output_contract_all_calls(self):
   p=self.call('specify','in-progress'); self.assertEqual(p.stderr,''); self.assertEqual(len(p.stdout.splitlines()),1); self.assertIsInstance(json.loads(p.stdout),dict)
+ def test_invalid_work_id_exact(self):
+  p=run('checkpoint',self.r,'--work-id','bad id','--step','specify','--state','in-progress'); self.assertEqual(json.loads(p.stdout)['code'],'INVALID-WORK-ID'); self.assertEqual(p.returncode,2); self.assertEqual(p.stderr,'')
+ def test_absolute_evidence_path_exact(self):
+  self.call('specify','in-progress'); p=self.call('specify','complete',evidence=[str(self.r/'e')]); self.assertEqual(json.loads(p.stdout)['code'],'INVALID-EVIDENCE-PATH')
+ def test_parent_evidence_path_exact(self):
+  self.call('specify','in-progress'); p=self.call('specify','complete',evidence=['../e']); self.assertEqual(json.loads(p.stdout)['code'],'INVALID-EVIDENCE-PATH')
+ def test_invalid_state_is_structured(self):
+  p=run('checkpoint',self.r,'--work-id','wx','--step','specify','--state','bogus'); self.assertEqual(p.returncode,2); self.assertEqual(json.loads(p.stdout)['code'],'INVALID-ARGUMENTS'); self.assertEqual(p.stderr,'')
+ def test_global_snapshot_untouched(self):
+  g=self.r/'.grill/global'; g.mkdir(parents=True); q=g/'x'; q.write_text('g'); before=(q.read_bytes(),q.stat().st_mtime_ns); self.call('specify','in-progress'); self.assertEqual(before,(q.read_bytes(),q.stat().st_mtime_ns))
+ def test_blocked_requires_exact_reason(self):
+  self.call('specify','in-progress'); p=self.call('specify','blocked',reason='   '); self.assertEqual(json.loads(p.stdout)['code'],'REASON-REQUIRED')
+ def test_evidence_hash_audited(self):
+  self.call('specify','in-progress'); p=self.call('specify','complete',evidence=['e']); self.assertEqual(json.loads(p.stdout)['evidence'][0]['sha256'],__import__('hashlib').sha256(b'e').hexdigest())
+ def test_missing_work_item_exact(self):
+  p=run('checkpoint',self.r,'--work-id','none','--step','specify','--state','in-progress'); self.assertEqual(json.loads(p.stdout)['code'],'WORK-ITEM-MISSING')
 if __name__=='__main__': unittest.main()

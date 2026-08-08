@@ -1597,16 +1597,33 @@ def checkpoint_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     if not WORK_ID_RE.fullmatch(args.work_id):
         raise CliFailure(EXIT_BLOCKED, "BLOCKED", "INVALID-WORK-ID", args.work_id)
     item = root / ".grill" / "work-items" / args.work_id
+    if item.is_symlink():
+        raise CliFailure(EXIT_BLOCKED, "BLOCKED", "WORK-ITEM-SYMLINK", args.work_id)
     if not item.is_dir():
         raise CliFailure(EXIT_NO_GO, "NO-GO", "WORK-ITEM-MISSING", args.work_id)
+    global_dir = root / ".grill" / "global"
+    def snapshot_global() -> dict[str, tuple[bytes, int]]:
+        if not global_dir.exists():
+            return {}
+        return {str(p.relative_to(global_dir)): (p.read_bytes(), p.stat().st_mtime_ns)
+                for p in global_dir.rglob("*") if p.is_file() and not p.is_symlink()}
+    global_before = snapshot_global()
     lock = acquire_lock(root, args.work_id, item)
     try:
         path = item / "state.json"; raw = safe_read(path, root=root, utf8=True); assert isinstance(raw, str)
-        state = json.loads(raw); development = state.get("development")
+        try:
+            state = json.loads(raw)
+        except (UnicodeDecodeError, json.JSONDecodeError, TypeError) as exc:
+            raise CliFailure(EXIT_BLOCKED, "BLOCKED", "INVALID-STATE", args.work_id) from exc
+        if not isinstance(state, dict):
+            raise CliFailure(EXIT_BLOCKED, "BLOCKED", "INVALID-STATE", args.work_id)
+        development = state.get("development")
         if not isinstance(development, dict) or development.get("schema") != "grill-development/v1":
             if not args.initialize_legacy:
                 raise CliFailure(EXIT_BLOCKED, "BLOCKED", "LEGACY-UNTRACKED", args.work_id)
-            if args.from_step != args.step or not args.evidence or not args.reason.strip():
+            if args.from_step is not None and (args.from_step != "specify" or args.step != "specify"):
+                raise CliFailure(EXIT_BLOCKED, "BLOCKED", "LEGACY-INITIALIZATION-UNSAFE", args.work_id)
+            if args.from_step is None or not args.evidence or not args.reason.strip():
                 raise CliFailure(EXIT_BLOCKED, "BLOCKED", "LEGACY-INITIALIZATION-REQUIRES-DECISION-EVIDENCE", args.work_id)
             development = {"schema":"grill-development/v1", "sequence":SEQUENCE[:], "current_step":args.step,
                            "steps":{step:("in-progress" if step == args.step else "pending") for step in SEQUENCE}, "audit":[]}
@@ -1629,15 +1646,19 @@ def checkpoint_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
                 raise CliFailure(EXIT_BLOCKED, "BLOCKED", "EVIDENCE-MISSING", value)
             if not evidence_path.is_file():
                 raise CliFailure(EXIT_BLOCKED, "BLOCKED", "EVIDENCE-NOT-REGULAR", value)
-            data = safe_read(evidence_path, root=root)
-            assert isinstance(data, bytes)
+            try:
+                data = safe_read_regular_fd(root, evidence_path)
+            except CliFailure as exc:
+                if exc.code in {"SYMLINK-REJECTED", "UNSAFE-FILE"}:
+                    raise CliFailure(EXIT_BLOCKED, "BLOCKED", "EVIDENCE-SYMLINK", value) from exc
+                raise
             evidence.append({"path": ep.as_posix(), "sha256": hash_bytes(data)})
         reason = args.reason.strip()
         payload = {"step": args.step, "state": args.state, "evidence": evidence, "reason": reason}
         audit = development.setdefault("audit", [])
         if current == args.state:
             if audit and audit[-1] == payload:
-                return {"verdict":"REUSED", "work_id":args.work_id, **payload}, EXIT_OK
+                return {"verdict":"REUSED", "work_id":args.work_id, **payload, "current_step":development.get("current_step")}, EXIT_OK
             raise CliFailure(EXIT_BLOCKED, "BLOCKED", "STATE-DIVERGENCE", args.step)
         index = sequence.index(args.step)
         if args.state == "in-progress":
@@ -1659,6 +1680,9 @@ def checkpoint_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         return {"verdict":"UPDATED", "work_id":args.work_id, **payload, "current_step":development["current_step"]}, EXIT_OK
     finally:
         shutil.rmtree(lock, ignore_errors=True)
+        if snapshot_global() != global_before:
+            raise CliFailure(EXIT_BLOCKED, "BLOCKED", "GLOBAL-MUTATION", args.work_id)
+
 
 
 def status_command(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
