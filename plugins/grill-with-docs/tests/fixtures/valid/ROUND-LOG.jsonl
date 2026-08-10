@@ -1,2 +1,0 @@
-{"round_id":"R-0001","question_id":"DQ-0001","transition":"resolved","evidence":["https://example.test/api"],"artifacts_changed":["docs/adr/ADR-0001.md","ROADMAP.md"],"progress_delta":{"decisions_resolved":1,"uncertainties_reduced":1},"scope_delta":"none","next_action":"recompute-frontier"}
-{"round_id":"R-0002","question_id":"DQ-0002","transition":"deferred","evidence":["supplier limit absent"],"artifacts_changed":["DECISION-BACKLOG.md","ROADMAP.md"],"progress_delta":{"decisions_deferred":1,"uncertainties_reduced":0},"scope_delta":"none","next_action":"wait-for-trigger"}

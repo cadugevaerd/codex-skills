@@ -12,7 +12,6 @@ plugin individual.
 | `code-review-cadu` | Revisa PRs com veredicto `GO`/`NO-GO` por finding e encaminha itens diferiveis ao backlog apos confirmacao. |
 | `code-debug` | Diagnóstico diagnose-only: reproduz comando, coleta evidências, testa hipóteses e entrega relatório sem executar correções. |
 | `relatorio-gerencial` | Gera relatorios executivos (uma pagina) de tarefas atuais e backlog multi-repositorio com linguagem gerencial e PDF. |
-| `grill-with-docs` | Isola grills em `.grill/work-items/<work-id>`, encerra em `PLAN_ONLY_STOP`, preserva a Constituição e reconcilia o global somente após ship externo e `complete/GO`. |
 | `grillme-gestor` | Versao sem jargao tecnico da `grillme-langgraph`, voltada a gestores, salvando o artefato tecnico em markdown. |
 | `rag-kag-decision` | Decide quando usar RAG, KAG, GraphRAG ou abordagem hibrida conforme documentos, entidades, relacoes, regras, temporalidade, custo e risco. |
 | `modelos-custo-beneficio` | Consulta OpenRouter e lista até 5 candidatos para Model Engineering Eval, com inteligência Artificial Analysis >35 via OpenRouter Benchmarks, reasoning controlável, throughput p75/p50 ≥60 t/s e variantes `:exacto`/`:nitro`; não decide runtime. |
@@ -30,7 +29,6 @@ Da raiz deste repo:
 
 ```bash
 codex plugin marketplace add .
-codex plugin add grill-with-docs@codex-skills
 codex plugin add backlog@codex-skills
 codex plugin add code-review-cadu@codex-skills
 codex plugin add code-debug@codex-skills
@@ -46,6 +44,18 @@ codex plugin add qa-planner@codex-skills
 codex plugin add whatsapp-business-platform@codex-skills
 codex plugin add caveman-stable@codex-skills
 codex plugin add quality-security-gate@codex-skills
+```
+
+## Migração do `grill-with-docs`
+
+O plugin agora é distribuído pelo marketplace público dedicado, e não mais por
+`@codex-skills`. Para instalar:
+
+```bash
+git clone https://github.com/cadugevaerd/grill-with-docs.git
+cd grill-with-docs
+codex plugin marketplace add .
+codex plugin add grill-with-docs@grill-with-docs
 ```
 
 Após instalar `caveman-stable`, abra `/hooks`, revise e confie o hook antes da primeira sessão. Sem essa confiança explícita, o `SessionStart` permanece inativo. Consulte [`plugins/caveman-stable/README.md`](plugins/caveman-stable/README.md).
