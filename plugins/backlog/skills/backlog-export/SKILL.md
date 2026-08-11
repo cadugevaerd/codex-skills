@@ -9,5 +9,5 @@ disable-model-invocation: false
 
 Após doctor, execute `backlogctl [--json] export json|markdown|consolidated --db PATH [--code CODE]`. JSON sempre inclui `description` em cada item, inclusive como string vazia. `--db` pertence ao comando export. Não alegue arquivo salvo sem verificar o destino. Consolidated deve conter `data.backlogs[]` com `items[]` aninhados e sem `data.items`.
 
-## Contract CLI v2.3.0
+## Contract CLI v2.4.0
 Exports omit archived items by default. Never access SQLite or delete records; use the public CLI only.

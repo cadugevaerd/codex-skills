@@ -40,6 +40,21 @@ test('manifest accepts only immutable official release coordinates', () => {
   }
 });
 
+test('vendored manifest pins the verified backlogctl v2.4.0 release', () => {
+  const vendored = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'assets', 'backlogctl-release.json'), 'utf8'));
+  assert.equal(vendored.release, 'v2.4.0');
+  assert.equal(vendored.version, '2.4.0');
+  assert.equal(vendored.base_url, 'https://github.com/cadugevaerd/backlogctl-releases/releases/download/v2.4.0/');
+  assert.deepEqual(Object.fromEntries(Object.entries(vendored.assets).map(([key, asset]) => [key, asset.sha256])), {
+    'darwin-x64': 'c3bad46bb6c99323985e0e1a59265e761934280d1b7f371fe4f9159ba08ec566',
+    'darwin-arm64': '718b41e90968ed67ad181f7bea360f668a6cb554b4886e4e2690ed0710ce50b9',
+    'linux-x64': '9ddb006f7ad6b1b4a588f19924cc7f7b4456e0e11796d1b3f5a74dc57b2cff99',
+    'linux-arm64': '8fa6047e9634c95a9e7388ce0e486742b4cf4dda485c9240dc56791f7f945cb0',
+    'win32-x64': '2dd2adbcad09f4faf84491f64f410417e12b8eae2a2d665b9d0b9065185d0f8f',
+    'win32-arm64': 'e5dabdae209297c096c5c7247ef5320d3b187bd14b07067c3d2ead81afa1a510',
+  });
+});
+
 test('redirects remain inside official HTTPS release paths', () => {
   const from = new URL('https://github.com/cadugevaerd/backlogctl-releases/releases/download/v2.3.0/a');
   assert.equal(bootstrap.allowedRedirect(from, new URL('https://objects.githubusercontent.com/x')), true);
