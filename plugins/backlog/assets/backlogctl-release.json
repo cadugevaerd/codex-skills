@@ -2,33 +2,15 @@
   "schema_version": 1,
   "status": "released",
   "product": "backlogctl",
-  "release": "v2.3.0",
-  "version": "2.3.0",
-  "base_url": "https://github.com/cadugevaerd/backlogctl-releases/releases/download/v2.3.0/",
+  "release": "v2.4.0",
+  "version": "2.4.0",
+  "base_url": "https://github.com/cadugevaerd/backlogctl-releases/releases/download/v2.4.0/",
   "assets": {
-    "darwin-x64": {
-      "file": "backlogctl_darwin_amd64",
-      "sha256": "90e0842f0107f007887078d68c96eb3250ad297ab1733bf75ac5d0793010c54a"
-    },
-    "darwin-arm64": {
-      "file": "backlogctl_darwin_arm64",
-      "sha256": "1d297fa28196067e233ba70c7550c80e7ef3ada4a8bb2387501d0360d338096b"
-    },
-    "linux-x64": {
-      "file": "backlogctl_linux_amd64",
-      "sha256": "7c6b143f8f96f99b6d975d3ea7475e49c28949e896c54c41dd07aedbc9b6bb53"
-    },
-    "linux-arm64": {
-      "file": "backlogctl_linux_arm64",
-      "sha256": "7f8751d16d8b43e55954a59b6c1316960d5c346d89b48e2acaabc8d88557ec65"
-    },
-    "win32-x64": {
-      "file": "backlogctl_windows_amd64.exe",
-      "sha256": "ceac91ca378f579f956440a4f5f74309a223d7d6ede08e027a0c0ebf8462df84"
-    },
-    "win32-arm64": {
-      "file": "backlogctl_windows_arm64.exe",
-      "sha256": "fed756a655a409ee0920e7b5ccc8832251040c6eea318a8a3c7d370271f8adb1"
-    }
+    "darwin-x64": {"file": "backlogctl_darwin_amd64", "sha256": "c3bad46bb6c99323985e0e1a59265e761934280d1b7f371fe4f9159ba08ec566"},
+    "darwin-arm64": {"file": "backlogctl_darwin_arm64", "sha256": "718b41e90968ed67ad181f7bea360f668a6cb554b4886e4e2690ed0710ce50b9"},
+    "linux-x64": {"file": "backlogctl_linux_amd64", "sha256": "9ddb006f7ad6b1b4a588f19924cc7f7b4456e0e11796d1b3f5a74dc57b2cff99"},
+    "linux-arm64": {"file": "backlogctl_linux_arm64", "sha256": "8fa6047e9634c95a9e7388ce0e486742b4cf4dda485c9240dc56791f7f945cb0"},
+    "win32-x64": {"file": "backlogctl_windows_amd64.exe", "sha256": "2dd2adbcad09f4faf84491f64f410417e12b8eae2a2d665b9d0b9065185d0f8f"},
+    "win32-arm64": {"file": "backlogctl_windows_arm64.exe", "sha256": "e5dabdae209297c096c5c7247ef5320d3b187bd14b07067c3d2ead81afa1a510"}
   }
 }

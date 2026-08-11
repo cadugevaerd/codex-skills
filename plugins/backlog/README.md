@@ -1,6 +1,6 @@
-# Backlog plugin 2.4.1
+# Backlog plugin 2.4.2
 
-Plugin cross-runtime para `backlogctl` **2.3.0**, DB schema **5**, envelope contract **2** e documento de import contract **3**.
+Plugin cross-runtime para `backlogctl` **2.4.0**, DB schema **5**, envelope contract **2** e documento de import contract **3**.
 
 ## Distribuição
 

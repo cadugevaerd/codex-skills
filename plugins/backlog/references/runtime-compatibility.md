@@ -1,6 +1,6 @@
 # Compatibilidade de runtime
 
-Compatível com `backlogctl` release **v2.3.0**, DB schema **5**, envelope contract **2** e import document contract **3**.
+Compatível com `backlogctl` release **v2.4.0**, DB schema **5**, envelope contract **2** e import document contract **3**.
 
 No Claude Code, use o executável exato emitido pelo hook `SessionStart`. No Codex, use a recuperação manual e o caminho retornado. Nunca presuma `PATH`.
 
