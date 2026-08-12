@@ -19,6 +19,7 @@ plugin individual.
 | `langsmith-evals` | Cria e compara prompts e projeta, executa e audita evals LangSmith-first. Inclui Prompt Engineer, Evals Engineer e Auditor, fixados em `gpt-5.6-terra`. |
 | `prompt-only-agent` | Faz uma entrevista curta, uma pergunta por vez, e entrega um system prompt em Markdown pronto para copiar e colar para um agente sem ferramentas. |
 | `qa-planner` | Analisa requisitos e diff da branch, define estratégia e cria `QA.md` rastreável para outra IA executar — sem rodar testes. |
+| `levantamento-requisitos` | Levanta evidências, lacunas, decisões, critérios de aceite e riscos; entrega handoff verificável antes da implementação. |
 | `whatsapp-business-platform` | Projeta e opera integrações oficiais Meta: Cloud API, Technology Provider, Embedded Signup v4, Coexistence App+API, múltiplas WABAs/números, webhooks e tokens. |
 | `caveman-stable` | Mantém respostas Codex curtas, diretas e estáveis, com reinjeção após início, retomada, limpeza e compactação. |
 | `quality-security-gate` | Analisa e acompanha o Gate de Qualidade e Segurança por projeto; classifica risco, registra pendências e persiste o status em `.quality-gate/`. |
@@ -41,6 +42,7 @@ codex plugin add facilitador-reunioes@codex-skills
 codex plugin add langsmith-evals@codex-skills
 codex plugin add prompt-only-agent@codex-skills
 codex plugin add qa-planner@codex-skills
+codex plugin add levantamento-requisitos@codex-skills
 codex plugin add whatsapp-business-platform@codex-skills
 codex plugin add caveman-stable@codex-skills
 codex plugin add quality-security-gate@codex-skills
@@ -102,7 +104,10 @@ Cada feature, fix ou hotfix usa branch/worktree dedicada e artefatos em `.grill/
 
 ```text
 /qa-planner branch=feat/oauth base=main
+/levantamento-requisitos Nova integração de pedidos source=docs/produto.md
 ```
+
+A skill `/levantamento-requisitos` é discovery-only: transforma o pedido e as evidências disponíveis em requisitos rastreáveis, critérios de aceite, decisões, perguntas priorizadas, riscos e um handoff mínimo para implementação. Ela só declara `READY` quando não restar pergunta P0 aberta.
 
 O plugin realiza as três primeiras etapas de QA — análise de requisitos,
 planejamento e cenários — e grava um `QA.md` rastreável no local adequado do
@@ -192,6 +197,9 @@ plugins/
     .codex-plugin/plugin.json
     skills/qa-planner/SKILL.md
     tests/validate_contract.py
+  levantamento-requisitos/
+    .codex-plugin/plugin.json
+    skills/levantamento-requisitos/SKILL.md
   whatsapp-business-platform/
     .codex-plugin/plugin.json
     skills/whatsapp-business-platform/SKILL.md

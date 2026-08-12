@@ -1,0 +1,38 @@
+{
+  "name": "levantamento-requisitos",
+  "version": "1.0.0",
+  "description": "Levanta requisitos verificáveis e entrega um handoff pronto para implementar sem suposições ocultas.",
+  "author": {
+    "name": "Carlos Araujo",
+    "email": "cadu.gevaerd@gmail.com",
+    "url": "https://github.com/cadugevaerd"
+  },
+  "homepage": "https://github.com/cadugevaerd/codex-skills",
+  "repository": "https://github.com/cadugevaerd/codex-skills",
+  "license": "MIT",
+  "keywords": [
+    "requirements",
+    "discovery",
+    "acceptance-criteria",
+    "handoff",
+    "project-planning"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Levantamento de Requisitos",
+    "shortDescription": "Entrega requisitos rastreáveis antes de implementar.",
+    "longDescription": "Levanta evidências, lacunas, decisões, critérios de aceite e riscos para entregar um handoff implementável sem suposições ocultas.",
+    "developerName": "Carlos Araujo",
+    "category": "Development",
+    "capabilities": [
+      "Requirements Discovery",
+      "Acceptance Criteria",
+      "Risk Analysis",
+      "Implementation Handoff"
+    ],
+    "defaultPrompt": [
+      "/levantamento-requisitos Criar integração de pedidos entre ERP e e-commerce",
+      "/levantamento-requisitos Nova área administrativa source=docs/product.md"
+    ]
+  }
+}
