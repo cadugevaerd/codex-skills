@@ -130,6 +130,7 @@ def validate_codex() -> None:
         require(data.get("model_reasoning_effort") == "max", f"reasoning não max: {filename}")
         require(data.get("sandbox_mode") == sandbox, f"sandbox incorreto: {filename}")
         require(bool(data.get("developer_instructions")), f"instructions ausentes: {filename}")
+        require("__CODEX_HOME__" in data["developer_instructions"], f"placeholder CODEX_HOME ausente: {filename}")
 
     installer = PLUGIN / "scripts/install_codex_agents.py"
     original = 'profile = "keep"\n\n[agents.existing]\ndescription = "preserve"\n'
@@ -148,6 +149,10 @@ def validate_codex() -> None:
         require(backup.read_text(encoding="utf-8") == original, "backup não preservou config original")
         installed = sorted(path.name for path in (home / "agents").glob("langgraph-*.toml"))
         require(installed == ["langgraph-architect.toml", "langgraph-reviewer.toml"], "arquivos instalados divergentes")
+        for filename in installed:
+            rendered = (home / "agents" / filename).read_text(encoding="utf-8")
+            require("__CODEX_HOME__" not in rendered, f"placeholder não renderizado: {filename}")
+            require(home.resolve().as_posix() in rendered, f"CODEX_HOME ativo ausente: {filename}")
         for rel in COMMON_PATHS:
             if rel.startswith("skills/"):
                 require((home / "agents/langgraph-architecture-knowledge" / rel).is_file(), f"conhecimento ausente: {rel}")

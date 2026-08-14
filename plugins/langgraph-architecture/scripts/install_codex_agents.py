@@ -83,8 +83,10 @@ def install(plugin_root: Path, codex_home: Path) -> None:
     if config.exists() and not (codex_home / "config.toml.bak-langgraph-architecture").exists():
         shutil.copy2(config, codex_home / "config.toml.bak-langgraph-architecture")
 
+    rendered_home = codex_home.as_posix().replace('"', '\\"')
     for source in required_agents:
-        shutil.copy2(source, agents_dir / source.name)
+        rendered = source.read_text(encoding="utf-8").replace("__CODEX_HOME__", rendered_home)
+        atomic_write(agents_dir / source.name, rendered)
     if knowledge_dir.exists():
         shutil.rmtree(knowledge_dir)
     shutil.copytree(source_skills, knowledge_dir / "skills")
