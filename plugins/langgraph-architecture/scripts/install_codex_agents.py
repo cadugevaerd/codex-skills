@@ -41,6 +41,15 @@ def has_managed_block(content: str) -> bool:
     return BEGIN in content or BEGIN_JOINED in content
 
 
+def extract_marker_hash(content: str) -> str | None:
+    for begin in (BEGIN_JOINED, BEGIN):
+        match = re.search(rf"{re.escape(begin)}(?P<body>.*?){re.escape(END)}", content, re.S)
+        if match:
+            hash_match = re.search(r'(?m)^# marker_sha256 = "([0-9a-f]{64})"$', match.group("body"))
+            return hash_match.group(1) if hash_match else None
+    return None
+
+
 def remove_managed_block(content: str) -> str:
     content = managed_pattern(BEGIN_JOINED, include_separator=True).sub("", content)
     return managed_pattern(BEGIN).sub("", content)
@@ -96,7 +105,11 @@ def expected_tree_entries(files: list[str]) -> set[str]:
     return entries
 
 
-def load_ownership(knowledge_dir: Path, agents_dir: Path) -> dict[str, Any] | None:
+def load_ownership(
+    knowledge_dir: Path,
+    agents_dir: Path,
+    expected_marker_hash: str | None,
+) -> dict[str, Any] | None:
     reject_symlink(knowledge_dir, "diretório de conhecimento")
     if not knowledge_dir.exists():
         return None
@@ -107,6 +120,8 @@ def load_ownership(knowledge_dir: Path, agents_dir: Path) -> dict[str, Any] | No
     reject_symlink(marker, "marker de ownership")
     if not marker.is_file():
         raise RuntimeError(f"diretório preexistente não gerenciado; marker ausente: {knowledge_dir}")
+    if expected_marker_hash is None or sha256_file(marker) != expected_marker_hash:
+        raise RuntimeError("integridade do marker não confere com o bloco gerenciado")
     try:
         metadata = json.loads(marker.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError) as exc:
@@ -118,7 +133,10 @@ def load_ownership(knowledge_dir: Path, agents_dir: Path) -> dict[str, Any] | No
     knowledge_files = metadata.get("knowledge_files")
     if not isinstance(agent_files, dict) or set(agent_files) != set(AGENTS.values()):
         raise RuntimeError("inventário de agents no marker é inválido")
-    if not isinstance(knowledge_files, list) or not all(isinstance(item, str) for item in knowledge_files):
+    if not isinstance(knowledge_files, dict) or not all(
+        isinstance(item, str) and isinstance(file_hash, str)
+        for item, file_hash in knowledge_files.items()
+    ):
         raise RuntimeError("inventário de conhecimento no marker é inválido")
     if any(Path(item).is_absolute() or ".." in Path(item).parts or not item.startswith("skills/") for item in knowledge_files):
         raise RuntimeError("marker contém caminho de conhecimento inseguro")
@@ -127,11 +145,16 @@ def load_ownership(knowledge_dir: Path, agents_dir: Path) -> dict[str, Any] | No
     for path in knowledge_dir.rglob("*"):
         reject_symlink(path, "entrada gerenciada")
         actual_entries.add(path.relative_to(knowledge_dir).as_posix())
-    expected_entries = expected_tree_entries(knowledge_files)
+    expected_entries = expected_tree_entries(list(knowledge_files))
     if actual_entries != expected_entries:
         extra = sorted(actual_entries - expected_entries)
         missing = sorted(expected_entries - actual_entries)
         raise RuntimeError(f"diretório gerenciado divergiu; extras={extra} ausentes={missing}")
+
+    for filename, expected_hash in knowledge_files.items():
+        knowledge_file = knowledge_dir / filename
+        if not knowledge_file.is_file() or sha256_file(knowledge_file) != expected_hash:
+            raise RuntimeError(f"arquivo de conhecimento gerenciado foi alterado: {knowledge_file}")
 
     for filename, expected_hash in agent_files.items():
         destination = agents_dir / filename
@@ -165,10 +188,10 @@ def render_payload(plugin_root: Path, codex_home: Path) -> tuple[dict[str, str],
         source.name: source.read_text(encoding="utf-8").replace("__CODEX_HOME__", rendered_home)
         for source in required_agents
     }
-    knowledge_files = sorted(
-        f"skills/{path.relative_to(source_skills).as_posix()}"
-        for path in source_skills.rglob("*") if path.is_file()
-    )
+    knowledge_files = {
+        f"skills/{path.relative_to(source_skills).as_posix()}": sha256_file(path)
+        for path in sorted(source_skills.rglob("*")) if path.is_file()
+    }
     metadata: dict[str, Any] = {
         "owner": OWNER,
         "format": MARKER_FORMAT,
@@ -218,7 +241,8 @@ def install(plugin_root: Path, codex_home: Path) -> None:
 
     original = config.read_text(encoding="utf-8") if config.exists() else ""
     managed_block = has_managed_block(original)
-    ownership = load_ownership(knowledge_dir, agents_dir)
+    current_marker_hash = extract_marker_hash(original)
+    ownership = load_ownership(knowledge_dir, agents_dir, current_marker_hash)
     if ownership is None:
         if managed_block:
             raise RuntimeError("bloco gerenciado existe sem marker de ownership")
@@ -233,6 +257,7 @@ def install(plugin_root: Path, codex_home: Path) -> None:
     unmanaged = remove_managed_block(original)
     assert_no_unmanaged_conflict(unmanaged)
     rendered_agents, _metadata, stage = render_payload(plugin_root, codex_home)
+    new_marker_hash = sha256_file(stage / MARKER_NAME)
 
     if config.exists() and not backup_config.exists():
         shutil.copy2(config, backup_config)
@@ -247,7 +272,11 @@ def install(plugin_root: Path, codex_home: Path) -> None:
     joined = bool(unmanaged) and not unmanaged.endswith("\n")
     begin = BEGIN_JOINED if joined else BEGIN
     separator = "\n" if joined else ""
-    new_content = unmanaged + separator + begin + "\n" + BLOCK_BODY + "\n" + END + "\n"
+    new_content = (
+        unmanaged + separator + begin + "\n"
+        + f'# marker_sha256 = "{new_marker_hash}"\n'
+        + BLOCK_BODY + "\n" + END + "\n"
+    )
     atomic_write(config, new_content)
     print(f"OK: agents instalados em {agents_dir}")
     print("MODELS: architect=gpt-5.6/max reviewer=gpt-5.6/max")
@@ -261,7 +290,8 @@ def uninstall(codex_home: Path) -> None:
 
     original = config.read_text(encoding="utf-8") if config.exists() else ""
     managed_block = has_managed_block(original)
-    ownership = load_ownership(knowledge_dir, agents_dir)
+    current_marker_hash = extract_marker_hash(original)
+    ownership = load_ownership(knowledge_dir, agents_dir, current_marker_hash)
     unmanaged_agent_exists = any((agents_dir / filename).exists() or (agents_dir / filename).is_symlink() for filename in AGENTS.values())
     if ownership is None:
         if managed_block or unmanaged_agent_exists:

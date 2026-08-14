@@ -251,6 +251,28 @@ def validate_codex() -> None:
         home = Path(tmp)
         cmd = [sys.executable, str(installer), "--codex-home", str(home)]
         result = subprocess.run(cmd, text=True, capture_output=True, timeout=30)
+        require(result.returncode == 0, f"install para tamper de knowledge falhou: {result.stderr}")
+        managed_skill = home / "agents/langgraph-architecture-knowledge/skills/langgraph-architecture-plan/SKILL.md"
+        managed_skill.write_text(managed_skill.read_text(encoding="utf-8") + "\nuser-change\n", encoding="utf-8")
+        result = subprocess.run([*cmd, "--uninstall"], text=True, capture_output=True, timeout=30)
+        require(result.returncode == 1, "uninstall deveria recusar knowledge gerenciado alterado")
+        require("user-change" in managed_skill.read_text(encoding="utf-8"), "uninstall destruiu knowledge alterado")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp)
+        cmd = [sys.executable, str(installer), "--codex-home", str(home)]
+        result = subprocess.run(cmd, text=True, capture_output=True, timeout=30)
+        require(result.returncode == 0, f"install para tamper de marker falhou: {result.stderr}")
+        marker = home / "agents/langgraph-architecture-knowledge/.langgraph-architecture-managed.json"
+        marker.write_text(marker.read_text(encoding="utf-8").replace('"format": 1', '"format": 2'), encoding="utf-8")
+        result = subprocess.run([*cmd, "--uninstall"], text=True, capture_output=True, timeout=30)
+        require(result.returncode == 1, "uninstall deveria recusar marker adulterado")
+        require(marker.is_file(), "uninstall removeu marker adulterado")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp)
+        cmd = [sys.executable, str(installer), "--codex-home", str(home)]
+        result = subprocess.run(cmd, text=True, capture_output=True, timeout=30)
         require(result.returncode == 0, f"install para teste de extra falhou: {result.stderr}")
         extra = home / "agents/langgraph-architecture-knowledge/user-extra.txt"
         extra.write_text("preserve", encoding="utf-8")
