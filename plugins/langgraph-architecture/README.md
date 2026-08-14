@@ -4,7 +4,7 @@ Plugin com duas skills e dois custom agents isolados:
 
 | Skill | Agente obrigatório | Modelo | Sandbox |
 |---|---|---|---|
-| `/langgraph-architecture-plan` | `langgraph_architect` | `gpt-5.6` + `max` | `workspace-write` limitado ao plano |
+| `/langgraph-architecture-plan` | `langgraph_architect` | `gpt-5.6` + `max` | `read-only`; o agente principal persiste o plano devolvido |
 | `/langgraph-repository-review` | `langgraph_reviewer` | `gpt-5.6` + `max` | `read-only` |
 
 ## Instalação
@@ -31,7 +31,7 @@ Remoção:
 python3 plugins/langgraph-architecture/scripts/install_codex_agents.py --uninstall
 ```
 
-O instalador é idempotente, preserva configuração preexistente, cria backup antes da primeira alteração e falha em conflito com roles não gerenciadas.
+O instalador é idempotente, preserva configuração preexistente, cria backup antes da primeira alteração e mantém um marker de ownership com hashes dos agents e inventário do bundle. Ele falha fechado diante de roles, arquivos ou diretórios não gerenciados, symlinks e conteúdo gerenciado alterado; o uninstall remove somente o payload comprovadamente pertencente ao plugin.
 
 ## Uso
 

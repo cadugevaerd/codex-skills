@@ -1,15 +1,21 @@
 #!/usr/bin/env python3
-"""Install/uninstall LangGraph Architecture custom agents for Codex."""
+"""Install/uninstall LangGraph Architecture custom agents for Codex safely."""
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
 import os
 from pathlib import Path
 import re
 import shutil
 import sys
 import tempfile
+from typing import Any
 
+OWNER = "langgraph-architecture"
+MARKER_NAME = ".langgraph-architecture-managed.json"
+MARKER_FORMAT = 1
 BEGIN = "# BEGIN langgraph-architecture plugin agents"
 BEGIN_JOINED = "# BEGIN langgraph-architecture plugin agents (original-no-final-newline)"
 END = "# END langgraph-architecture plugin agents"
@@ -18,7 +24,7 @@ AGENTS = {
     "langgraph_reviewer": "langgraph-reviewer.toml",
 }
 BLOCK_BODY = '''[agents.langgraph_architect]
-description = "Cria planos verificáveis de arquitetura LangGraph em contexto isolado."
+description = "Cria planos verificáveis de arquitetura LangGraph em contexto isolado e read-only."
 config_file = "agents/langgraph-architect.toml"
 
 [agents.langgraph_reviewer]
@@ -29,6 +35,10 @@ config_file = "agents/langgraph-reviewer.toml"'''
 def managed_pattern(begin: str, include_separator: bool = False) -> re.Pattern[str]:
     prefix = r"\n" if include_separator else ""
     return re.compile(rf"{prefix}{re.escape(begin)}.*?{re.escape(END)}\n?", re.S)
+
+
+def has_managed_block(content: str) -> bool:
+    return BEGIN in content or BEGIN_JOINED in content
 
 
 def remove_managed_block(content: str) -> str:
@@ -48,19 +58,92 @@ def atomic_write(path: Path, content: str) -> None:
             os.unlink(tmp_name)
 
 
+def sha256_bytes(content: bytes) -> str:
+    return hashlib.sha256(content).hexdigest()
+
+
+def sha256_file(path: Path) -> str:
+    return sha256_bytes(path.read_bytes())
+
+
+def reject_symlink(path: Path, label: str) -> None:
+    if path.is_symlink():
+        raise RuntimeError(f"{label} não pode ser symlink: {path}")
+
+
+def assert_regular_or_absent(path: Path, label: str) -> None:
+    reject_symlink(path, label)
+    if path.exists() and not path.is_file():
+        raise RuntimeError(f"{label} deve ser arquivo regular: {path}")
+
+
 def assert_no_unmanaged_conflict(content: str) -> None:
     conflicts = [
         role for role in AGENTS
-        if re.search(rf"(?m)^\s*\[agents\.{re.escape(role)}\]\s*$", content)
+        if re.search(rf"(?m)^\s*\[agents\.{re.escape(role)}(?:\.|\])", content)
     ]
     if conflicts:
         raise RuntimeError("roles já existentes fora do bloco gerenciado: " + ", ".join(conflicts))
 
 
-def install(plugin_root: Path, codex_home: Path) -> None:
-    config = codex_home / "config.toml"
-    agents_dir = codex_home / "agents"
-    knowledge_dir = agents_dir / "langgraph-architecture-knowledge"
+def expected_tree_entries(files: list[str]) -> set[str]:
+    entries = {MARKER_NAME, *files}
+    for filename in files:
+        parent = Path(filename).parent
+        while parent != Path("."):
+            entries.add(parent.as_posix())
+            parent = parent.parent
+    return entries
+
+
+def load_ownership(knowledge_dir: Path, agents_dir: Path) -> dict[str, Any] | None:
+    reject_symlink(knowledge_dir, "diretório de conhecimento")
+    if not knowledge_dir.exists():
+        return None
+    if not knowledge_dir.is_dir():
+        raise RuntimeError(f"caminho de conhecimento não é diretório: {knowledge_dir}")
+
+    marker = knowledge_dir / MARKER_NAME
+    reject_symlink(marker, "marker de ownership")
+    if not marker.is_file():
+        raise RuntimeError(f"diretório preexistente não gerenciado; marker ausente: {knowledge_dir}")
+    try:
+        metadata = json.loads(marker.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        raise RuntimeError(f"marker de ownership inválido: {exc}") from exc
+    if metadata.get("owner") != OWNER or metadata.get("format") != MARKER_FORMAT:
+        raise RuntimeError("marker pertence a outro owner ou formato")
+
+    agent_files = metadata.get("agent_files")
+    knowledge_files = metadata.get("knowledge_files")
+    if not isinstance(agent_files, dict) or set(agent_files) != set(AGENTS.values()):
+        raise RuntimeError("inventário de agents no marker é inválido")
+    if not isinstance(knowledge_files, list) or not all(isinstance(item, str) for item in knowledge_files):
+        raise RuntimeError("inventário de conhecimento no marker é inválido")
+    if any(Path(item).is_absolute() or ".." in Path(item).parts or not item.startswith("skills/") for item in knowledge_files):
+        raise RuntimeError("marker contém caminho de conhecimento inseguro")
+
+    actual_entries: set[str] = set()
+    for path in knowledge_dir.rglob("*"):
+        reject_symlink(path, "entrada gerenciada")
+        actual_entries.add(path.relative_to(knowledge_dir).as_posix())
+    expected_entries = expected_tree_entries(knowledge_files)
+    if actual_entries != expected_entries:
+        extra = sorted(actual_entries - expected_entries)
+        missing = sorted(expected_entries - actual_entries)
+        raise RuntimeError(f"diretório gerenciado divergiu; extras={extra} ausentes={missing}")
+
+    for filename, expected_hash in agent_files.items():
+        destination = agents_dir / filename
+        assert_regular_or_absent(destination, f"agent {filename}")
+        if not destination.is_file():
+            raise RuntimeError(f"agent gerenciado ausente: {destination}")
+        if not isinstance(expected_hash, str) or sha256_file(destination) != expected_hash:
+            raise RuntimeError(f"agent gerenciado foi alterado: {destination}")
+    return metadata
+
+
+def render_payload(plugin_root: Path, codex_home: Path) -> tuple[dict[str, str], dict[str, Any], Path]:
     source_agents = plugin_root / "agents"
     source_skills = plugin_root / "skills"
     required_agents = [source_agents / filename for filename in AGENTS.values()]
@@ -73,23 +156,93 @@ def install(plugin_root: Path, codex_home: Path) -> None:
     missing = [str(path) for path in [*required_agents, *required_skills] if not path.is_file()]
     if missing:
         raise RuntimeError("arquivos obrigatórios ausentes:\n- " + "\n- ".join(missing))
+    for source in [*required_agents, *source_skills.rglob("*")]:
+        if source.is_symlink():
+            raise RuntimeError(f"payload fonte contém symlink: {source}")
 
-    original = config.read_text(encoding="utf-8") if config.exists() else ""
-    unmanaged = remove_managed_block(original)
-    assert_no_unmanaged_conflict(unmanaged)
+    rendered_home = codex_home.as_posix().replace('"', '\\"')
+    rendered_agents = {
+        source.name: source.read_text(encoding="utf-8").replace("__CODEX_HOME__", rendered_home)
+        for source in required_agents
+    }
+    knowledge_files = sorted(
+        f"skills/{path.relative_to(source_skills).as_posix()}"
+        for path in source_skills.rglob("*") if path.is_file()
+    )
+    metadata: dict[str, Any] = {
+        "owner": OWNER,
+        "format": MARKER_FORMAT,
+        "agent_files": {
+            filename: sha256_bytes(content.encode("utf-8"))
+            for filename, content in rendered_agents.items()
+        },
+        "knowledge_files": knowledge_files,
+    }
+
+    agents_dir = codex_home / "agents"
+    stage = Path(tempfile.mkdtemp(prefix=".langgraph-architecture-stage-", dir=agents_dir))
+    try:
+        shutil.copytree(source_skills, stage / "skills")
+        atomic_write(stage / MARKER_NAME, json.dumps(metadata, ensure_ascii=False, indent=2) + "\n")
+    except Exception:
+        shutil.rmtree(stage, ignore_errors=True)
+        raise
+    return rendered_agents, metadata, stage
+
+
+def replace_knowledge(knowledge_dir: Path, stage: Path, managed_before: bool) -> None:
+    if not managed_before:
+        os.replace(stage, knowledge_dir)
+        return
+    backup = Path(tempfile.mkdtemp(prefix=".langgraph-architecture-old-", dir=knowledge_dir.parent))
+    backup.rmdir()
+    os.replace(knowledge_dir, backup)
+    try:
+        os.replace(stage, knowledge_dir)
+    except Exception:
+        os.replace(backup, knowledge_dir)
+        raise
+    shutil.rmtree(backup)
+
+
+def install(plugin_root: Path, codex_home: Path) -> None:
+    config = codex_home / "config.toml"
+    backup_config = codex_home / "config.toml.bak-langgraph-architecture"
+    agents_dir = codex_home / "agents"
+    knowledge_dir = agents_dir / "langgraph-architecture-knowledge"
 
     codex_home.mkdir(parents=True, exist_ok=True)
     agents_dir.mkdir(parents=True, exist_ok=True)
-    if config.exists() and not (codex_home / "config.toml.bak-langgraph-architecture").exists():
-        shutil.copy2(config, codex_home / "config.toml.bak-langgraph-architecture")
+    assert_regular_or_absent(config, "config.toml")
+    assert_regular_or_absent(backup_config, "backup config.toml")
 
-    rendered_home = codex_home.as_posix().replace('"', '\\"')
-    for source in required_agents:
-        rendered = source.read_text(encoding="utf-8").replace("__CODEX_HOME__", rendered_home)
-        atomic_write(agents_dir / source.name, rendered)
-    if knowledge_dir.exists():
-        shutil.rmtree(knowledge_dir)
-    shutil.copytree(source_skills, knowledge_dir / "skills")
+    original = config.read_text(encoding="utf-8") if config.exists() else ""
+    managed_block = has_managed_block(original)
+    ownership = load_ownership(knowledge_dir, agents_dir)
+    if ownership is None:
+        if managed_block:
+            raise RuntimeError("bloco gerenciado existe sem marker de ownership")
+        for filename in AGENTS.values():
+            destination = agents_dir / filename
+            reject_symlink(destination, f"agent {filename}")
+            if destination.exists():
+                raise RuntimeError(f"agent preexistente não gerenciado: {destination}")
+    elif not managed_block:
+        raise RuntimeError("marker de ownership existe sem bloco gerenciado")
+
+    unmanaged = remove_managed_block(original)
+    assert_no_unmanaged_conflict(unmanaged)
+    rendered_agents, _metadata, stage = render_payload(plugin_root, codex_home)
+
+    if config.exists() and not backup_config.exists():
+        shutil.copy2(config, backup_config)
+    try:
+        for filename, rendered in rendered_agents.items():
+            atomic_write(agents_dir / filename, rendered)
+        replace_knowledge(knowledge_dir, stage, managed_before=ownership is not None)
+    finally:
+        if stage.exists():
+            shutil.rmtree(stage, ignore_errors=True)
 
     joined = bool(unmanaged) and not unmanaged.endswith("\n")
     begin = BEGIN_JOINED if joined else BEGIN
@@ -103,15 +256,26 @@ def install(plugin_root: Path, codex_home: Path) -> None:
 def uninstall(codex_home: Path) -> None:
     config = codex_home / "config.toml"
     agents_dir = codex_home / "agents"
+    knowledge_dir = agents_dir / "langgraph-architecture-knowledge"
+    assert_regular_or_absent(config, "config.toml")
+
+    original = config.read_text(encoding="utf-8") if config.exists() else ""
+    managed_block = has_managed_block(original)
+    ownership = load_ownership(knowledge_dir, agents_dir)
+    unmanaged_agent_exists = any((agents_dir / filename).exists() or (agents_dir / filename).is_symlink() for filename in AGENTS.values())
+    if ownership is None:
+        if managed_block or unmanaged_agent_exists:
+            raise RuntimeError("estado parcial ou não gerenciado; uninstall recusado")
+        print(f"OK: agents LangGraph Architecture já ausentes de {codex_home}")
+        return
+    if not managed_block:
+        raise RuntimeError("marker de ownership existe sem bloco gerenciado")
+
     if config.exists():
-        atomic_write(config, remove_managed_block(config.read_text(encoding="utf-8")))
+        atomic_write(config, remove_managed_block(original))
     for filename in AGENTS.values():
-        path = agents_dir / filename
-        if path.exists():
-            path.unlink()
-    knowledge = agents_dir / "langgraph-architecture-knowledge"
-    if knowledge.exists():
-        shutil.rmtree(knowledge)
+        (agents_dir / filename).unlink()
+    shutil.rmtree(knowledge_dir)
     print(f"OK: agents LangGraph Architecture removidos de {codex_home}")
 
 

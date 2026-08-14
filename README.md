@@ -82,7 +82,7 @@ ficam disponíveis imediatamente. Para registrar os agentes isolados
 python3 plugins/langgraph-architecture/scripts/install_codex_agents.py
 ```
 
-O Architect usa `gpt-5.6`/`max` e só cria o plano; o Reviewer usa o mesmo modelo
+O Architect usa `gpt-5.6`/`max` em sandbox `read-only`, devolve o plano integral e o agente principal apenas o persiste; o Reviewer usa o mesmo modelo
 topo de linha em sandbox `read-only`. Sem os roles instalados, as skills retornam
 `BLOCKED` em vez de fazer fallback genérico.
 

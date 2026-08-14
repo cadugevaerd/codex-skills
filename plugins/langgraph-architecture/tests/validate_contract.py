@@ -68,7 +68,24 @@ def validate_common(runtime: str) -> None:
         for path in PLUGIN.rglob("*")
         if path.is_file()
     }
-    require(COMMON_PATHS <= actual, f"bundle comum incompleto: {COMMON_PATHS - actual}")
+    runtime_paths = (
+        {
+            ".codex-plugin/plugin.json",
+            "README.md",
+            "agents/langgraph-architect.toml",
+            "agents/langgraph-reviewer.toml",
+            "scripts/install_codex_agents.py",
+        }
+        if runtime == "codex"
+        else {
+            ".claude-plugin/plugin.json",
+            "README.md",
+            "agents/langgraph-architect.md",
+            "agents/langgraph-reviewer.md",
+        }
+    )
+    expected_paths = COMMON_PATHS | runtime_paths
+    require(actual == expected_paths, f"payload divergente; extras={actual - expected_paths} ausentes={expected_paths - actual}")
 
     minimum_markers = [
         "quality_gate", "thread_id", "user_id", "trimming", "summarization",
@@ -119,7 +136,7 @@ def validate_codex() -> None:
     agent_files = sorted(path.name for path in (PLUGIN / "agents").glob("*.toml"))
     require(agent_files == ["langgraph-architect.toml", "langgraph-reviewer.toml"], f"agents Codex inesperados: {agent_files}")
     expected = {
-        "langgraph-architect.toml": ("langgraph_architect", "workspace-write"),
+        "langgraph-architect.toml": ("langgraph_architect", "read-only"),
         "langgraph-reviewer.toml": ("langgraph_reviewer", "read-only"),
     }
     for filename, (name, sandbox) in expected.items():
@@ -153,6 +170,10 @@ def validate_codex() -> None:
             rendered = (home / "agents" / filename).read_text(encoding="utf-8")
             require("__CODEX_HOME__" not in rendered, f"placeholder não renderizado: {filename}")
             require(home.resolve().as_posix() in rendered, f"CODEX_HOME ativo ausente: {filename}")
+        marker = home / "agents/langgraph-architecture-knowledge/.langgraph-architecture-managed.json"
+        marker_data = json.loads(marker.read_text(encoding="utf-8"))
+        require(marker_data.get("owner") == PLUGIN_NAME, "marker de ownership inválido")
+        require(set(marker_data.get("agent_files", {})) == set(installed), "marker não possui inventário exato de agents")
         for rel in COMMON_PATHS:
             if rel.startswith("skills/"):
                 require((home / "agents/langgraph-architecture-knowledge" / rel).is_file(), f"conhecimento ausente: {rel}")
@@ -182,6 +203,60 @@ def validate_codex() -> None:
         result = subprocess.run([sys.executable, str(installer), "--codex-home", str(home)], text=True, capture_output=True, timeout=30)
         require(result.returncode == 1, "conflito unmanaged deveria falhar")
         require(config.read_text(encoding="utf-8") == conflict, "conflito alterou config")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp)
+        agents = home / "agents"
+        agents.mkdir()
+        existing = agents / "langgraph-architect.toml"
+        existing.write_text("custom-agent", encoding="utf-8")
+        result = subprocess.run([sys.executable, str(installer), "--codex-home", str(home)], text=True, capture_output=True, timeout=30)
+        require(result.returncode == 1, "agent preexistente não gerenciado deveria bloquear")
+        require(existing.read_text(encoding="utf-8") == "custom-agent", "agent preexistente foi sobrescrito")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp)
+        agents = home / "agents"
+        agents.mkdir()
+        external = home / "external.toml"
+        external.write_text("external-safe", encoding="utf-8")
+        (agents / "langgraph-architect.toml").symlink_to(external)
+        result = subprocess.run([sys.executable, str(installer), "--codex-home", str(home)], text=True, capture_output=True, timeout=30)
+        require(result.returncode == 1, "symlink de agent deveria bloquear")
+        require(external.read_text(encoding="utf-8") == "external-safe", "alvo externo do symlink foi alterado")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp)
+        knowledge = home / "agents/langgraph-architecture-knowledge"
+        knowledge.mkdir(parents=True)
+        user_file = knowledge / "user-data.txt"
+        user_file.write_text("preserve", encoding="utf-8")
+        result = subprocess.run([sys.executable, str(installer), "--codex-home", str(home)], text=True, capture_output=True, timeout=30)
+        require(result.returncode == 1, "knowledge preexistente sem marker deveria bloquear")
+        require(user_file.read_text(encoding="utf-8") == "preserve", "knowledge preexistente foi destruído")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp)
+        cmd = [sys.executable, str(installer), "--codex-home", str(home)]
+        result = subprocess.run(cmd, text=True, capture_output=True, timeout=30)
+        require(result.returncode == 0, f"install para teste de tamper falhou: {result.stderr}")
+        managed_agent = home / "agents/langgraph-reviewer.toml"
+        managed_agent.write_text("tampered", encoding="utf-8")
+        result = subprocess.run([*cmd, "--uninstall"], text=True, capture_output=True, timeout=30)
+        require(result.returncode == 1, "uninstall deveria recusar agent gerenciado alterado")
+        require(managed_agent.read_text(encoding="utf-8") == "tampered", "uninstall removeu agent alterado")
+        require((home / "agents/langgraph-architecture-knowledge").is_dir(), "uninstall removeu ownership após tamper")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp)
+        cmd = [sys.executable, str(installer), "--codex-home", str(home)]
+        result = subprocess.run(cmd, text=True, capture_output=True, timeout=30)
+        require(result.returncode == 0, f"install para teste de extra falhou: {result.stderr}")
+        extra = home / "agents/langgraph-architecture-knowledge/user-extra.txt"
+        extra.write_text("preserve", encoding="utf-8")
+        result = subprocess.run([*cmd, "--uninstall"], text=True, capture_output=True, timeout=30)
+        require(result.returncode == 1, "uninstall deveria recusar conteúdo não gerenciado")
+        require(extra.read_text(encoding="utf-8") == "preserve", "uninstall destruiu conteúdo não gerenciado")
 
 
 def validate_claude() -> None:

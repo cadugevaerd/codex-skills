@@ -63,7 +63,7 @@ O agente arquiteto deve inspecionar o repositório antes de propor mudanças e r
 
 ## Formato obrigatório do plano
 
-O agente deve criar `LANGGRAPH-ARCHITECTURE-PLAN.md` na raiz indicada, salvo caminho diferente solicitado, e também devolver o Markdown integral ao agente principal. Se o runtime mantiver as alterações do subagente apenas no worktree isolado, o agente principal pode persistir **exatamente** o artefato devolvido no caminho combinado, sem reescrever, completar ou certificar o conteúdo. O plano deve conter:
+O agente deve produzir o conteúdo integral de `LANGGRAPH-ARCHITECTURE-PLAN.md` e devolvê-lo ao agente principal. Quando o sandbox permitir, ele também pode criar o arquivo no caminho combinado. Se o arquivo não existir no workspace principal — inclusive porque o agente é read-only ou usa worktree isolado — o agente principal deve persistir **exatamente** o Markdown devolvido, sem reescrever, completar ou certificar o conteúdo. Essa persistência mecânica é a única escrita permitida fora do subagente. O plano deve conter:
 
 1. `Status e escopo`
 2. `Evidências do estado atual`
