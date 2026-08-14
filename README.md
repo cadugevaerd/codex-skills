@@ -17,6 +17,7 @@ plugin individual.
 | `modelos-custo-beneficio` | Consulta OpenRouter e lista até 5 candidatos para Model Engineering Eval, com inteligência Artificial Analysis >35 via OpenRouter Benchmarks, reasoning controlável, throughput p75/p50 ≥60 t/s e variantes `:exacto`/`:nitro`; não decide runtime. |
 | `facilitador-reunioes` | Cria convites, objetivos claros, pré-briefing, roteiro de condução e próximos passos para reuniões objetivas. |
 | `langsmith-evals` | Cria e compara prompts e projeta, executa e audita evals LangSmith-first. Inclui Prompt Engineer, Evals Engineer e Auditor, fixados em `gpt-5.6-terra`. |
+| `langgraph-architecture` | Planeja arquiteturas LangGraph e revisa repositórios existentes por duas skills que delegam obrigatoriamente a Architect e Reviewer isolados, fixados em `gpt-5.6` com reasoning `max`. |
 | `prompt-only-agent` | Faz uma entrevista curta, uma pergunta por vez, e entrega um system prompt em Markdown pronto para copiar e colar para um agente sem ferramentas. |
 | `qa-planner` | Analisa requisitos e diff da branch, define estratégia e cria `QA.md` rastreável para outra IA executar — sem rodar testes. |
 | `levantamento-requisitos` | Levanta evidências, lacunas, decisões, critérios de aceite e riscos; entrega handoff verificável antes da implementação. |
@@ -40,6 +41,7 @@ codex plugin add rag-kag-decision@codex-skills
 codex plugin add modelos-custo-beneficio@codex-skills
 codex plugin add facilitador-reunioes@codex-skills
 codex plugin add langsmith-evals@codex-skills
+codex plugin add langgraph-architecture@codex-skills
 codex plugin add prompt-only-agent@codex-skills
 codex plugin add qa-planner@codex-skills
 codex plugin add levantamento-requisitos@codex-skills
@@ -72,6 +74,18 @@ python3 plugins/langsmith-evals/scripts/install_codex_agents.py
 O instalador é idempotente, mantém backup do `config.toml`, fixa
 `model = "gpt-5.6-terra"` nos tres agentes e oferece `--uninstall`.
 
+As skills `/langgraph-architecture-plan` e `/langgraph-repository-review` também
+ficam disponíveis imediatamente. Para registrar os agentes isolados
+`langgraph_architect` e `langgraph_reviewer`, execute:
+
+```bash
+python3 plugins/langgraph-architecture/scripts/install_codex_agents.py
+```
+
+O Architect usa `gpt-5.6`/`max` em sandbox `read-only`, devolve o plano integral e o agente principal apenas o persiste; o Reviewer usa o mesmo modelo
+topo de linha em sandbox `read-only`. Sem os roles instalados, as skills retornam
+`BLOCKED` em vez de fazer fallback genérico.
+
 Para listar o catalogo:
 
 ```bash
@@ -84,6 +98,8 @@ codex plugin list --marketplace codex-skills
 /prompt-only-agent criar um agente que transforme notas de reunião em resumo executivo
 /whatsapp-business-platform modo=provider planejar onboarding multiempresa
 /whatsapp-business-platform modo=coexistence verificar App manual + Cloud API
+/langgraph-architecture-plan repo=. planeje um chatbot corporativo com RAG
+/langgraph-repository-review repo=. revise esta implementação e liste os problemas
 ```
 
 O `/prompt-only-agent` coleta apenas as decisões essenciais, uma pergunta por vez, e retorna somente o system prompt final em Markdown, pronto para copiar, com no máximo **8.000 caracteres**.
@@ -190,6 +206,13 @@ plugins/
     agents/*.toml
     scripts/install_codex_agents.py
     skills/langsmith-evals/
+  langgraph-architecture/
+    .codex-plugin/plugin.json
+    agents/*.toml
+    scripts/install_codex_agents.py
+    skills/langgraph-architecture-plan/
+    skills/langgraph-repository-review/
+    tests/validate_contract.py
   prompt-only-agent/
     .codex-plugin/plugin.json
     skills/prompt-only-agent/SKILL.md
