@@ -1,0 +1,27 @@
+{
+  "name": "langgraph-architecture",
+  "version": "1.0.0",
+  "description": "Planeja e revisa arquiteturas LangGraph com dois agentes isolados topo de linha: Architect e Reviewer.",
+  "author": {
+    "name": "Carlos Araujo",
+    "email": "cadu.gevaerd@gmail.com",
+    "url": "https://github.com/cadugevaerd"
+  },
+  "homepage": "https://github.com/cadugevaerd/codex-skills",
+  "repository": "https://github.com/cadugevaerd/codex-skills",
+  "license": "MIT",
+  "keywords": ["langgraph", "architecture", "review", "agents", "rag", "memory", "evals"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "LangGraph Architecture",
+    "shortDescription": "Planeja e revisa LangGraph com agentes isolados.",
+    "longDescription": "Inclui duas skills que delegam obrigatoriamente ao LangGraph Architect e ao LangGraph Reviewer, fixados em gpt-5.6 com reasoning max. Garante contexto, memória, grounding, quality gate, limites, observabilidade e evals mínimos.",
+    "developerName": "Carlos Araujo",
+    "category": "Development",
+    "capabilities": ["LangGraph Architecture", "Repository Review", "RAG", "Memory", "Agent Evaluation"],
+    "defaultPrompt": [
+      "/langgraph-architecture-plan repo=. planeje a arquitetura conversacional",
+      "/langgraph-repository-review repo=. revise esta implementação LangGraph"
+    ]
+  }
+}
