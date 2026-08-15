@@ -14,6 +14,29 @@ def run(*args):
 
 
 class FoundationCtlTests(unittest.TestCase):
+    def test_modular_summary(self):
+        with tempfile.TemporaryDirectory() as d:
+            plan = Path(d) / "foundation.json"
+            self.assertEqual(run("init", plan).returncode, 0)
+            result = run("summary", plan)
+            self.assertEqual(result.returncode, 0)
+            self.assertIn("DECISION: modular", result.stdout)
+            self.assertIn("MOD MOD-001", result.stdout)
+            self.assertIn("COUNTS: MVP=1 GO-LIVE=0 FUTURE=0", result.stdout)
+
+    def test_single_module_valid_and_invalid(self):
+        with tempfile.TemporaryDirectory() as d:
+            plan = Path(d) / "foundation.json"
+            data = json.loads(VALID.read_text())
+            data["decomposition"] = {"mode":"single-module", "rationale":"Small bounded release.", "boundaries":["MOD-001"], "review_triggers":["second team joins"], "decision_status":"proposed"}
+            plan.write_text(json.dumps(data))
+            result = run("summary", plan)
+            self.assertEqual(result.returncode, 0)
+            self.assertIn("JUSTIFICATION", result.stdout)
+            data["decomposition"]["rationale"] = ""
+            plan.write_text(json.dumps(data))
+            self.assertNotEqual(run("validate", plan).returncode, 0)
+
     def test_init_validate_patch_and_audit(self):
         with tempfile.TemporaryDirectory() as d:
             plan = Path(d) / "foundation.json"

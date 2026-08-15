@@ -2,22 +2,34 @@
 """Deterministic foundation state CLI; stdlib only."""
 import argparse, copy, datetime as dt, json, os, re, tempfile, uuid
 from pathlib import Path
-
 STATUSES={"existing","missing","invalid","not-verifiable","necessary"}; CONF={"verified","inferred","unknown"}
 def load(p):
     with open(p, encoding="utf-8") as f: return json.load(f)
-def atomic(p, data):
-    p=Path(p); p.parent.mkdir(parents=True,exist_ok=True)
-    fd,tmp=tempfile.mkstemp(prefix=f".{p.name}.",dir=p.parent); os.close(fd)
+def atomic(p,data):
+    p=Path(p); p.parent.mkdir(parents=True,exist_ok=True); fd,tmp=tempfile.mkstemp(prefix=f".{p.name}.",dir=p.parent); os.close(fd)
     try:
-        with open(tmp,"w",encoding="utf-8") as f: json.dump(data,f,indent=2,ensure_ascii=False); f.write("\n"); os.replace(tmp,p)
+        with open(tmp,"w",encoding="utf-8") as f: json.dump(data,f,indent=2,ensure_ascii=False); f.write("\n")
+        os.replace(tmp,p)
     finally:
         if os.path.exists(tmp): os.unlink(tmp)
 def validate(d):
     errs=[]
-    if not isinstance(d,dict) or d.get("schema_version")!="1.1.0": errs.append("schema_version must be 1.1.0")
-    for k in ("project","modules","recommendations","open_questions","change_log"):
+    if not isinstance(d,dict) or d.get("schema_version")!="1.2.0": errs.append("schema_version must be 1.2.0")
+    for k in ("project","decomposition","modules","recommendations","open_questions","change_log"):
         if k not in d: errs.append(f"missing top-level field: {k}")
+    dec=d.get("decomposition")
+    if not isinstance(dec,dict): errs.append("decomposition must be an object")
+    else:
+        if dec.get("mode") not in {"modular","single-module"}: errs.append("decomposition.mode must be modular or single-module")
+        for k in ("rationale","boundaries","review_triggers","decision_status"):
+            if k not in dec: errs.append(f"missing decomposition field: {k}")
+        if not isinstance(dec.get("boundaries"),list): errs.append("decomposition.boundaries must be an array")
+        if not isinstance(dec.get("review_triggers"),list): errs.append("decomposition.review_triggers must be an array")
+        if dec.get("mode")=="modular" and not dec.get("boundaries"): errs.append("modular decomposition requires boundaries")
+        if dec.get("mode")=="single-module":
+            if not isinstance(dec.get("rationale"),str) or not dec.get("rationale"): errs.append("single-module decomposition requires rationale")
+            if not dec.get("review_triggers"): errs.append("single-module decomposition requires review_triggers")
+        if dec.get("decision_status") not in {"proposed","approved","blocked"}: errs.append("invalid decomposition decision_status")
     ids=[]; mods=d.get("modules",[])
     if not isinstance(mods,list): errs.append("modules must be an array"); mods=[]
     for m in mods:
@@ -29,22 +41,24 @@ def validate(d):
         if m.get("status") not in STATUSES: errs.append(f"invalid status for {mid}")
         if m.get("confidence") not in CONF: errs.append(f"invalid confidence for {mid}")
         if not isinstance(m.get("evidence"),list): errs.append(f"evidence must be array for {mid}")
+    if isinstance(dec,dict) and isinstance(dec.get("boundaries"),list):
+        for ref in dec["boundaries"]:
+            if ref not in set(ids): errs.append(f"boundary {ref} is not a module")
     r=d.get("recommendations",{})
     if not isinstance(r,dict) or r.get("decision_status") not in {"proposed","approved","blocked"}: errs.append("invalid recommendation decision_status")
-    refs=set(ids)
     if isinstance(r,dict):
         for phase in ("mvp","go_live","future"):
             for x in r.get(phase,[]):
-                if x not in refs: errs.append(f"recommendation {x} is not a module")
+                if x not in set(ids): errs.append(f"recommendation {x} is not a module")
     return errs
 def pointer_parts(path):
     if not path.startswith("/"): raise ValueError("JSON Pointer must start with /")
-    return [x.replace("~1","/").replace("~0","~") for x in path[1:].split("/") if x!=""]
-def resolve(doc, parts):
+    return [x.replace("~1","/").replace("~0","~") for x in path[1:].split("/") if x]
+def resolve(doc,parts):
     cur=doc
     for p in parts: cur=cur[int(p)] if isinstance(cur,list) else cur[p]
     return cur
-def patch_one(doc, op):
+def patch_one(doc,op):
     typ,path=op.get("op"),op.get("path"); parts=pointer_parts(path)
     if typ=="test":
         if resolve(doc,parts)!=op.get("value"): raise ValueError(f"test failed at {path}")
@@ -57,30 +71,35 @@ def patch_one(doc, op):
         if typ=="add": parent.insert(i,copy.deepcopy(op["value"]))
         elif typ=="remove": parent.pop(i)
         else: parent[i]=copy.deepcopy(op["value"])
-    else:
-        if typ=="remove": del parent[key]
-        elif typ=="replace" and key not in parent: raise ValueError(f"missing path {path}")
-        else: parent[key]=copy.deepcopy(op["value"])
+    elif typ=="remove": del parent[key]
+    elif typ=="replace" and key not in parent: raise ValueError(f"missing path {path}")
+    else: parent[key]=copy.deepcopy(op["value"])
+def summary(d):
+    dec=d["decomposition"]; r=d["recommendations"]; mods={m["id"]:m for m in d["modules"]}; lines=["+="+"="*68+"+", "| FOUNDATION DECOMPOSITION SUMMARY"+" "*37+"|", "+-"+"-"*68+"+"]
+    lines.append(f"| DECISION: {dec['mode']} / {dec['decision_status']}"+" "* (68-len(f"| DECISION: {dec['mode']} / {dec['decision_status']}"))+"|")
+    for mid in sorted(mods):
+        m=mods[mid]; horizon=next((p for p in ("mvp","go_live","future") if mid in r.get(p,[])),"unassigned"); text=f"| MOD {mid} | {m['name']} | {horizon} | {m['status']}"; lines.append(text+" "*(69-len(text))+"|")
+    lines += ["+-"+"-"*68+"+", f"| COUNTS: MVP={len(r.get('mvp',[]))} GO-LIVE={len(r.get('go_live',[]))} FUTURE={len(r.get('future',[]))}"+" "* (68-len(f"| COUNTS: MVP={len(r.get('mvp',[]))} GO-LIVE={len(r.get('go_live',[]))} FUTURE={len(r.get('future',[]))}"))+"|"]
+    if dec["mode"]=="single-module": lines += [f"| JUSTIFICATION: {dec['rationale']}"[:69].ljust(69)+"|", f"| TRIGGERS: {', '.join(dec['review_triggers'])}"[:69].ljust(69)+"|"]
+    lines.append("+="+"="*68+"+"); return "\n".join(lines)
 def main():
-    ap=argparse.ArgumentParser(); sub=ap.add_subparsers(dest="cmd",required=True)
-    i=sub.add_parser("init"); i.add_argument("path"); i.add_argument("--project",default="Example")
-    v=sub.add_parser("validate"); v.add_argument("path")
-    q=sub.add_parser("apply-patch"); q.add_argument("path"); q.add_argument("patch")
-    a=ap.parse_args()
+    ap=argparse.ArgumentParser(); sub=ap.add_subparsers(dest="cmd",required=True); i=sub.add_parser("init"); i.add_argument("path"); i.add_argument("--project",default="Example"); v=sub.add_parser("validate"); v.add_argument("path"); s=sub.add_parser("summary"); s.add_argument("path"); q=sub.add_parser("apply-patch"); q.add_argument("path"); q.add_argument("patch"); a=ap.parse_args()
     try:
-        if a.cmd=="init":
-            d=load(Path(__file__).parents[1]/"templates/foundation.json"); d["project"]["name"]=a.project; d["project"]["root"]=str(Path(a.path).parent); atomic(a.path,d); print(json.dumps({"ok":True,"path":a.path}))
-        elif a.cmd=="validate":
-            e=validate(load(a.path)); print(json.dumps({"valid":not e,"errors":e},ensure_ascii=False)); return 0 if not e else 1
-        else:
-            d=load(a.path); ops=load(a.patch)
+        d=None; e=[]
+        if a.cmd=="init": d=load(Path(__file__).parents[1]/"templates/foundation.json"); d["project"]["name"]=a.project; d["project"]["root"]=str(Path(a.path).parent); atomic(a.path,d); print(json.dumps({"ok":True,"path":a.path}))
+        elif a.cmd=="validate": e=validate(load(a.path)); print(json.dumps({"valid":not e,"errors":e},ensure_ascii=False)); return 0 if not e else 1
+        elif a.cmd=="summary":
+            d=load(a.path); e=validate(d)
+            if e: raise ValueError("semantic validation failed: "+"; ".join(e))
+            print(summary(d)); return 0
+        elif a.cmd=="apply-patch":
+            d=load(a.path); ops=load(a.patch); trial=copy.deepcopy(d)
             if not isinstance(ops,list): raise ValueError("patch must be an array")
-            trial=copy.deepcopy(d)
             for op in ops: patch_one(trial,op)
             errors=validate(trial)
             if errors: raise ValueError("semantic validation failed: "+"; ".join(errors))
             now=dt.datetime.now(dt.timezone.utc).isoformat(); existing={x.get("id") for x in d.get("change_log",[])}
-            for n,op in enumerate(ops):
+            for op in ops:
                 cid="CHG-"+uuid.uuid4().hex[:12].upper()
                 while cid in existing: cid="CHG-"+uuid.uuid4().hex[:12].upper()
                 existing.add(cid); trial["change_log"].append({"id":cid,"at":now,"operation":op["op"],"path":op["path"]})
