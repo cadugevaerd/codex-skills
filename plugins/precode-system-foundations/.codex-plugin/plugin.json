@@ -1,0 +1,43 @@
+{
+  "name": "precode-system-foundations",
+  "version": "1.0.0",
+  "description": "Cria uma fundação de produto revisável antes do código: PRD, módulos, permissões, invariantes de dados, isolamento multiusuário e fases.",
+  "author": {
+    "name": "Carlos Araujo",
+    "email": "cadu.gevaerd@gmail.com",
+    "url": "https://github.com/cadugevaerd"
+  },
+  "homepage": "https://github.com/cadugevaerd/codex-skills",
+  "repository": "https://github.com/cadugevaerd/codex-skills",
+  "license": "MIT",
+  "keywords": [
+    "prd",
+    "product-discovery",
+    "architecture",
+    "modules",
+    "authorization",
+    "database",
+    "multiuser",
+    "planning"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Precode System Foundations",
+    "shortDescription": "Estrutura um produto antes da implementação.",
+    "longDescription": "Transforma uma ideia de sistema em PRD, módulos, regras de acesso, invariantes de dados, separação multiusuário e plano por fases verificáveis.",
+    "developerName": "Carlos Araujo",
+    "category": "Development",
+    "capabilities": [
+      "PRD",
+      "Product Modules",
+      "Architecture",
+      "Authorization",
+      "Data Invariants",
+      "Implementation Planning"
+    ],
+    "defaultPrompt": [
+      "/precode-system-foundations Planeje um produto SaaS multiusuário antes de codificar.",
+      "/precode-system-foundations Crie a fundação do sistema, com módulos, permissões e fases."
+    ]
+  }
+}

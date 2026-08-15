@@ -18,6 +18,7 @@ plugin individual.
 | `facilitador-reunioes` | Cria convites, objetivos claros, pré-briefing, roteiro de condução e próximos passos para reuniões objetivas. |
 | `langsmith-evals` | Cria e compara prompts e projeta, executa e audita evals LangSmith-first. Inclui Prompt Engineer, Evals Engineer e Auditor, fixados em `gpt-5.6-terra`. |
 | `langgraph-architecture` | Planeja arquiteturas LangGraph e revisa repositórios existentes por duas skills que delegam obrigatoriamente a Architect e Reviewer isolados, fixados em `gpt-5.6` com reasoning `max`. |
+| `precode-system-foundations` | Estrutura um produto antes do código: PRD, módulos, permissões, invariantes de dados, isolamento multiusuário e plano por fases verificáveis. |
 | `prompt-only-agent` | Faz uma entrevista curta, uma pergunta por vez, e entrega um system prompt em Markdown pronto para copiar e colar para um agente sem ferramentas. |
 | `qa-planner` | Analisa requisitos e diff da branch, define estratégia e cria `QA.md` rastreável para outra IA executar — sem rodar testes. |
 | `levantamento-requisitos` | Levanta evidências, lacunas, decisões, critérios de aceite e riscos; entrega handoff verificável antes da implementação. |
@@ -42,6 +43,7 @@ codex plugin add modelos-custo-beneficio@codex-skills
 codex plugin add facilitador-reunioes@codex-skills
 codex plugin add langsmith-evals@codex-skills
 codex plugin add langgraph-architecture@codex-skills
+codex plugin add precode-system-foundations@codex-skills
 codex plugin add prompt-only-agent@codex-skills
 codex plugin add qa-planner@codex-skills
 codex plugin add levantamento-requisitos@codex-skills
