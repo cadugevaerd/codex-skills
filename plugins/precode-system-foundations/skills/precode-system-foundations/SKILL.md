@@ -1,7 +1,7 @@
 ---
 name: precode-system-foundations
 description: Inspeciona evidências de um projeto e mantém uma fundação pré-código corrigível, sem converter inferência em decisão.
-version: 1.1.0
+version: 1.2.0
 author: Hermes
 ---
 # Pre-code System Foundations
@@ -15,9 +15,14 @@ Use antes de implementar. Inspecione o repositório (código, testes e docs) e r
 4. Recomende separadamente `mvp`, `go_live` e `future`; use `decision_status: proposed` até aprovação explícita. Perguntas abertas bloqueiam decisões materiais.
 5. Valide semanticamente e entregue uma leitura que permita correção posterior.
 
+## Decomposição visível (obrigatória)
+
+Todo bundle contém `decomposition` com `mode` (`modular` ou `single-module`), `rationale`, `boundaries`, `review_triggers` e `decision_status`. Modular exige boundaries que referenciem módulos existentes; single-module exige justificativa e gatilhos de revisão. A decisão permanece explícita e revisável.
+
 ## CLI
 `python3 scripts/foundationctl.py init foundation.json --project Nome`
 `python3 scripts/foundationctl.py validate foundation.json`
 `python3 scripts/foundationctl.py apply-patch foundation.json patch.json`
+`python3 scripts/foundationctl.py summary foundation.json`
 
 O CLI aceita JSON Patch limitado a `add`, `remove`, `replace` e `test`, aplica em cópia, rejeita qualquer estado inválido e grava atomicamente. IDs de módulos seguem `MOD-NNN`; IDs de mudanças são únicos. O bundle é framework/database-neutral: não invente componentes, autorização, invariantes ou isolamento sem evidência. A fundação não é aprovação de produção.

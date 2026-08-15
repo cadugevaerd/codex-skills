@@ -1,6 +1,7 @@
 {
-  "schema_version": "1.1.0",
+  "schema_version": "1.2.0",
   "project": {"id": "project-001", "name": "Example", "root": "."},
+  "decomposition": {"mode": "modular", "rationale": "Separate reviewable product boundaries.", "boundaries": ["MOD-001"], "review_triggers": ["new cross-module dependency"], "decision_status": "proposed"},
   "modules": [
     {"id": "MOD-001", "name": "Requirements", "required": true, "status": "existing", "evidence": ["docs/requirements.md"], "confidence": "verified", "notes": ""}
   ],

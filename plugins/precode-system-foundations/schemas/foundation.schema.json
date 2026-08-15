@@ -1,14 +1,12 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "type": "object",
-  "required": ["schema_version", "project", "modules", "recommendations", "open_questions", "change_log"],
-  "properties": {
-    "schema_version": {"const": "1.1.0"},
-    "project": {"type":"object", "required":["id","name","root"], "properties":{"id":{"type":"string","minLength":1},"name":{"type":"string","minLength":1},"root":{"type":"string","minLength":1}}, "additionalProperties":false},
-    "modules": {"type":"array", "items":{"type":"object", "required":["id","name","required","status","evidence","confidence","notes"], "properties":{"id":{"type":"string","pattern":"^MOD-[0-9]{3,}$"},"name":{"type":"string","minLength":1},"required":{"type":"boolean"},"status":{"enum":["existing","missing","invalid","not-verifiable","necessary"]},"evidence":{"type":"array","items":{"type":"string"}},"confidence":{"enum":["verified","inferred","unknown"]},"notes":{"type":"string"}}, "additionalProperties":false}},
-    "recommendations": {"type":"object", "required":["mvp","go_live","future","decision_status"], "properties":{"mvp":{"type":"array","items":{"type":"string"}},"go_live":{"type":"array","items":{"type":"string"}},"future":{"type":"array","items":{"type":"string"}},"decision_status":{"enum":["proposed","approved","blocked"]}}, "additionalProperties":false},
-    "open_questions": {"type":"array", "items":{"type":"object", "required":["id","question","owner"], "properties":{"id":{"type":"string"},"question":{"type":"string","minLength":1},"owner":{"type":"string","minLength":1}}, "additionalProperties":false}},
-    "change_log": {"type":"array", "items":{"type":"object", "required":["id","at","operation","path"], "properties":{"id":{"type":"string"},"at":{"type":"string"},"operation":{"type":"string"},"path":{"type":"string"}}, "additionalProperties":false}}
-  },
-  "additionalProperties": false
+  "$schema":"https://json-schema.org/draft/2020-12/schema","type":"object",
+  "required":["schema_version","project","decomposition","modules","recommendations","open_questions","change_log"],
+  "properties":{
+    "schema_version":{"const":"1.2.0"},
+    "project":{"type":"object","required":["id","name","root"],"properties":{"id":{"type":"string","minLength":1},"name":{"type":"string","minLength":1},"root":{"type":"string","minLength":1}},"additionalProperties":false},
+    "decomposition":{"type":"object","required":["mode","rationale","boundaries","review_triggers","decision_status"],"properties":{"mode":{"enum":["modular","single-module"]},"rationale":{"type":"string"},"boundaries":{"type":"array","items":{"type":"string"}},"review_triggers":{"type":"array","items":{"type":"string"}},"decision_status":{"enum":["proposed","approved","blocked"]}},"additionalProperties":false},
+    "modules":{"type":"array","items":{"type":"object","required":["id","name","required","status","evidence","confidence","notes"],"properties":{"id":{"type":"string","pattern":"^MOD-[0-9]{3,}$"},"name":{"type":"string","minLength":1},"required":{"type":"boolean"},"status":{"enum":["existing","missing","invalid","not-verifiable","necessary"]},"evidence":{"type":"array","items":{"type":"string"}},"confidence":{"enum":["verified","inferred","unknown"]},"notes":{"type":"string"}},"additionalProperties":false}},
+    "recommendations":{"type":"object","required":["mvp","go_live","future","decision_status"],"properties":{"mvp":{"type":"array","items":{"type":"string"}},"go_live":{"type":"array","items":{"type":"string"}},"future":{"type":"array","items":{"type":"string"}},"decision_status":{"enum":["proposed","approved","blocked"]}},"additionalProperties":false},
+    "open_questions":{"type":"array"},"change_log":{"type":"array"}
+  },"additionalProperties":false
 }
