@@ -242,7 +242,7 @@
         "path": "./plugins/precode-system-foundations"
       },
       "description": "Cria uma fundação de produto revisável antes do código: PRD, módulos, permissões, invariantes de dados, isolamento multiusuário e fases.",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "policy": {
         "installation": "AVAILABLE",
         "authentication": "ON_INSTALL"
