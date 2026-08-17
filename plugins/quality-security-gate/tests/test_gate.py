@@ -9,6 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 CLI = ROOT / "plugins/quality-security-gate/scripts/quality_gatectl.py"
 HOOK = ROOT / "plugins/quality-security-gate/scripts/project_context_hook.py"
+HOOK_CONFIG = ROOT / "plugins/quality-security-gate/hooks/hooks.json"
 
 
 def run_cli(repo: Path, *args: str):
@@ -89,6 +90,14 @@ class QualityGateTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertEqual(self.payload(result)["verdict"], "BLOCKED")
         self.assertFalse((self.repo / ".quality-gate").exists())
+
+    def test_hook_configuration_wraps_each_event_in_hooks_array(self):
+        config = json.loads(HOOK_CONFIG.read_text(encoding="utf-8"))
+        for event in ("SessionStart", "SubagentStart"):
+            entries = config["hooks"][event]
+            self.assertEqual(len(entries), 1)
+            self.assertIsInstance(entries[0]["hooks"], list)
+            self.assertEqual(entries[0]["hooks"][0]["type"], "command")
 
     def test_hook_returns_json_without_write(self):
         before = sorted(p.relative_to(self.repo).as_posix() for p in self.repo.rglob("*") if ".git" not in p.parts)

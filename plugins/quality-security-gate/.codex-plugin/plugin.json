@@ -1,6 +1,6 @@
 {
   "name": "quality-security-gate",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Audita e acompanha localmente o Gate de Qualidade e Segurança com análise determinística, nível de risco e status persistido por projeto.",
   "author": {
     "name": "Carlos Araujo",
@@ -10,7 +10,14 @@
   "homepage": "https://github.com/cadugevaerd/codex-skills",
   "repository": "https://github.com/cadugevaerd/codex-skills",
   "license": "MIT",
-  "keywords": ["quality", "security", "devsecops", "sast", "supply-chain", "gate"],
+  "keywords": [
+    "quality",
+    "security",
+    "devsecops",
+    "sast",
+    "supply-chain",
+    "gate"
+  ],
   "skills": "./skills/",
   "interface": {
     "displayName": "Quality Security Gate",
@@ -18,7 +25,15 @@
     "longDescription": "Lê instruções do projeto, classifica risco P1/P2/P3 e persiste uma análise auditável em .quality-gate/, sem alterar CI ou configurações.",
     "developerName": "Carlos Araujo",
     "category": "Development",
-    "capabilities": ["Quality Gate", "Security", "Risk Classification", "Status"],
-    "defaultPrompt": ["/quality-security-gate analyze --root /caminho/do/projeto", "/quality-security-gate status --root /caminho/do/projeto"]
+    "capabilities": [
+      "Quality Gate",
+      "Security",
+      "Risk Classification",
+      "Status"
+    ],
+    "defaultPrompt": [
+      "/quality-security-gate analyze --root /caminho/do/projeto",
+      "/quality-security-gate status --root /caminho/do/projeto"
+    ]
   }
 }
