@@ -24,7 +24,7 @@ plugin individual.
 | `levantamento-requisitos` | Levanta evidências, lacunas, decisões, critérios de aceite e riscos; entrega handoff verificável antes da implementação. |
 | `whatsapp-business-platform` | Projeta e opera integrações oficiais Meta: Cloud API, Technology Provider, Embedded Signup v4, Coexistence App+API, múltiplas WABAs/números, webhooks e tokens. |
 | `caveman-stable` | Mantém respostas Codex curtas, diretas e estáveis, com reinjeção após início, retomada, limpeza e compactação. |
-| `quality-security-gate` | Analisa e acompanha o Gate de Qualidade e Segurança por projeto; classifica risco, registra pendências e persiste o status em `.quality-gate/`. |
+| `quality-security-gate` | Audita gates de qualidade e segurança em modo estritamente read-only, com risco P1/P2/P3, 12 investigadores isolados e evidência estruturada. |
 
 ## Instalacao local
 
@@ -135,11 +135,24 @@ evidências reais em `QA-RESULTS.md`.
 ## Uso do quality-security-gate
 
 ```text
+/quality-security-gate plan --root /caminho/do/projeto
 /quality-security-gate analyze --root /caminho/do/projeto
 /quality-security-gate status --root /caminho/do/projeto
 ```
 
-`analyze` lê `AGENTS.md`/`CLAUDE.md`, classifica o risco P1/P2/P3 e atualiza o estado auditável do projeto em `.quality-gate/`. `status` é somente leitura: mostra drift, pendências, bloqueadores e o próximo módulo. O plugin não altera CI, secrets, branch rules ou código.
+Todos os comandos são read-only no repositório-alvo. O plugin lê as instruções, classifica risco P1/P2/P3, distribui MOD-001..012 e consolida evidência atual em `GO`, `NO-GO` ou `BLOCKED`; não altera CI, secrets, branch rules, configuração ou código.
+
+Para registrar os 12 agentes especializados no Codex, execute o instalador idempotente e reinicie a sessão:
+
+```bash
+python3 plugins/quality-security-gate/scripts/install_codex_agents.py
+```
+
+Remoção segura:
+
+```bash
+python3 plugins/quality-security-gate/scripts/install_codex_agents.py --uninstall
+```
 
 ## Uso do code-debug
 

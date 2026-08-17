@@ -1,0 +1,966 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/quality-security-gate/consolidated-report.schema.json",
+  "title": "Quality Security Gate consolidated report v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "plugin_version",
+    "snapshot",
+    "risk",
+    "required_gates",
+    "modules",
+    "verdict",
+    "investigator_tasks",
+    "global_failures"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "2.0"
+    },
+    "plugin_version": {
+      "const": "0.2.0"
+    },
+    "snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "root",
+        "fingerprint",
+        "instructions"
+      ],
+      "properties": {
+        "root": {
+          "type": "string",
+          "pattern": "^/"
+        },
+        "fingerprint": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "instructions": {
+          "type": "array"
+        }
+      }
+    },
+    "risk": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile",
+        "factors"
+      ],
+      "properties": {
+        "profile": {
+          "enum": [
+            "P1",
+            "P2",
+            "P3"
+          ]
+        },
+        "factors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "required_gates": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 5,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^GATE-00[1-5]$"
+      }
+    },
+    "modules": {
+      "type": "array",
+      "minItems": 12,
+      "maxItems": 12,
+      "prefixItems": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "name",
+            "status",
+            "outcome",
+            "automation_state",
+            "evidence",
+            "gates",
+            "finding",
+            "correction"
+          ],
+          "properties": {
+            "id": {
+              "const": "MOD-001"
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "status": {
+              "enum": [
+                "NOT_EVALUATED",
+                "EVALUATED"
+              ]
+            },
+            "outcome": {
+              "enum": [
+                "PASS",
+                "FAIL",
+                "BLOCKED",
+                "N/A"
+              ]
+            },
+            "automation_state": {
+              "enum": [
+                "AUTOMATED_ENFORCED",
+                "AUTOMATED_NOT_ENFORCED",
+                "AUTOMATED_UNVERIFIED",
+                "MANUAL",
+                "ABSENT",
+                "UNKNOWN"
+              ]
+            },
+            "evidence": {
+              "type": "array"
+            },
+            "gates": {
+              "type": "array"
+            },
+            "finding": {
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "correction": {
+              "type": "object"
+            },
+            "applicability": {
+              "type": [
+                "object",
+                "null"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "name",
+            "status",
+            "outcome",
+            "automation_state",
+            "evidence",
+            "gates",
+            "finding",
+            "correction"
+          ],
+          "properties": {
+            "id": {
+              "const": "MOD-002"
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "status": {
+              "enum": [
+                "NOT_EVALUATED",
+                "EVALUATED"
+              ]
+            },
+            "outcome": {
+              "enum": [
+                "PASS",
+                "FAIL",
+                "BLOCKED",
+                "N/A"
+              ]
+            },
+            "automation_state": {
+              "enum": [
+                "AUTOMATED_ENFORCED",
+                "AUTOMATED_NOT_ENFORCED",
+                "AUTOMATED_UNVERIFIED",
+                "MANUAL",
+                "ABSENT",
+                "UNKNOWN"
+              ]
+            },
+            "evidence": {
+              "type": "array"
+            },
+            "gates": {
+              "type": "array"
+            },
+            "finding": {
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "correction": {
+              "type": "object"
+            },
+            "applicability": {
+              "type": [
+                "object",
+                "null"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "name",
+            "status",
+            "outcome",
+            "automation_state",
+            "evidence",
+            "gates",
+            "finding",
+            "correction"
+          ],
+          "properties": {
+            "id": {
+              "const": "MOD-003"
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "status": {
+              "enum": [
+                "NOT_EVALUATED",
+                "EVALUATED"
+              ]
+            },
+            "outcome": {
+              "enum": [
+                "PASS",
+                "FAIL",
+                "BLOCKED",
+                "N/A"
+              ]
+            },
+            "automation_state": {
+              "enum": [
+                "AUTOMATED_ENFORCED",
+                "AUTOMATED_NOT_ENFORCED",
+                "AUTOMATED_UNVERIFIED",
+                "MANUAL",
+                "ABSENT",
+                "UNKNOWN"
+              ]
+            },
+            "evidence": {
+              "type": "array"
+            },
+            "gates": {
+              "type": "array"
+            },
+            "finding": {
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "correction": {
+              "type": "object"
+            },
+            "applicability": {
+              "type": [
+                "object",
+                "null"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "name",
+            "status",
+            "outcome",
+            "automation_state",
+            "evidence",
+            "gates",
+            "finding",
+            "correction"
+          ],
+          "properties": {
+            "id": {
+              "const": "MOD-004"
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "status": {
+              "enum": [
+                "NOT_EVALUATED",
+                "EVALUATED"
+              ]
+            },
+            "outcome": {
+              "enum": [
+                "PASS",
+                "FAIL",
+                "BLOCKED",
+                "N/A"
+              ]
+            },
+            "automation_state": {
+              "enum": [
+                "AUTOMATED_ENFORCED",
+                "AUTOMATED_NOT_ENFORCED",
+                "AUTOMATED_UNVERIFIED",
+                "MANUAL",
+                "ABSENT",
+                "UNKNOWN"
+              ]
+            },
+            "evidence": {
+              "type": "array"
+            },
+            "gates": {
+              "type": "array"
+            },
+            "finding": {
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "correction": {
+              "type": "object"
+            },
+            "applicability": {
+              "type": [
+                "object",
+                "null"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "name",
+            "status",
+            "outcome",
+            "automation_state",
+            "evidence",
+            "gates",
+            "finding",
+            "correction"
+          ],
+          "properties": {
+            "id": {
+              "const": "MOD-005"
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "status": {
+              "enum": [
+                "NOT_EVALUATED",
+                "EVALUATED"
+              ]
+            },
+            "outcome": {
+              "enum": [
+                "PASS",
+                "FAIL",
+                "BLOCKED",
+                "N/A"
+              ]
+            },
+            "automation_state": {
+              "enum": [
+                "AUTOMATED_ENFORCED",
+                "AUTOMATED_NOT_ENFORCED",
+                "AUTOMATED_UNVERIFIED",
+                "MANUAL",
+                "ABSENT",
+                "UNKNOWN"
+              ]
+            },
+            "evidence": {
+              "type": "array"
+            },
+            "gates": {
+              "type": "array"
+            },
+            "finding": {
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "correction": {
+              "type": "object"
+            },
+            "applicability": {
+              "type": [
+                "object",
+                "null"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "name",
+            "status",
+            "outcome",
+            "automation_state",
+            "evidence",
+            "gates",
+            "finding",
+            "correction"
+          ],
+          "properties": {
+            "id": {
+              "const": "MOD-006"
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "status": {
+              "enum": [
+                "NOT_EVALUATED",
+                "EVALUATED"
+              ]
+            },
+            "outcome": {
+              "enum": [
+                "PASS",
+                "FAIL",
+                "BLOCKED",
+                "N/A"
+              ]
+            },
+            "automation_state": {
+              "enum": [
+                "AUTOMATED_ENFORCED",
+                "AUTOMATED_NOT_ENFORCED",
+                "AUTOMATED_UNVERIFIED",
+                "MANUAL",
+                "ABSENT",
+                "UNKNOWN"
+              ]
+            },
+            "evidence": {
+              "type": "array"
+            },
+            "gates": {
+              "type": "array"
+            },
+            "finding": {
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "correction": {
+              "type": "object"
+            },
+            "applicability": {
+              "type": [
+                "object",
+                "null"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "name",
+            "status",
+            "outcome",
+            "automation_state",
+            "evidence",
+            "gates",
+            "finding",
+            "correction"
+          ],
+          "properties": {
+            "id": {
+              "const": "MOD-007"
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "status": {
+              "enum": [
+                "NOT_EVALUATED",
+                "EVALUATED"
+              ]
+            },
+            "outcome": {
+              "enum": [
+                "PASS",
+                "FAIL",
+                "BLOCKED",
+                "N/A"
+              ]
+            },
+            "automation_state": {
+              "enum": [
+                "AUTOMATED_ENFORCED",
+                "AUTOMATED_NOT_ENFORCED",
+                "AUTOMATED_UNVERIFIED",
+                "MANUAL",
+                "ABSENT",
+                "UNKNOWN"
+              ]
+            },
+            "evidence": {
+              "type": "array"
+            },
+            "gates": {
+              "type": "array"
+            },
+            "finding": {
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "correction": {
+              "type": "object"
+            },
+            "applicability": {
+              "type": [
+                "object",
+                "null"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "name",
+            "status",
+            "outcome",
+            "automation_state",
+            "evidence",
+            "gates",
+            "finding",
+            "correction"
+          ],
+          "properties": {
+            "id": {
+              "const": "MOD-008"
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "status": {
+              "enum": [
+                "NOT_EVALUATED",
+                "EVALUATED"
+              ]
+            },
+            "outcome": {
+              "enum": [
+                "PASS",
+                "FAIL",
+                "BLOCKED",
+                "N/A"
+              ]
+            },
+            "automation_state": {
+              "enum": [
+                "AUTOMATED_ENFORCED",
+                "AUTOMATED_NOT_ENFORCED",
+                "AUTOMATED_UNVERIFIED",
+                "MANUAL",
+                "ABSENT",
+                "UNKNOWN"
+              ]
+            },
+            "evidence": {
+              "type": "array"
+            },
+            "gates": {
+              "type": "array"
+            },
+            "finding": {
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "correction": {
+              "type": "object"
+            },
+            "applicability": {
+              "type": [
+                "object",
+                "null"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "name",
+            "status",
+            "outcome",
+            "automation_state",
+            "evidence",
+            "gates",
+            "finding",
+            "correction"
+          ],
+          "properties": {
+            "id": {
+              "const": "MOD-009"
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "status": {
+              "enum": [
+                "NOT_EVALUATED",
+                "EVALUATED"
+              ]
+            },
+            "outcome": {
+              "enum": [
+                "PASS",
+                "FAIL",
+                "BLOCKED",
+                "N/A"
+              ]
+            },
+            "automation_state": {
+              "enum": [
+                "AUTOMATED_ENFORCED",
+                "AUTOMATED_NOT_ENFORCED",
+                "AUTOMATED_UNVERIFIED",
+                "MANUAL",
+                "ABSENT",
+                "UNKNOWN"
+              ]
+            },
+            "evidence": {
+              "type": "array"
+            },
+            "gates": {
+              "type": "array"
+            },
+            "finding": {
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "correction": {
+              "type": "object"
+            },
+            "applicability": {
+              "type": [
+                "object",
+                "null"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "name",
+            "status",
+            "outcome",
+            "automation_state",
+            "evidence",
+            "gates",
+            "finding",
+            "correction"
+          ],
+          "properties": {
+            "id": {
+              "const": "MOD-010"
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "status": {
+              "enum": [
+                "NOT_EVALUATED",
+                "EVALUATED"
+              ]
+            },
+            "outcome": {
+              "enum": [
+                "PASS",
+                "FAIL",
+                "BLOCKED",
+                "N/A"
+              ]
+            },
+            "automation_state": {
+              "enum": [
+                "AUTOMATED_ENFORCED",
+                "AUTOMATED_NOT_ENFORCED",
+                "AUTOMATED_UNVERIFIED",
+                "MANUAL",
+                "ABSENT",
+                "UNKNOWN"
+              ]
+            },
+            "evidence": {
+              "type": "array"
+            },
+            "gates": {
+              "type": "array"
+            },
+            "finding": {
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "correction": {
+              "type": "object"
+            },
+            "applicability": {
+              "type": [
+                "object",
+                "null"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "name",
+            "status",
+            "outcome",
+            "automation_state",
+            "evidence",
+            "gates",
+            "finding",
+            "correction"
+          ],
+          "properties": {
+            "id": {
+              "const": "MOD-011"
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "status": {
+              "enum": [
+                "NOT_EVALUATED",
+                "EVALUATED"
+              ]
+            },
+            "outcome": {
+              "enum": [
+                "PASS",
+                "FAIL",
+                "BLOCKED",
+                "N/A"
+              ]
+            },
+            "automation_state": {
+              "enum": [
+                "AUTOMATED_ENFORCED",
+                "AUTOMATED_NOT_ENFORCED",
+                "AUTOMATED_UNVERIFIED",
+                "MANUAL",
+                "ABSENT",
+                "UNKNOWN"
+              ]
+            },
+            "evidence": {
+              "type": "array"
+            },
+            "gates": {
+              "type": "array"
+            },
+            "finding": {
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "correction": {
+              "type": "object"
+            },
+            "applicability": {
+              "type": [
+                "object",
+                "null"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "name",
+            "status",
+            "outcome",
+            "automation_state",
+            "evidence",
+            "gates",
+            "finding",
+            "correction"
+          ],
+          "properties": {
+            "id": {
+              "const": "MOD-012"
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "status": {
+              "enum": [
+                "NOT_EVALUATED",
+                "EVALUATED"
+              ]
+            },
+            "outcome": {
+              "enum": [
+                "PASS",
+                "FAIL",
+                "BLOCKED",
+                "N/A"
+              ]
+            },
+            "automation_state": {
+              "enum": [
+                "AUTOMATED_ENFORCED",
+                "AUTOMATED_NOT_ENFORCED",
+                "AUTOMATED_UNVERIFIED",
+                "MANUAL",
+                "ABSENT",
+                "UNKNOWN"
+              ]
+            },
+            "evidence": {
+              "type": "array"
+            },
+            "gates": {
+              "type": "array"
+            },
+            "finding": {
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "correction": {
+              "type": "object"
+            },
+            "applicability": {
+              "type": [
+                "object",
+                "null"
+              ]
+            }
+          }
+        }
+      ],
+      "items": false
+    },
+    "verdict": {
+      "enum": [
+        "GO",
+        "NO-GO",
+        "BLOCKED"
+      ]
+    },
+    "investigator_tasks": {
+      "type": "array",
+      "minItems": 12,
+      "maxItems": 12,
+      "items": {
+        "type": "object",
+        "required": [
+          "task_id",
+          "module_id",
+          "snapshot",
+          "allowed_gates",
+          "read_only",
+          "strict_json"
+        ]
+      }
+    },
+    "global_failures": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "outcome",
+          "reason"
+        ],
+        "properties": {
+          "id": {
+            "const": "GATE-000"
+          },
+          "outcome": {
+            "const": "BLOCKED"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          },
+          "details": {
+            "type": "array"
+          }
+        }
+      }
+    }
+  }
+}
