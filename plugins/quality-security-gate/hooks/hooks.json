@@ -1,6 +1,24 @@
 {
   "hooks": {
-    "SessionStart": [{"type":"command","command":"python3 \"${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/scripts/project_context_hook.py\""}],
-    "SubagentStart": [{"type":"command","command":"python3 \"${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/scripts/project_context_hook.py\""}]
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/scripts/project_context_hook.py\""
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/scripts/project_context_hook.py\""
+          }
+        ]
+      }
+    ]
   }
 }
