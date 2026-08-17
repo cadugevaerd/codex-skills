@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/quality-security-gate/module-result.schema.json",
+  "title": "Quality Security Gate module result v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["module_id", "snapshot", "outcome", "automation_state", "evidence", "gates", "finding", "correction"],
+  "properties": {
+    "module_id": {"type": "string", "pattern": "^MOD-(00[1-9]|01[0-2])$"},
+    "snapshot": {"$ref": "#/$defs/snapshot"},
+    "outcome": {"enum": ["PASS", "FAIL", "BLOCKED", "N/A"]},
+    "automation_state": {"enum": ["AUTOMATED_ENFORCED", "AUTOMATED_NOT_ENFORCED", "AUTOMATED_UNVERIFIED", "MANUAL", "ABSENT", "UNKNOWN"]},
+    "evidence": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/evidence"}},
+    "gates": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/gate"}
+    },
+    "finding": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/finding"}]},
+    "correction": {"$ref": "#/$defs/correction"},
+    "applicability": {"$ref": "#/$defs/applicability"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"outcome": {"const": "FAIL"}}},
+      "then": {"properties": {"finding": {"$ref": "#/$defs/finding"}}}
+    },
+    {
+      "if": {"properties": {"outcome": {"const": "N/A"}}},
+      "then": {"required": ["applicability"]}
+    }
+  ],
+  "$defs": {
+    "snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["root", "fingerprint", "instructions"],
+      "properties": {
+        "root": {"type": "string", "pattern": "^/"},
+        "fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "instructions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "status"],
+            "properties": {
+              "path": {"type": "string", "minLength": 1},
+              "status": {"enum": ["present", "absent", "unreadable", "changed_during_read"]},
+              "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "size": {"type": "integer", "minimum": 0},
+              "encoding": {"const": "utf-8"},
+              "read_at": {"type": "integer", "minimum": 0},
+              "signals": {"type": "array", "uniqueItems": true, "items": {"enum": ["production", "personal data", "payment", "public api", "iam"]}}
+            }
+          }
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_type", "source", "locator", "digest", "observed"],
+      "properties": {
+        "source_type": {"enum": ["file", "config", "command", "ci", "api"]},
+        "source": {"type": "string", "minLength": 1},
+        "locator": {"type": "string", "minLength": 1},
+        "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "observed": {"type": "string", "minLength": 1},
+        "tool": {"type": "string", "minLength": 1},
+        "version": {"type": "string", "minLength": 1},
+        "exit_code": {"type": "integer"}
+      }
+    },
+    "gate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "outcome", "automation_state", "evidence"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^GATE-00[1-5]$"},
+        "outcome": {"enum": ["PASS", "FAIL", "BLOCKED", "N/A"]},
+        "automation_state": {"enum": ["AUTOMATED_ENFORCED", "AUTOMATED_NOT_ENFORCED", "AUTOMATED_UNVERIFIED", "MANUAL", "ABSENT", "UNKNOWN"]},
+        "evidence": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/evidence"}}
+      }
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "severity", "summary", "cause", "impact"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^MOD-(00[1-9]|01[0-2])-F[0-9]{3}$"},
+        "severity": {"enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"]},
+        "summary": {"type": "string", "minLength": 1},
+        "cause": {"type": "string", "minLength": 1},
+        "impact": {"type": "string", "minLength": 1}
+      }
+    },
+    "correction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["target", "action", "acceptance", "post_fix_validation"],
+      "properties": {
+        "target": {"type": "string", "minLength": 1},
+        "action": {"type": "string", "minLength": 1},
+        "acceptance": {"type": "string", "minLength": 1},
+        "post_fix_validation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "procedure"],
+          "properties": {
+            "status": {"const": "NOT_RUN"},
+            "procedure": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}
+          }
+        }
+      }
+    },
+    "applicability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "rationale", "evidence"],
+      "properties": {
+        "status": {"const": "NOT_APPLICABLE"},
+        "rationale": {"type": "string", "minLength": 1},
+        "evidence": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/evidence"}}
+      }
+    }
+  }
+}
