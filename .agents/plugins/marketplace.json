@@ -196,11 +196,11 @@
         "source": "git-subdir",
         "url": "https://github.com/cadugevaerd/grill-with-docs.git",
         "path": "plugin",
-        "ref": "v6.0.0",
-        "sha": "29c96681b714ac7ca827e79a5c4ba405795f71f2"
+        "ref": "v6.0.1",
+        "sha": "74d2968924335176ae31144682c098b3230dcac8"
       },
       "description": "Entrega hotfixes por uma faixa rápida e verificável; reconciliação incremental com receipts fail-closed.",
-      "version": "6.0.0",
+      "version": "6.0.1",
       "policy": {
         "installation": "AVAILABLE",
         "authentication": "ON_INSTALL"
