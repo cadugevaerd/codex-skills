@@ -31,4 +31,6 @@ Configuração inválida → leitura sem validação → exceção → falha do 
 ## Limitações/incertezas
 - Nenhuma para o sintoma reproduzido.
 
+- Instrumentação: branch `diagnostic/example`, SHA `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`, execução `123`; somente coleta de leitura. Branch e sonda removidas; delta diagnóstico zero, com alterações preexistentes preservadas.
+
 Diagnóstico encerrado. Nenhuma correção foi executada.

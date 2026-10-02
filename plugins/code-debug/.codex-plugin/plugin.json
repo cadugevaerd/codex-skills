@@ -1,6 +1,6 @@
 {
   "name": "code-debug",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Diagnostico diagnose-only: reproduz falhas, coleta evidencias, testa hipoteses e entrega relatorio de causa raiz sem executar correcoes.",
   "author": {
     "name": "Carlos Araujo",

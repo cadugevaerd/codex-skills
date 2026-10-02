@@ -30,4 +30,6 @@ A cadeia causal não pode ser fechada com os dados disponíveis.
 ## Limitações/incertezas
 - Falta telemetria do estado concorrente no instante da divergência.
 
+- Instrumentação: branch `diagnostic/example`, SHA `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`, execução `123`; somente coleta de leitura. Branch e sonda removidas; delta diagnóstico zero, com alterações preexistentes preservadas.
+
 Diagnóstico encerrado. Nenhuma correção foi executada.

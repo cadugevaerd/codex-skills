@@ -21,9 +21,21 @@ reproduzir → coletar evidências → testar hipóteses → concluir → relat�
 - Hipóteses são permitidas apenas como itens testáveis; elas não são conclusão.
 - Se a causa raiz não puder ser comprovada, declare `causa raiz não comprovada ainda` e registre a evidência que falta.
 - Quando a causa raiz estiver comprovada, encerre a investigação após restaurar apenas a instrumentação temporária criada por esta execução e emitir o relatório.
-- Não editar código, configuração, testes ou documentação como correção; não aplicar patch de produto; não validar fix; não criar commit, PR ou backlog; não investigar melhorias ou causas secundárias; não sugerir comandos de correção.
+- Não editar código, configuração, testes ou documentação como correção; não aplicar patch de produto; não validar fix; não criar commit de correção, PR ou backlog; não investigar melhorias ou causas secundárias; não sugerir comandos de correção.
 - Se o usuário pedir “debugue e corrija” na mesma invocação, execute somente o diagnóstico. Correção exige nova solicitação ou outro workflow.
 - Não criar opção `--diagnose`: diagnóstico puro já é o comportamento padrão.
+
+## Instrumentação que depende da CI
+
+Quando probes locais não conseguem observar a falha e a coleta exige um runner remoto:
+
+- Permitir commit e push exclusivamente de instrumentação temporária, somente quando indispensáveis ao diagnóstico e cobertos pela autorização da sessão. Não pedir confirmação novamente quando essa autorização já existir; autorização para investigar não autoriza alterações remotas que estejam fora do escopo acordado.
+- Usar branch exclusiva, baseada no estado inicial registrado. Conferir o diff antes do commit: incluir apenas a sonda, testes sintéticos e conexão ao workflow diagnóstico; nunca incluir correções, arquivos locais ou credenciais. Preservar alterações preexistentes.
+- Antes do push, conferir os eventos dos workflows. Executar somente coleta de leitura, com permissões mínimas, sem habilitar publicação, deploy ou validação de uma correção. Não alterar Secrets, permissões, tags, Releases ou imagens; não criar PR ou merge durante o diagnóstico.
+- Preferir os clientes e dependências existentes. Registrar somente metadados necessários e validados; nunca imprimir tokens, headers de autorização, respostas completas ou exceções externas que possam conter segredos.
+- Registrar branch, SHA e ID/URL da execução. Após coletar evidências, remover somente a instrumentação e as branches criadas nesta investigação, inclusive se o diagnóstico for inconclusivo. Conferir que nenhum terceiro alterou a branch antes de removê-la; não reescrever histórico compartilhado.
+- Confirmar o delta diagnóstico zero no checkout original, preservando a sujeira preexistente. Registros imutáveis da execução remota podem permanecer como evidência. Se a limpeza não puder ser concluída com segurança, informar exatamente o resíduo nas limitações; não declarar restauração completa.
+- No relatório, registrar instrumentação, execução e resultado da limpeza em **Arquivos envolvidos** e **Limitações/incertezas**. Uma investigação sem evidência suficiente continua com `causa raiz não comprovada ainda`.
 
 ## Entrada esperada
 
@@ -61,7 +73,7 @@ Se faltar o comando de reprodução, tente inferi-lo pelo projeto — README, sc
 
 5. **Instrumentar somente quando necessário**
    - Prefira probes, logs temporários ou reprodução isolada que não alterem o produto.
-   - Se uma edição temporária for indispensável, faça-a mínima e reversível e registre o delta criado.
+   - Se uma edição temporária for indispensável, faça-a mínima e reversível e registre o delta criado. Se depender de commit/push e runner remoto, seguir **Instrumentação que depende da CI**.
    - Antes do relatório, remova exclusivamente a instrumentação criada por esta execução e confirme que o delta diagnóstico voltou a zero, preservando a sujeira preexistente.
 
 6. **Comprovar ou limitar a conclusão**

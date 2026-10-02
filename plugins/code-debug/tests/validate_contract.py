@@ -98,7 +98,7 @@ def assert_no_fix_promise(value: str, source: object) -> None:
 
 def validate_manifest(path: Path) -> None:
     data = load_json(path)
-    assert data["version"] == "1.1.0", path
+    assert data["version"] == "1.2.0", path
     assert "diagn" in data["description"].lower(), path
     assert_no_fix_promise(data["description"], path)
 
@@ -117,7 +117,13 @@ require(
         "Correção exige nova solicitação ou outro workflow.",
         "não aplicar patch de produto",
         "não validar fix",
-        "não criar commit, PR ou backlog",
+        "não criar commit de correção, PR ou backlog",
+        "## Instrumentação que depende da CI",
+        "autorização da sessão",
+        "Não pedir confirmação novamente",
+        "branch exclusiva",
+        "inclusive se o diagnóstico for inconclusivo",
+        "Não alterar Secrets, permissões, tags, Releases ou imagens",
         "não sugerir comandos de correção",
         "preservando a sujeira preexistente",
         "causa raiz não comprovada ainda",
@@ -166,7 +172,7 @@ elif claude_marketplace.is_file():
         for item in load_json(claude_marketplace)["plugins"]
         if item["name"] == "code-debug"
     )
-    assert entry["version"] == "1.1.0"
+    assert entry["version"] == "1.2.0"
     assert "diagn" in entry["description"].lower()
     assert_no_fix_promise(entry["description"], claude_marketplace)
 else:
