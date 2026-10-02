@@ -162,6 +162,8 @@ python3 plugins/quality-security-gate/scripts/install_codex_agents.py --uninstal
 
 O plugin reproduz a falha, coleta evidências e testa hipóteses até comprovar a causa raiz ou declarar a investigação inconclusiva. Depois emite o relatório e encerra sem executar correções; qualquer implementação exige uma nova solicitação ou outro workflow.
 
+Instrumentação indispensável à CI pode usar commit/push em branch exclusiva quando coberta pela autorização da sessão. O workflow continua somente de leitura, sem correção ou publicação; a instrumentação é removida ao terminar, inclusive em diagnóstico inconclusivo.
+
 ## Uso do backlog global
 
 ```text
