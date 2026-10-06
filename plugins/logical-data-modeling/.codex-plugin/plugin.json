@@ -1,0 +1,41 @@
+{
+  "name": "logical-data-modeling",
+  "version": "1.1.0",
+  "description": "Projeta modelos lógicos de dados transacionais relacionais e analíticos/BI, com governança, integridade e validação.",
+  "author": {
+    "name": "Carlos Araujo",
+    "email": "cadu.gevaerd@gmail.com",
+    "url": "https://github.com/cadugevaerd"
+  },
+  "homepage": "https://github.com/cadugevaerd/codex-skills",
+  "repository": "https://github.com/cadugevaerd/codex-skills",
+  "license": "MIT",
+  "keywords": [
+    "data-modeling",
+    "database-design",
+    "relational",
+    "analytics",
+    "bi",
+    "governance",
+    "lgpd"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Modelagem Lógica de Dados",
+    "shortDescription": "Modela dados para aplicações relacionais e Analytics/BI com segurança e governança.",
+    "longDescription": "Define modelos lógicos transacionais ou analíticos/BI, incluindo entidades, relações, regras de integridade, governança, validação e riscos. Não executa DDL ou mudanças em banco sem aprovação humana.",
+    "developerName": "Carlos Araujo",
+    "category": "Development",
+    "capabilities": [
+      "Logical Data Modeling",
+      "Relational Modeling",
+      "Dimensional Modeling",
+      "Data Governance",
+      "Data Quality"
+    ],
+    "defaultPrompt": [
+      "/logical-data-modeling modelar o banco lógico de um sistema de pedidos e faturamento",
+      "/logical-data-modeling modelar Analytics/BI para receita mensal, retenção e funil"
+    ]
+  }
+}

@@ -25,6 +25,7 @@ plugin individual.
 | `whatsapp-business-platform` | Projeta e opera integrações oficiais Meta: Cloud API, Technology Provider, Embedded Signup v4, Coexistence App+API, múltiplas WABAs/números, webhooks e tokens. |
 | `caveman-stable` | Mantém respostas Codex curtas, diretas e estáveis, com reinjeção após início, retomada, limpeza e compactação. |
 | `quality-security-gate` | Audita gates de qualidade e segurança em modo estritamente read-only, com risco P1/P2/P3, 12 investigadores isolados e evidência estruturada. |
+| `logical-data-modeling` | Modela dados para aplicações relacionais transacionais e Analytics/BI, com integridade, governança, privacidade e plano de validação. |
 
 ## Instalacao local
 
