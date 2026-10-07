@@ -24,6 +24,13 @@ required = (
     "Expandir seções",
     "Foco de leitura",
     "innerHTML",
+    "SVG inline obrigatório",
+    "diagrama ER visual renderizado obrigatoriamente",
+    "Não use representação textual",
+    "<svg",
+    "viewBox",
+    "<line",
+    "cardinalidade e opcionalidade",
 )
 text = SKILL.read_text(encoding="utf-8")
 assert text.startswith("---\n"), "SKILL.md must start with YAML frontmatter"

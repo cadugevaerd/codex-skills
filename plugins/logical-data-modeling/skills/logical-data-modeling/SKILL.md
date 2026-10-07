@@ -86,13 +86,16 @@ Regras de entrega:
 - Não injete texto não confiável com `innerHTML`; a interação deve operar apenas sobre elementos já gerados no documento.
 - Use cores como apoio, nunca como único sinal. Garanta foco visível, contraste adequado e `@media (prefers-reduced-motion: reduce)` para remover animações.
 - Não use dados reais, segredos ou PII nos exemplos. Quando faltar contexto, escreva `PENDENTE` de forma visível.
+- **SVG inline obrigatório:** a visão do modelo deve conter um `<svg>` real e renderizável, com `viewBox`, `<title>` e `<desc>`. SVG é a imagem visual do diagrama neste HTML offline.
+- Desenhe uma caixa legível para cada entidade/fato/dimensão, com nome e atributos essenciais; conecte as caixas por linhas visíveis e rotule cada relação com cardinalidade e opcionalidade (`1`, `0..1`, `0..N` ou `1..N`).
+- Não use representação textual, lista, tabela, pseudo-diagrama ASCII, placeholder ou somente narrativa no lugar do SVG. O diagrama deve refletir o modelo específico produzido, não um exemplo genérico.
 
 O documento precisa ser legível rapidamente e conter, nesta ordem:
 
 1. **Cabeçalho:** nome do modelo, modo, status, data de geração, escopo e um resumo de decisões.
 2. **Navegação de leitura:** links para as seções; indicador de progresso da leitura; controles `Expandir seções` e `Recolher seções`.
 3. **Escopo e pendências:** incluído, fora de escopo, suposições e bloqueios para produção.
-4. **Visão do modelo:** diagrama ER com SVG inline ou representação textual acessível; não dependa de Mermaid remoto ou renderização externa.
+4. **Visão do modelo:** diagrama ER visual renderizado obrigatoriamente em SVG inline; não dependa de Mermaid remoto ou renderização externa.
 5. **Dicionário lógico:** tabela responsiva com entidade, finalidade, chave/identidade, atributos/domínios, relações e regras de integridade.
 6. **Regras e ciclo de vida.**
 7. **Governança e segurança:** matriz com classificação, finalidade, owner/steward, papéis, proteção, retenção/eliminação e linhagem/auditoria.
@@ -130,6 +133,7 @@ Use esta base e substitua todos os marcadores por conteúdo real do modelo:
     .meta, .chips { display:flex; flex-wrap:wrap; gap:.5rem; } .chip { border:1px solid #ffffff35; border-radius:999px; padding:.15rem .6rem; color:var(--muted); }
     table { width:100%; border-collapse:collapse; } th,td { border-bottom:1px solid #ffffff25; padding:.65rem; text-align:left; vertical-align:top; } .table-wrap { overflow:auto; }
     .active { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent); } .pending { color:var(--warn); } .risk { color:var(--danger); }
+    .diagram { overflow:auto; border:1px solid #ffffff25; border-radius:10px; background:#090e1b; } .diagram svg { display:block; min-width:720px; width:100%; height:auto; } .entity rect { fill:#151c31; stroke:var(--accent); stroke-width:2; } .entity text { fill:var(--text); font:14px system-ui,sans-serif; } .entity .muted { fill:var(--muted); font-size:12px; } .relation { stroke:var(--accent); stroke-width:2.5; } .cardinality { fill:var(--warn); font:12px system-ui,sans-serif; font-weight:700; }
     [data-secondary].reading-focus { display:none; } .reveal { animation:reveal .35s ease both; } @keyframes reveal { from { opacity:0; transform:translateY(8px) } to { opacity:1; transform:none } }
     @media (max-width:700px) { .shell { padding:.75rem; } nav { overflow:auto; white-space:nowrap; } th,td { min-width:10rem; } }
     @media (prefers-reduced-motion:reduce) { html { scroll-behavior:auto; } *,*::before,*::after { animation:none!important; transition:none!important; } }
@@ -141,7 +145,7 @@ Use esta base e substitua todos os marcadores por conteúdo real do modelo:
     <nav aria-label="Navegação do modelo"><div class="progress" aria-label="Progresso de leitura"><i id="progress"></i></div><p><a href="#escopo">Escopo</a> <a href="#modelo">Modelo</a> <a href="#dados">Dicionário</a> <a href="#governanca">Governança</a> <a href="#validacao">Validação</a> <button type="button" id="expand">Expandir seções</button> <button type="button" id="collapse">Recolher seções</button> <button type="button" id="focus">Foco de leitura</button></p></nav>
     <main>
       <section id="escopo" class="reveal"><h2>Escopo, suposições e pendências</h2><ul><li>Incluído: CONTEÚDO_REAL</li><li>Fora de escopo: CONTEÚDO_REAL</li><li>Suposições: CONTEÚDO_REAL</li><li class="pending">Pendências que bloqueiam produção: CONTEÚDO_REAL</li></ul></section>
-      <section id="modelo" class="reveal"><h2>Visão do modelo</h2><div role="img" aria-label="Diagrama entidade-relacionamento: DESCRIÇÃO_REAL">DIAGRAMA_SVG_INLINE_OU_REPRESENTAÇÃO_TEXTUAL_ACESSÍVEL</div></section>
+      <section id="modelo" class="reveal"><h2>Visão do modelo</h2><figure class="diagram"><svg viewBox="0 0 960 340" role="img" aria-labelledby="diagram-title diagram-desc"><title id="diagram-title">Diagrama entidade-relacionamento de pedidos</title><desc id="diagram-desc">Cliente realiza zero ou muitos pedidos; cada pedido pertence a um cliente e contém um ou muitos itens.</desc><defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#74d9b8"/></marker></defs><line class="relation" x1="275" y1="130" x2="405" y2="130" marker-end="url(#arrow)"/><text class="cardinality" x="290" y="115">0..N</text><text class="cardinality" x="370" y="115">1</text><line class="relation" x1="635" y1="130" x2="735" y2="130" marker-end="url(#arrow)"/><text class="cardinality" x="650" y="115">1..N</text><text class="cardinality" x="705" y="115">1</text><g class="entity" transform="translate(35 65)"><rect width="240" height="130" rx="10"/><text x="16" y="30">CLIENTE</text><text class="muted" x="16" y="58">PK cliente_id</text><text class="muted" x="16" y="82">nome</text><text class="muted" x="16" y="106">email [PENDENTE]</text></g><g class="entity" transform="translate(405 65)"><rect width="230" height="130" rx="10"/><text x="16" y="30">PEDIDO</text><text class="muted" x="16" y="58">PK pedido_id</text><text class="muted" x="16" y="82">FK cliente_id</text><text class="muted" x="16" y="106">status, criado_em</text></g><g class="entity" transform="translate(735 65)"><rect width="190" height="130" rx="10"/><text x="16" y="30">ITEM_PEDIDO</text><text class="muted" x="16" y="58">PK item_id</text><text class="muted" x="16" y="82">FK pedido_id</text><text class="muted" x="16" y="106">produto, quantidade</text></g></svg><figcaption>Exemplo estrutural: substitua entidades, atributos, conexões e cardinalidades pelo modelo real; mantenha o SVG visual.</figcaption></figure></section>
       <section id="dados" class="reveal"><h2>Dicionário lógico de dados</h2><div class="table-wrap"><table><thead><tr><th>Entidade</th><th>Finalidade</th><th>Chave/identidade</th><th>Atributos e domínios</th><th>Relações</th><th>Regras</th></tr></thead><tbody>LINHAS_REAIS</tbody></table></div></section>
       <details open class="reveal"><summary><strong>Regras e ciclo de vida</strong></summary><p>CONTEÚDO_REAL</p></details>
       <section id="governanca" class="reveal"><h2>Governança e segurança</h2><div class="table-wrap"><table><thead><tr><th>Dado/campo</th><th>Classificação</th><th>Finalidade</th><th>Owner/steward</th><th>Papéis</th><th>Proteção</th><th>Retenção</th><th>Linhagem/auditoria</th></tr></thead><tbody>LINHAS_REAIS</tbody></table></div></section>
@@ -165,7 +169,7 @@ Use esta base e substitua todos os marcadores por conteúdo real do modelo:
 </html>
 ```
 
-A base é um contrato de estrutura, não conteúdo a ser deixado com marcadores. Remova a seção `#analitico` quando o modo for exclusivamente transacional; não adicione seções vazias.
+A base é um contrato de estrutura, não conteúdo a ser deixado com marcadores. Substitua também o SVG de exemplo por um diagrama visual completo do modelo real; não o remova nem o converta em descrição textual. Remova a seção `#analitico` quando o modo for exclusivamente transacional; não adicione seções vazias.
 
 ## 6. Plano de validação
 
